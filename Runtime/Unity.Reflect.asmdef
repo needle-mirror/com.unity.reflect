@@ -1,0 +1,15 @@
+{
+    "name": "Unity.Reflect",
+    "references": [
+        "Unity.XR.ARFoundation"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": []
+}
