@@ -417,11 +417,6 @@ namespace UnityEngine.Reflect.Services
             m_ProjectDiscovery.OnProjectRemoved -= ProjectDiscoveryProjectRemoved;
         }
 
-        public void OnDestroy()
-        {
-            m_ProjectDiscovery.Destroy();
-        }
-
         public void Update()
         {
             lock (m_PendingProjectEvents)

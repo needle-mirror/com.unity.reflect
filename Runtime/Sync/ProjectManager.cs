@@ -106,11 +106,6 @@ namespace UnityEngine.Reflect.Services
             m_ProjectManagerInternal.OnDisable();
         }
 
-        void OnDestroy()
-        {
-            m_ProjectManagerInternal.OnDestroy();
-        }
-
         void Update()
         {
             m_ProjectManagerInternal.Update();
