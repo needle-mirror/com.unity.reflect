@@ -5,7 +5,7 @@ using Grpc.Core;
 using Unity.Reflect;
 using Unity.Reflect.Data;
 
-namespace UnityEngine.Reflect.Services
+namespace UnityEngine.Reflect
 {    
     class ServiceObserver
     {       
@@ -35,7 +35,7 @@ namespace UnityEngine.Reflect.Services
             m_ObservedProjectId = project.projectId;
             m_ObservedServerProjectId = project.serverProjectId;
             // If active channel is same as requestedChannel
-            if(m_ServerChannel != null && m_ServerChannel.Target.Equals(serverChannel.Target))
+            if(m_ServerChannel != null && m_ServerChannel.Address.Equals(serverChannel.Address))
             {
                 Debug.Log($"Connect to same channel:{m_Client != null}:{m_ObservingManifest}");
                 m_ServerChannel = serverChannel;
@@ -50,7 +50,7 @@ namespace UnityEngine.Reflect.Services
                         try
                         {
                             m_Client = Player.CreateClient(serverChannel);
-                            m_Client.OnStreamEvent += StreamEventNotify;
+                            m_Client.OnConnectionStatusChanged += StreamEventNotify;
                             Debug.Log($"Reconnect client to previously connected channel");
                         }
                         catch(Exception ex)
@@ -76,7 +76,7 @@ namespace UnityEngine.Reflect.Services
                     m_ChannelStreams.Remove(m_ServerChannel);
                 }
                 m_Client = Player.CreateClient(serverChannel);
-                m_Client.OnStreamEvent += StreamEventNotify;
+                m_Client.OnConnectionStatusChanged += StreamEventNotify;
                 Debug.Log($"Connect to new channel");
                 ObserveClient();
             }
@@ -106,7 +106,7 @@ namespace UnityEngine.Reflect.Services
 
             foreach (var responseManifest in response)
             {
-                OnManifestUpdated?.Invoke(m_ObservedProjectId, responseManifest.SessionId, responseManifest.Manifest);    
+                OnManifestUpdated?.Invoke(m_ObservedProjectId, responseManifest.SourceId, responseManifest.Manifest);    
             }
         }
 
@@ -155,10 +155,10 @@ namespace UnityEngine.Reflect.Services
             }
         }
 
-        void StreamEventNotify(StreamStatus status, string id)
+        void StreamEventNotify(ConnectionStatus status, string id)
         {
             Debug.Log($"ServiceObserver.StreamEventNotify on projectId '{m_ObservedProjectId}':{id}, {status}");
-            var isConnected = status.Equals(StreamStatus.Connected);
+            var isConnected = status.Equals(ConnectionStatus.Connected);
             if(!m_ChannelStreams.ContainsKey(m_ServerChannel) && isConnected)
             {
                 m_ChannelStreams.Add(m_ServerChannel, id);

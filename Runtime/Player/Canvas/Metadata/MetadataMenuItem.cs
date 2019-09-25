@@ -21,7 +21,7 @@ namespace UnityEngine.Reflect
             UpdateButton();
         }
 
-        public override void AddNode(Transform node)
+        public override bool AddNode(Transform node)
         {
             base.AddNode(node);
 
@@ -30,6 +30,14 @@ namespace UnityEngine.Reflect
             {
                 materialSwapper.AddRenderer(rend);
             }
+
+            if (GetActiveMenuItem() == this)
+            {
+                materialSwapper.SwapRenderer(rend, selectedMaterial);
+                return true;
+            }
+
+            return false;
         }
 
         public void OnMakeVisible()

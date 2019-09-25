@@ -5,7 +5,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 
-namespace UnityEngine.Reflect.Services
+namespace UnityEngine.Reflect
 {    
     public class ProjectMenuManager : MonoBehaviour
     {     
@@ -50,7 +50,6 @@ namespace UnityEngine.Reflect.Services
         {
             m_ProjectManager.onProjectAdded += OnProjectChanged;
             m_ProjectManager.onProjectChanged += OnProjectChanged;
-            m_ProjectManager.onProjectRemoved += OnProjectChanged;
 
             m_ProgressBar.Register(m_ProjectManager);
             
@@ -99,7 +98,6 @@ namespace UnityEngine.Reflect.Services
         {
             m_ProjectManager.onProjectAdded -= OnProjectChanged;
             m_ProjectManager.onProjectChanged -= OnProjectChanged;
-            m_ProjectManager.onProjectRemoved -= OnProjectChanged;
             
             m_ProgressBar.UnRegister(m_ProjectManager);
             
@@ -120,7 +118,7 @@ namespace UnityEngine.Reflect.Services
 
         IEnumerator DownloadAndOpen(Project project)
         {
-            if(!m_SyncManager.IsProjectOpened(project.projectId))
+            if(!m_SyncManager.IsProjectOpened(project))
             {
                 yield return m_ProjectManager.DownloadProjectLocally(project.serverProjectId, true);
                 yield return m_SyncManager.Open(project);
@@ -159,7 +157,7 @@ namespace UnityEngine.Reflect.Services
                 options |= ListControlItemData.Option.LocalFiles;
             }
             
-            if ((availableOnline || availableOffline) && m_SyncManager.selectedProject.serverProjectId != project.serverProjectId)
+            if ((availableOnline || availableOffline) && !m_SyncManager.IsProjectOpened(project))
             {
                 options |= ListControlItemData.Option.Open;
             }

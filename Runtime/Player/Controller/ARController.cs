@@ -2,20 +2,22 @@ using System.Collections.Generic;
 using UnityEngine.Reflect.Controller.Gestures;
 using UnityEngine.Reflect.Controller.Gestures.Desktop;
 using UnityEngine.Reflect.Controller.Gestures.Touch;
+using UnityEngine.XR.ARFoundation;
 
 namespace UnityEngine.Reflect.Controller
 {
     public class ARController : Controller
     {
         public Transform syncRoot;
+        public ARSessionOrigin m_ARSessionOrigin;
 
         [Header("Input Parameters")]
         public float DesktopScrollSensitivity = 1;
         public float DesktopRotateAroundPivotSensitivity = 10;
-        public float TouchPinchSensitivity = 10f;
+        public float TouchPinchSensitivity = 2f;
         public float TouchRotateAroundPivotSensitivity = 2000;
 
-        Vector3 rotationPivot;
+        Vector3 m_RotationPivot;
 
         protected override void StartController(GestureListener listener)
         {
@@ -44,9 +46,8 @@ namespace UnityEngine.Reflect.Controller
 
         void Scale(float amount)
         {
-            var newScale = syncRoot.localScale + Vector3.one * amount;
-            newScale = NegativeFilter(newScale);
-            syncRoot.localScale = newScale;
+            //    move the camera origin so the sync root appears at the same place regardless of scale
+            m_ARSessionOrigin.transform.position += transform.forward * amount * TouchPinchSensitivity;
         }
 
         Vector3 NegativeFilter(Vector3 value)

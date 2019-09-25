@@ -16,7 +16,7 @@ namespace UnityEngine.Reflect
 
         static MenuItem sActiveMenuItem;
 
-        protected static MenuItem GetActiveMenuItem()
+        public static MenuItem GetActiveMenuItem()
         {
             return sActiveMenuItem;
         }
@@ -41,13 +41,25 @@ namespace UnityEngine.Reflect
             GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, inY);
         }
 
-        public virtual void AddNode(Transform node)
+        public virtual bool AddNode(Transform node)
+        {
+            bool ret = false;
+            Renderer rend = node.GetComponent<Renderer>();
+            if (rend != null)
+            {
+                ret = nodes.Add(rend);
+                filterView.AddRenderer(rend);
+            }
+
+            return ret;
+        }
+
+        public virtual void RemoveNode(Transform node)
         {
             Renderer rend = node.GetComponent<Renderer>();
             if (rend != null)
             {
-                nodes.Add(rend);
-                filterView.AddRenderer(rend);
+                nodes.Remove(rend);
             }
         }
 
@@ -80,6 +92,8 @@ namespace UnityEngine.Reflect
 
             filterView.Aim(false);
 
+            sActiveMenuItem = null;
+            
             if (show)
             {
                 MetadataTopMenu.ShowAllRenderers();

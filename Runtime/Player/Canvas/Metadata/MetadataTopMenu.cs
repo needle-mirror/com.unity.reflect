@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.Reflect.Services;
 
 namespace UnityEngine.Reflect
 {
@@ -18,6 +17,7 @@ namespace UnityEngine.Reflect
 
         List<Menu> menus = new List<Menu>();
         protected static MaterialSwapper sMaterialSwapper = new MaterialSwapper();
+        bool m_MenuOpen = false;
 
         public GameObject menuTemplate;
 
@@ -38,7 +38,15 @@ namespace UnityEngine.Reflect
 
             syncManager.onProjectOpened += OnProjectOpened;
             syncManager.onProjectClosed += OnProjectClosed;
-            syncManager.onSyncUpdateEnd += OnSyncUpdateEnd;
+
+            foreach (var instance in syncManager.syncInstances)
+            {
+                OnInstanceAdded(instance.Value);
+            }
+
+            syncManager.onInstanceAdded += OnInstanceAdded;
+            
+            CreateMenu();
         }
 
         public static void HideAllRenderers(HashSet<Renderer> excludedRenderers)
@@ -51,120 +59,175 @@ namespace UnityEngine.Reflect
             sMaterialSwapper.Restore();
         }
 
-        public void OnProjectOpened()
+        void OnProjectOpened()
         {
             ParseScene();
-            button.interactable = (menus.Count > 0);
+            button.interactable = true;
         }
 
-        public void OnProjectClosed()
+        void OnProjectClosed()
         {
             Clear();
             button.interactable = false;
         }
 
-        public void OnSyncUpdateEnd()
+        void OnInstanceAdded(SyncInstance instance)
         {
-            ShowAllRenderers();
-            Clear();
-            ParseScene();
+            instance.onObjectCreated += OnObjectCreated;
+            instance.onObjectDestroyed += OnObjectDestroyed;
         }
-
+        
         public override void OnClick()
         {
-            foreach (Menu m in menus)
+            if (m_MenuOpen)
             {
-                m.gameObject.SetActive(!m.gameObject.activeSelf);
+                m_MenuOpen = false;
+                foreach (var menu in menus)
+                {
+                    menu.gameObject.SetActive(false);
+                }
             }
-
-            //  open parameter automatically if there is only one
-            if (menus.Count == 1)
+            else
             {
-                menus[0].Expand();
+                ParseScene();
+                m_MenuOpen = true;
+
+                int index = 0;
+                foreach (var menu in menus)
+                {
+                    if (menu.GetItemCount() > 1)
+                    {
+                        menu.gameObject.SetActive(true);
+                        menu.SetIndex(index++);
+                    }
+                    else
+                    {
+                        menu.gameObject.SetActive(false);
+                    }
+                }
+                
+                //  open parameter automatically if there is only one
+                if (index == 1)
+                {
+                    menus[0].Expand();
+                }
+            }
+        }
+
+        void CreateMenu()
+        {
+            if (menus.Count == 0)
+            {
+                foreach (var key in keys)
+                {
+                    var panel = Instantiate(menuTemplate, transform);
+                    var p = panel.GetComponent<MetadataMenu>();
+                    if (p != null)
+                    {
+                        var path = key.Split('/');
+                        if (path.Length == 1)
+                        {
+                            p.Initialize(path[0]);
+                        }
+                        else
+                        {
+                            p.Initialize(path[1], path[0]);
+                        }
+
+                        menus.Add(p);
+                    }
+                }
             }
         }
 
         void ParseScene()
         {
-            foreach (string key in keys)
-            {
-                GameObject panel = Instantiate(menuTemplate, transform);
-                MetadataMenu p = panel.GetComponent<MetadataMenu>();
-                if (p != null)
-                {
-                    string[] path = key.Split('/');
-                    if (path.Length == 1)
-                    {
-                        p.Initialize(path[0]);
-                    }
-                    else
-                    {
-                        p.Initialize(path[1], path[0]);
-                    }
-
-                    AddMenu(p);
-                }
-            }
-
+            Clear();
+            CreateMenu();
+            
             //  parse root nodes
-            GameObject[] roots = SceneManager.GetActiveScene().GetRootGameObjects();
-            foreach (GameObject root in roots)
+            var roots = SceneManager.GetActiveScene().GetRootGameObjects();
+            foreach (var root in roots)
             {
                 AddChildren(root.transform);
             }
-
-            //  remove empty menus
-            for (int f = menus.Count - 1; f >= 0; --f)
-            {
-                Menu m = menus[f];
-                if (m.GetItemCount() < 2)
-                {
-                    menus.RemoveAt(f);
-                    Destroy(m.gameObject);
-                }
-            }
-
-            for (int f = 0; f < menus.Count; ++f)
-            {
-                menus[f].SetIndex(f);
-            }
         }
 
+         void OnObjectCreated(SyncObjectBinding obj)
+        {
+            AddChildren(obj.transform);
+        }
+        
+        void OnObjectDestroyed(SyncObjectBinding obj)
+        {
+            RemoveChildren(obj.transform);
+        }
+        
         void AddChildren(Transform node)
         {
-            AddNode(node);
-
-            Renderer rend = node.GetComponent<Renderer>();
+            var rend = node.GetComponent<Renderer>();
             if (rend != null)
             {
                 sMaterialSwapper.AddRenderer(rend);
+                
+                bool selected = AddNode(node);
+                if (!selected && MetadataMenuItem.GetActiveMenuItem() != null)
+                {
+                    sMaterialSwapper.SwapRenderer(rend, sTransparentMaterial);
+                }
             }
 
             //  parse children recursively
-            for (int c = 0; c < node.childCount; ++c)
+            for (var c = 0; c < node.childCount; ++c)
             {
                 AddChildren(node.GetChild(c));
             }
         }
 
-        void AddNode(Transform node)
+        bool AddNode(Transform node)
         {
-            foreach (Menu m in menus)
+            var ret = false;
+            foreach (var m in menus)
             {
-                m.AddNode(node);
+                if (m.AddNode(node))
+                {
+                    ret = true;
+                }
+            }
+
+            return ret;
+        }
+
+        void RemoveChildren(Transform node)
+        {
+            RemoveNode(node);
+
+            var rend = node.GetComponent<Renderer>();
+            if (rend != null)
+            {
+                sMaterialSwapper.RemoveRenderer(rend);
+            }
+
+            //  parse children recursively
+            for (var c = 0; c < node.childCount; ++c)
+            {
+                AddChildren(node.GetChild(c));
             }
         }
 
-        public void AddMenu(Menu inMenu)
+        void RemoveNode(Transform node)
         {
-            menus.Add(inMenu);
+            foreach (Menu m in menus)
+            {
+                m.RemoveNode(node);
+            }
         }
 
         public override void Activate()
         {
             base.Activate();
 
-            foreach (Menu m in menus)
+            foreach (var m in menus)
             {
                 m.gameObject.SetActive(true);
             }
@@ -174,15 +237,15 @@ namespace UnityEngine.Reflect
         {
             base.Deactivate();
 
-            foreach (Menu m in menus)
+            foreach (var m in menus)
             {
                 m.gameObject.SetActive(false);
             }
         }
 
-        public void Clear()
+        void Clear()
         {
-            foreach (Menu m in menus)
+            foreach (var m in menus)
             {
                 Destroy(m.gameObject);
             }

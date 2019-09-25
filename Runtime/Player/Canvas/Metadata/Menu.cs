@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.SqlTypes;
 using UnityEngine;
 
 namespace UnityEngine.Reflect
@@ -131,7 +132,12 @@ namespace UnityEngine.Reflect
             return nodes.Count;
         }
 
-        public virtual void AddNode(Transform node)
+        public virtual bool AddNode(Transform node)
+        {
+            return false;
+        }
+
+        public virtual void RemoveNode(Transform node)
         {
         }
 

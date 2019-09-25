@@ -5,11 +5,13 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using Unity.Reflect.Data;
+using Unity.Reflect.Model;
+using Unity.Reflect.Utils;
 using UnityEngine;
 
-namespace UnityEngine.Reflect.Services
-{   
-    public sealed class SyncManager : MonoBehaviour, ISyncTask, IProgressTask
+namespace UnityEngine.Reflect
+{
+    public sealed class SyncManager : MonoBehaviour, ISyncTask, IProgressTask, ILogReceiver
     {
         [SerializeField]
         ProjectManager m_ProjectManager;
@@ -22,9 +24,14 @@ namespace UnityEngine.Reflect.Services
 
         [SerializeField]
         Transform m_SyncRoot;
-        
+
+        public Transform syncRoot => m_SyncRoot;
+
+        public delegate void EventHandler(SyncInstance instance);
+        public event EventHandler onInstanceAdded;
+
         Transform m_SyncInstancesRoot;
-        
+
         public IReadOnlyDictionary<string, SyncInstance> syncInstances => m_SyncInstances;
 
         Dictionary<string, SyncInstance> m_SyncInstances = new Dictionary<string, SyncInstance>();
@@ -34,12 +41,14 @@ namespace UnityEngine.Reflect.Services
         bool m_ForceUpdate;
 
         bool m_SyncEnabled;
-        
+
         Project m_SelectedProject = Project.Empty;
+
+        Coroutine m_ApplyChangesCoroutine;
 
         public Project selectedProject => m_SelectedProject;
 
-        static void OnLog(Unity.Reflect.Utils.Logger.Level level, string msg)
+        public void LogReceived(Unity.Reflect.Utils.Logger.Level level, string msg)
         {
             switch (level)
             {
@@ -47,16 +56,16 @@ namespace UnityEngine.Reflect.Services
                 case Unity.Reflect.Utils.Logger.Level.Info:
                     Debug.Log(msg);
                     break;
-                
+
                 case Unity.Reflect.Utils.Logger.Level.Warn:
                     Debug.LogWarning(msg);
                     break;
-                
+
                 case Unity.Reflect.Utils.Logger.Level.Error:
                 case Unity.Reflect.Utils.Logger.Level.Fatal:
                     Debug.LogError(msg);
                     break;
-                
+
                 default:
                     Debug.Log(msg);
                     break;
@@ -71,40 +80,42 @@ namespace UnityEngine.Reflect.Services
 
         public IEnumerator Open(Project project)
         {
-            if (m_SelectedProject.IsValid() && m_SelectedProject.serverProjectId.Equals(project.serverProjectId))
+            if (IsProjectOpened(project))
             {
                 Debug.LogWarning($"Project is already opened '{m_SelectedProject.name}'");
                 yield break;
             }
-                        
+
             m_SelectedProject = project;
-            
+
             m_ProjectManager.RegisterToProject(project.serverProjectId, OnProjectUpdated);
-            
+
             m_ProgressBar.Register(this);
 
             ResetSyncRoot();
 
             const string kOpening = "Opening";
-            
+
             progressChanged?.Invoke(0.0f, kOpening);
-                        
+
             var sessions = m_ProjectManager.LoadProjectManifests(project);
 
             foreach (var session in sessions)
             {
-                m_SyncInstances.TryGetValue(session.sessionId, out var syncInstance);
-        
+                m_SyncInstances.TryGetValue(session.sourceId, out var syncInstance);
+
                 if (syncInstance == null)
                 {
-                    var folder = m_ProjectManager.GetSessionFolder(project, session.sessionId);
-        
-                    m_SyncInstances[session.sessionId] = syncInstance = new SyncInstance(m_SyncInstancesRoot, folder);
-                    
-                    yield return syncInstance.ApplyModifications(session.manifest, progressChanged);
+                    var folder = m_ProjectManager.GetSourceProjectFolder(project, session.sourceId);
+
+                    m_SyncInstances[session.sourceId] = syncInstance = new SyncInstance(m_SyncInstancesRoot, folder);
+                    syncInstance.onPrefabChanged += OnPrefabChanged;
+                    onInstanceAdded?.Invoke(syncInstance);
+
+                    syncInstance.ApplyModifications(session.manifest);
                 }
             }
-            
+
             m_SyncMenu.Register(this);
 
             if (m_SelectedProject.channel != null)
@@ -113,14 +124,21 @@ namespace UnityEngine.Reflect.Services
 
                 yield return StartSyncInternal();
             }
-            
+
             taskCompleted?.Invoke();
-                        
+
             m_ProgressBar.UnRegister(this);
-            
+
             RecenterSyncRoot();
 
             onProjectOpened?.Invoke();
+
+            ApplyPrefabChanges();
+        }
+
+        void OnPrefabChanged(SyncInstance instance, SyncPrefab prefab)
+        {
+            ApplyPrefabChanges();
         }
 
         void RecenterSyncRoot()
@@ -164,9 +182,9 @@ namespace UnityEngine.Reflect.Services
             m_SyncInstancesRoot.parent = m_SyncRoot;
         }
 
-        public bool IsProjectOpened(string serverProjectId)
+        public bool IsProjectOpened(Project project)
         {
-            return m_SelectedProject.serverProjectId.Equals(serverProjectId);
+            return m_SelectedProject.serverProjectId.Equals(project.serverProjectId);
         }
 
         public void Close()
@@ -198,7 +216,24 @@ namespace UnityEngine.Reflect.Services
         {  
             m_SyncEnabled = false;
         }
-        
+
+        public void ApplyPrefabChanges()
+        {
+            if (m_ApplyChangesCoroutine != null)
+            {
+                StopCoroutine(m_ApplyChangesCoroutine);
+            }
+            m_ApplyChangesCoroutine = StartCoroutine(DoApplyPrefabChanges());
+        }
+
+        IEnumerator DoApplyPrefabChanges()
+        {
+            foreach (var instance in m_SyncInstances)
+            {
+                yield return instance.Value.ApplyPrefabChanges();
+            }
+        }
+
         IEnumerator StartSyncInternal()
         {            
             if (m_SelectedProject.channel == null)
@@ -240,26 +275,27 @@ namespace UnityEngine.Reflect.Services
         void OnProjectUpdated(Project project)
         {
             Debug.Log($"OnProjectUpdated '{project.serverProjectId}', Channel exists: {project.channel != null}");
-            if(m_SelectedProject.IsValid() && IsProjectOpened(project.serverProjectId) && m_SelectedProject.channel != null && project.channel == null)
+
+            if (!IsProjectOpened(project))
             {
-                m_SelectedProject = project;
+                return;
+            }
+
+            if (m_SelectedProject.channel != null && project.channel == null)
+            {
                 Debug.Log("Project lost connection. Disabling sync and Releasing observer...");
                 DisableSync();
                 m_Observer?.ReleaseClient();
             }
+            else if (project.channel != null)
+            {
+                Debug.Log($"Project '{project.name}' Connected.");
+                EnableSync();
+            }
             else
             {
-                m_SelectedProject = project;
-                if (m_SelectedProject.channel != null)
-                {
-                    Debug.Log($"Project '{m_SelectedProject.name}' Connected.");
-                    EnableSync();
-                }
-                else
-                {
-                    Debug.Log($"Project '{m_SelectedProject.name}' Disconnected.");
-                    DisableSync();
-                }
+                Debug.Log($"Project '{project.name}' Disconnected.");
+                DisableSync();
             }
         }
 
@@ -295,21 +331,21 @@ namespace UnityEngine.Reflect.Services
             
                 if (syncInstance == null)
                 {
-                      var folder = m_ProjectManager.GetSessionFolder(m_SelectedProject, sessionId);
+                      var folder = m_ProjectManager.GetSourceProjectFolder(m_SelectedProject, sessionId);
                       m_SyncInstances[sessionId] = syncInstance = new SyncInstance(m_SyncInstancesRoot, folder);
                 }
 
-                yield return m_ProjectManager.DownloadProjectSessionLocally(m_SelectedProject, sessionId, syncInstance.Manifest, manifest, m_Observer.Client, null);
+                yield return m_ProjectManager.DownloadSourceProjectLocally(m_SelectedProject, sessionId, syncInstance.Manifest, manifest, m_Observer.Client, null);
             
-                yield return syncInstance.ApplyModifications(manifest, null);
+                syncInstance.ApplyModifications(manifest);
             
                 onSyncUpdateEnd?.Invoke();
             }
         }
 
-        void Awake()
+		void Awake()
         {
-            Unity.Reflect.Utils.Logger.OnLog += OnLog;
+            Unity.Reflect.Utils.Logger.AddReceiver(this);
 
             if (m_SyncRoot == null)
             {

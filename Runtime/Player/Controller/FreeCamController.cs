@@ -181,8 +181,14 @@ namespace UnityEngine.Reflect.Controller
             var target = Target;
             pivotRotationEuler = ComputeNewEulerAngles(delta.x, delta.y, pivotRotationEuler);
             var rotation = Quaternion.Euler(pivotRotationEuler);
-            transform.position = target + rotation * Vector3.forward * distanceToPivot;
+            var rotationDirection = rotation * Vector3.forward;
+
+            // Handle rotation
+            transform.position = target + rotationDirection;
             transform.LookAt(target);
+
+            // Handle position
+            transform.position = target + rotationDirection * distanceToPivot;
         }
 
         void StartRotateCamera()

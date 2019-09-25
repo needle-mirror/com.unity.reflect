@@ -27,7 +27,6 @@ namespace UnityEngine.Reflect.Controller.Gestures.Desktop
 
         public void Update()
         {
-#if UNITY_STANDALONE || UNITY_EDITOR
             foreach (var button in NeededButtons)
             {
                 if (!Input.GetKey(button))
@@ -46,7 +45,6 @@ namespace UnityEngine.Reflect.Controller.Gestures.Desktop
 
             if (direction != Vector2.zero)
                 directionGiven?.Invoke(direction * Multiplier * Time.deltaTime * k_ConstantMultiplier);
-#endif
         }
 
         bool DirectionPushed(KeyCode[] directionButtons)

@@ -1,4 +1,5 @@
 ﻿using System;
+using UnityEngine;
 
 namespace UnityEngine.Reflect.Controller.Gestures.Desktop
 {
@@ -9,6 +10,8 @@ namespace UnityEngine.Reflect.Controller.Gestures.Desktop
         public event Action<float> mouseScrolled;
 
         public float Multiplier { get; set; } = 1;
+
+        Rect screenSize = new Rect(0, 0, 1, 1);
 
         public MouseScrollGesture(Action<float> mouseScrolled)
         {
@@ -21,13 +24,17 @@ namespace UnityEngine.Reflect.Controller.Gestures.Desktop
 
         public void Update()
         {
-#if UNITY_STANDALONE || UNITY_EDITOR
+            // bypass if mouse is outside the window
+            screenSize.width = Screen.width;
+            screenSize.height = Screen.height;
+            if (!screenSize.Contains(Input.mousePosition))
+                return;
+
             var scrollWheel = Input.GetAxis("Mouse ScrollWheel");
             if (scrollWheel != 0)
             {
                 mouseScrolled?.Invoke(scrollWheel * Multiplier * Time.deltaTime * k_ConstantMultiplier);
             }
-#endif
         }
     }
 }

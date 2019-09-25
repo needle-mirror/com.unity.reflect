@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
 using UnityEngine.Reflect;
 
 namespace UnityEditor.Reflect
@@ -8,6 +9,8 @@ namespace UnityEditor.Reflect
     [CustomEditor(typeof(Metadata))]
     public class MetadataEditor : Editor
     {
+        static GUIStyle s_BoldFoldout;
+            
         [Serializable]
         class ParameterGroup
         {
@@ -38,9 +41,14 @@ namespace UnityEditor.Reflect
                 }
             }
 
+            if (s_BoldFoldout == null)
+            {
+                s_BoldFoldout = new GUIStyle(EditorStyles.foldout) { fontStyle = FontStyle.Bold };
+            }
+
             foreach (var parameterGroups in m_ParameterGroups)
             {
-                parameterGroups.visible = EditorGUILayout.Foldout(parameterGroups.visible, parameterGroups.name, true);
+                parameterGroups.visible = EditorGUILayout.Foldout(parameterGroups.visible, parameterGroups.name, true, s_BoldFoldout);
                 if (parameterGroups.visible)
                 {
                     EditorGUI.indentLevel++;

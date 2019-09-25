@@ -1,11 +1,7 @@
 using System.Collections.Generic;
-using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.XR.ARFoundation;
-using UnityEngine.SceneManagement;
-using UnityEngine.Experimental.XR;
 using UnityEngine.Reflect.Controller;
-using UnityEngine.Reflect.Services;
+using UnityEngine.XR.ARSubsystems;
 
 namespace UnityEngine.Reflect
 {
@@ -22,6 +18,7 @@ namespace UnityEngine.Reflect
         public float m_DefaultDistanceToPivot = 50;
 
         ARPlaneManager planeManager;
+        ARRaycastManager m_RayCastManager;
         ARPointCloudManager pointCloudManager;
 
         Vector3 originalPosition;
@@ -33,6 +30,7 @@ namespace UnityEngine.Reflect
             base.Awake();
             planeManager = sessionOrigin.GetComponent<ARPlaneManager>();
             pointCloudManager = sessionOrigin.GetComponent<ARPointCloudManager>();
+            m_RayCastManager = sessionOrigin.GetComponent<ARRaycastManager>();
         }
 
         protected override void Start()
@@ -69,28 +67,32 @@ namespace UnityEngine.Reflect
         public void EnterAR()
         {
             arMode.gameObject.SetActive(true);
-            screenMode.gameObject.SetActive(false);
 
             if (syncRoot != null)
             {
-                originalPosition = syncRoot.transform.position;
-                originalRotation = syncRoot.transform.rotation;
-                originalScale = syncRoot.transform.localScale;
+                var rootTrans = syncRoot.transform;
+                originalPosition = rootTrans.position;
+                originalRotation = rootTrans.rotation;
+                originalScale = rootTrans.localScale;
             }
+            
+            screenMode.gameObject.SetActive(false);
         }
 
         public void LeaveAR()
         {
             arMode.gameObject.SetActive(false);
-            screenMode.gameObject.SetActive(true);
 
             if (syncRoot != null)
             {
-                syncRoot.transform.position = originalPosition;
-                syncRoot.transform.rotation = originalRotation;
-                syncRoot.transform.localScale = originalScale;
+                var rootTrans = syncRoot.transform;
+                rootTrans.position = originalPosition;
+                rootTrans.rotation = originalRotation;
+                rootTrans.localScale = originalScale;
             }
             SetFreeCameraTarget();
+            
+            screenMode.gameObject.SetActive(true);
         }
 
         public override void Activate()
@@ -105,13 +107,13 @@ namespace UnityEngine.Reflect
 
         private void Update()
         {
-            if ((target != null) && (planeManager != null) && (arCamera != null) && ui.gameObject.activeSelf)
+            if ((target != null) && (planeManager != null) && (m_RayCastManager != null) && (arCamera != null) && ui.gameObject.activeSelf)
             {
                 //  move target to nearest plane
-                Ray cameraRay = arCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+                var cameraRay = arCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
                 Debug.DrawRay(arCamera.transform.position, Vector3.forward, Color.green);
                 List<ARRaycastHit> hits = new List<ARRaycastHit>();
-                if (sessionOrigin.Raycast(cameraRay, hits, TrackableType.PlaneWithinPolygon))
+                if (m_RayCastManager.Raycast(cameraRay, hits, TrackableType.Planes))
                 {
                     var hitPose = hits[0].pose;
                     target.transform.position = hitPose.position;
@@ -180,10 +182,10 @@ namespace UnityEngine.Reflect
         void ShowPointCloud(bool show)
         {
             pointCloudManager.enabled = show;
-            ARPointCloud pointCloud = pointCloudManager.pointCloud;
-            if (pointCloud != null)
+//            ARPointCloud pointCloud = pointCloudManager.pointCloud;
+//            if (pointCloud != null)
             {
-                pointCloud.gameObject.SetActive(show);
+//                pointCloud.gameObject.SetActive(show);
             }
         }
     }

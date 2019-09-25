@@ -1,7 +1,8 @@
 {
     "name": "Unity.Reflect",
     "references": [
-        "Unity.XR.ARFoundation"
+        "Unity.XR.ARFoundation",
+        "Unity.XR.ARSubsystems"
     ],
     "optionalUnityReferences": [],
     "includePlatforms": [],

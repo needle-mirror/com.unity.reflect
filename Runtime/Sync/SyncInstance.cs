@@ -9,10 +9,18 @@ using UnityEngine;
 using File = Unity.Reflect.IO.File;
 using Unity.Reflect.IO;
 
-namespace UnityEngine.Reflect.Services
+namespace UnityEngine.Reflect
 {
     public class SyncInstance
     {
+        public delegate void InstanceEventHandler(SyncInstance instance, SyncPrefab prefab);
+        public event InstanceEventHandler onPrefabLoaded;
+        public event InstanceEventHandler onPrefabChanged;
+
+        public delegate void ObjectEventHandler(SyncObjectBinding obj);
+        public event ObjectEventHandler onObjectCreated;
+        public event ObjectEventHandler onObjectDestroyed;
+        
         readonly string m_SyncPath;
         Transform m_SyncRoot;
         
@@ -27,6 +35,10 @@ namespace UnityEngine.Reflect.Services
         SyncPrefabImporter m_SyncPrefabImporter;
 
         LocalStorage m_Storage;
+
+        ISet<SyncObjectBinding.Identifier> m_VisibilityFilter;
+
+        SyncPrefab m_SyncPrefab;
 
         public SyncInstance(Transform syncRoot, string syncPath)
         {
@@ -61,7 +73,25 @@ namespace UnityEngine.Reflect.Services
             }
         }
 
-        public IEnumerator ApplyModifications(SyncManifest manifest, Action<float, string> onProgress)
+        public SyncPrefab GetPrefab()
+        {
+            return m_SyncPrefab;
+        }
+
+        public void SetVisibilityFilter(ISet<SyncObjectBinding.Identifier> filter)
+        {
+            m_VisibilityFilter = filter;
+        }
+
+        public void RemoveVisibilityFilter(ISet<SyncObjectBinding.Identifier> filter)
+        {
+            if (m_VisibilityFilter == filter)
+            {
+                m_VisibilityFilter = null;
+            }
+        }
+
+        public void ApplyModifications(SyncManifest manifest)
         {
             // Otherwise, create a new instance of it.
             if (m_SyncInstanceRoot == null)
@@ -72,10 +102,8 @@ namespace UnityEngine.Reflect.Services
                 if (prefabPath != null)
                 {
                     m_SyncPrefabImporter = new SyncPrefabImporter(true, m_SyncPath);
-                    yield return m_SyncPrefabImporter.ImportPrefab(m_SyncRoot, OpenSyncPrefab(prefabPath), onProgress ,root =>
-                    {
-                        m_SyncInstanceRoot = root;
-                    });
+                    m_SyncPrefab = OpenSyncPrefab(prefabPath);
+                    m_SyncInstanceRoot = SyncPrefabImporter.CreateSyncPrefab(m_SyncRoot, m_SyncPrefab);
                 }
 
                 if (m_SyncInstanceRoot != null)
@@ -85,7 +113,7 @@ namespace UnityEngine.Reflect.Services
             }
 
             if (m_SyncInstanceRoot == null) // Nothing to Sync with yet.
-                yield break;
+                return;
 
             if (m_Manifest != null)
             {
@@ -115,7 +143,7 @@ namespace UnityEngine.Reflect.Services
                             {
                                 m_SyncPrefabImporter.ReimportMesh(exportData.DstPath);
                             }
-                            
+
                             if (exportData.DstPath.EndsWith(SyncObject.Extension))
                             {
                                 m_SyncPrefabImporter.ReimportElement(exportData.DstPath);
@@ -127,45 +155,9 @@ namespace UnityEngine.Reflect.Services
                                 // - An element has been moved
                                 // - An element has been added
                                 // - An element has been removed
-
-                                var path = Path.Combine(m_SyncPath, exportData.DstPath);
-                                var syncPrefab = OpenSyncPrefab(path);
-
-                                var instances = new HashSet<SyncObjectBinding.Identifier>();
-
-                                foreach (var instance in syncPrefab.Instances) // TODO Narrow down which instance has changed?
-                                {
-                                    var identifier = new SyncObjectBinding.Identifier(instance);
-
-                                    instances.Add(identifier);
-
-                                    if (!m_ElementInstances.TryGetValue(identifier, out var syncObject))
-                                    {
-                                        Debug.Log("Adding Element Instance : " + identifier);
-                                        syncObject = m_SyncPrefabImporter.CreateInstance(m_SyncInstanceRoot, instance);
-                                    }
-
-                                    if (syncObject != null)
-                                    {
-                                        m_ElementInstances[syncObject.identifier] = syncObject;
-
-                                        // Hack. Put the instance at its positions even if it didn't change. TODO Optimize
-                                        ImportersUtils.SetTransform(syncObject.transform, instance.Transform);
-                                    }
-                                }
-
-                                // Remove any non referenced elements
-                                var identifiers = m_ElementInstances.Keys.ToArray();
-                                foreach (var identifier in identifiers)
-                                {
-                                    if (!instances.Contains(identifier))
-                                    {
-                                        Debug.Log("Removed Element : " + identifier);
-
-                                        m_SyncPrefabImporter.RemoveInstance(m_ElementInstances[identifier]);
-                                        m_ElementInstances.Remove(identifier);
-                                    }
-                                }
+                                var prefabPath = GetPrefabPath(m_SyncPath);
+                                m_SyncPrefab = OpenSyncPrefab(prefabPath);
+                                onPrefabChanged?.Invoke(this, m_SyncPrefab);
                             }
                         }
                     }
@@ -175,10 +167,66 @@ namespace UnityEngine.Reflect.Services
             m_Manifest = manifest;
         }
 
-        static SyncPrefab OpenSyncPrefab(string path)
+        public IEnumerator ApplyPrefabChanges()
+		{
+            //  breathe after sorting scores
+            yield return null;
+
+            var instances = new HashSet<SyncObjectBinding.Identifier>();
+
+            int counter = 0;
+
+			foreach (var instance in m_SyncPrefab.Instances) // TODO Narrow down which instance has changed?
+			{
+				var identifier = new SyncObjectBinding.Identifier(instance);
+
+                if ((m_VisibilityFilter == null) || m_VisibilityFilter.Contains(identifier))
+                {
+                    instances.Add(identifier);
+
+                    if (!m_ElementInstances.TryGetValue(identifier, out var syncObject))
+                    {
+                        //Debug.Log("Adding Element Instance : " + identifier);
+                        syncObject = m_SyncPrefabImporter.CreateInstance(m_SyncInstanceRoot, instance);
+                        if (syncObject != null)
+                        {
+                            onObjectCreated?.Invoke(syncObject);
+                            if (++counter % 20 == 0)
+                            {
+                                yield return null;
+                            }
+                        }
+                    }
+
+                    if (syncObject != null)
+                    {
+                        m_ElementInstances[syncObject.identifier] = syncObject;
+
+                        // Hack. Put the instance at its positions even if it didn't change. TODO Optimize
+                        ImportersUtils.SetTransform(syncObject.transform, instance.Transform);
+                    }
+                }
+            }
+
+			// Remove any non referenced elements
+            var keys = m_ElementInstances.Keys.ToArray();
+            foreach (var key in keys)
+            {
+                if (!instances.Contains(key))
+                {
+                    //Debug.Log("Removed Element : " + identifier);
+                    var obj = m_ElementInstances[key];
+                    onObjectDestroyed?.Invoke(obj);
+                    m_SyncPrefabImporter.RemoveInstance(obj);
+                    m_ElementInstances.Remove(key);
+                }
+            }
+ 		}
+
+		SyncPrefab OpenSyncPrefab(string path)
         {
             var syncPrefab = File.Load<SyncPrefab>(path);
-            // TODO Invoke any SyncPrefab event
+            onPrefabLoaded?.Invoke(this, syncPrefab);
             return syncPrefab;
         }
         

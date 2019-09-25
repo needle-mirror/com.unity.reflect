@@ -1,0 +1,6 @@
+framework module ReflectCustomUri {
+  umbrella header "ReflectCustomUri.h"
+
+  export *
+  module * { export * }
+}

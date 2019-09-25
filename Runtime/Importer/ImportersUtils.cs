@@ -53,9 +53,16 @@ namespace UnityEngine.Reflect
         
         public static void SetTransform(Transform transform, SyncTransform uTransform)
         {
-            transform.localPosition = new Vector3(uTransform.Position.X, uTransform.Position.Y, uTransform.Position.Z);
-            transform.localRotation = new Quaternion(uTransform.Rotation.X, uTransform.Rotation.Y, uTransform.Rotation.Z, uTransform.Rotation.W);
-            transform.localScale = new Vector3(uTransform.Scale.X, uTransform.Scale.Y, uTransform.Scale.Z);
+            //  caching the members of the sync transform locally doubles the speed
+            //  by reducing the numbed of times we call the protobuf accessors
+            SyncFloat3 pos = uTransform.Position;
+            transform.localPosition = new Vector3(pos.X, pos.Y, pos.Z);
+
+            SyncQuaternion rot = uTransform.Rotation;
+            transform.localRotation = new Quaternion(rot.X, rot.Y, rot.Z, rot.W);
+
+            SyncFloat3 scale = uTransform.Scale;
+            transform.localScale = new Vector3(scale.X, scale.Y, scale.Z);
         }
     }
 }

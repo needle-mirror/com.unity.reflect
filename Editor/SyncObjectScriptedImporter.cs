@@ -11,6 +11,9 @@ namespace UnityEditor.Reflect
     [ScriptedImporter(1, "SyncObject", importQueueOffset:2)]
     public class SyncObjectScriptedImporter : ReflectScriptedImporter, IMaterialCache, IMeshCache
     {
+        [SerializeField, HideInInspector]
+        bool m_ImportLights = true;
+        
         public override void OnImportAsset(AssetImportContext ctx)
         {
             var sceneElement = File.Load<SyncObject>(ctx.assetPath);
@@ -21,7 +24,7 @@ namespace UnityEditor.Reflect
 
             var elementImporter = new SyncObjectImporter();
             var root = elementImporter.Import(sceneElement,
-                new SyncElementSettings { defaultMaterial = defaultMaterial, importLights = false, materialCache = this, meshCache = this });
+                new SyncObjectImportSettings { defaultMaterial = defaultMaterial, importLights = m_ImportLights, materialCache = this, meshCache = this });
 
             SetUniqueNames(root.transform); // TODO Find a deterministic way to avoid name collisions.
             

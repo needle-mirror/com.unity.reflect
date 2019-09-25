@@ -12,13 +12,13 @@ namespace UnityEngine.Reflect
     
     class RuntimeObjectCache : IObjectCache
     {
-        SyncElementSettings m_Settings;
+        SyncObjectImportSettings m_Settings;
 
         Dictionary<string, List<GameObject>> m_Instances;
         readonly SyncObjectImporter m_SyncObjectImporter = new SyncObjectImporter();
         readonly AssetSource m_AssetSource;
         
-        public RuntimeObjectCache(SyncElementSettings settings, AssetSource assetSource)
+        public RuntimeObjectCache(SyncObjectImportSettings settings, AssetSource assetSource)
         {
             m_Settings = settings;
             m_AssetSource = assetSource;

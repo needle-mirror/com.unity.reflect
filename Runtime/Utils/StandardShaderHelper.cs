@@ -22,19 +22,7 @@ namespace UnityEngine.Reflect
         
         public static Shader GetShader(SyncMaterial syncMaterial)
         {
-            var isTransparent = IsTransparent(syncMaterial);
-            var isBump = !string.IsNullOrEmpty(syncMaterial.NormalMap.Texture);
-
-            string shaderName;
-
-            if (isTransparent)
-            {
-                shaderName = isBump ? "UnityReflect/Standard Refract" : "UnityReflect/Standard Transparent";
-            }
-            else
-            {
-                shaderName ="UnityReflect/Standard Opaque";
-            }
+            var shaderName = IsTransparent(syncMaterial) ? "UnityReflect/Standard Transparent" : "UnityReflect/Standard Opaque";
             
             return Shader.Find(shaderName);
         }

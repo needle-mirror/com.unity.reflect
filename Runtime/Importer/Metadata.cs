@@ -37,8 +37,7 @@ namespace UnityEngine.Reflect
         
         public string GetParameter(string key)
         {
-            Parameter parameter;
-            return parameters.dictionary.TryGetValue(key, out parameter) ? parameter.value : string.Empty;
+            return parameters.dictionary.TryGetValue(key, out var parameter) ? parameter.value : string.Empty;
         }
         
         public Dictionary<string, Dictionary<string, Parameter>> SortedByGroup()

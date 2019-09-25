@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Collections;
 using Unity.Reflect.Model;
-using File = Unity.Reflect.IO.File;
 
 namespace UnityEngine.Reflect
 {
     public class SyncPrefabImporter
-    {        
+    {
         readonly RuntimeTextureCache m_TextureCache;
         readonly RuntimeMeshCache m_MeshCache;
         readonly RuntimeMaterialCache m_MaterialCache;
@@ -15,14 +13,14 @@ namespace UnityEngine.Reflect
         Material m_DefaultMaterial = new Material(Shader.Find("Standard")) { color = Color.cyan };
 
         public SyncPrefabImporter(bool importLights, params string[] sources)
-        {   
+        {
             var assetSource = new AssetSource(sources);
             
             m_TextureCache = new RuntimeTextureCache(assetSource);
             m_MaterialCache = new RuntimeMaterialCache(m_TextureCache, assetSource);
             m_MeshCache = new RuntimeMeshCache(assetSource);
             
-            var elementSettings = new SyncElementSettings
+            var elementSettings = new SyncObjectImportSettings
             {
                 defaultMaterial = m_DefaultMaterial,
                 importLights = importLights,
@@ -35,11 +33,69 @@ namespace UnityEngine.Reflect
         
         public SyncObjectBinding CreateInstance(Transform root, SyncObjectInstance instance)
         {
-            return CreateInstance(root, instance, m_ObjectCache);
+            var syncObject = CreateInstance(root, instance, m_ObjectCache);
+            
+            if (syncObject != null)
+            {
+                foreach (var filter in syncObject.GetComponentsInChildren<MeshFilter>())
+                {
+                    if (filter.sharedMesh != null)
+                    {
+                        m_MeshCache.OwnAsset(filter.sharedMesh);
+                    }
+                }
+                
+                foreach (var renderer in syncObject.GetComponentsInChildren<Renderer>())
+                {
+                    foreach (var mat in renderer.sharedMaterials)
+                    {
+                        if (mat != null)
+                        {
+                            m_MaterialCache.OwnAsset(mat);
+
+                            foreach (var name in mat.GetTexturePropertyNames())
+                            {
+                                var texture = mat.GetTexture(name) as Texture2D;
+                                if (texture != null)
+                                {
+                                    m_TextureCache.OwnAsset(texture);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return syncObject;
         }
-        
+
         public void RemoveInstance(SyncObjectBinding syncObject)
         {
+            foreach (var filter in syncObject.GetComponentsInChildren<MeshFilter>())
+            {
+                if (filter != null && filter.sharedMesh != null)
+                {
+                    m_MeshCache.ReleaseAsset(filter.sharedMesh);
+                }
+            }
+            
+            foreach (var renderer in syncObject.GetComponentsInChildren<Renderer>())
+            {
+                foreach (var mat in renderer.sharedMaterials)
+                {
+                    foreach (var name in mat.GetTexturePropertyNames())
+                    {
+                        var texture = mat.GetTexture(name) as Texture2D;
+                        if (texture != null)
+                        {
+                            m_TextureCache.ReleaseAsset(texture);
+                        }
+                    }
+                        
+                    m_MaterialCache.ReleaseAsset(mat);
+                }
+            }
+
             m_ObjectCache.RemoveInstance(syncObject);
         }
         
@@ -57,19 +113,22 @@ namespace UnityEngine.Reflect
         {
             m_ObjectCache.Reimport(key);
         }
-        
-        public IEnumerator ImportPrefab(Transform parent, SyncPrefab syncPrefab, Action<float, string> onProgress, Action<Transform> onDone)
-        {   
-            yield return Import(parent, syncPrefab, m_ObjectCache, onDone, onProgress);
+
+        public static Transform Import(SyncPrefab syncPrefab, IObjectCache objectCache)
+        {
+            var root = CreateSyncPrefab(null, syncPrefab);
+
+            foreach (var instance in syncPrefab.Instances)
+            {
+                CreateInstance(root.transform, instance, objectCache);
+            }
+
+            return root;
         }
         
-        public static IEnumerator Import(Transform parent, SyncPrefab syncPrefab, IObjectCache objectCache, Action<Transform> onDone,
-            Action<float, string> onProgress = null)
-        {
-            var name = syncPrefab.Name;
-            var elementInstances = syncPrefab.Instances;
-                
-            var root = new GameObject(name);
+        public static Transform CreateSyncPrefab(Transform parent, SyncPrefab syncPrefab)
+        {                
+            var root = new GameObject(syncPrefab.Name);
 
             if (parent != null)
                 root.transform.parent = parent;
@@ -77,33 +136,9 @@ namespace UnityEngine.Reflect
             var prefabComponent = root.AddComponent<SyncPrefabBinding>();
             prefabComponent.key = syncPrefab.Key;
 
-            var total = elementInstances.Count;
-
-            const string kInstantiating = "Instantiating";
-            
-            onProgress?.Invoke(0.0f, kInstantiating);
-
-            var lastProgressUpdate = DateTime.Now;
-            const int notifyProgressMs = 1000;
-            
-            for (var i = 0; i < total; ++i)
-            {
-                var instance = elementInstances[i];
-                CreateInstance(root.transform, instance, objectCache);
-
-                var timeNow = DateTime.Now;
-
-                if ((timeNow - lastProgressUpdate).TotalMilliseconds > notifyProgressMs)
-                {
-                    onProgress?.Invoke((float)i/total, $"{kInstantiating} {i} of {total}");
-                    lastProgressUpdate = timeNow;
-                    yield return null;
-                }
-            }
-            
-            onDone.Invoke(root.transform);
+            return root.transform;
         }
-        
+
         static SyncObjectBinding CreateInstance(Transform root, SyncObjectInstance instance, IObjectCache objectCache)
         {
             var gameObject = objectCache.CreateInstance(instance.Object);
@@ -128,7 +163,7 @@ namespace UnityEngine.Reflect
             var metadata = gameObject.GetComponent<Metadata>();
             if (metadata != null && instance.Metadata != null)
             {
-                foreach (var parameter in instance.Metadata)
+                foreach (var parameter in instance.Metadata.Parameters)
                 {
                     var parameterValue = parameter.Value;
                     metadata.parameters.dictionary[parameter.Key] = new Metadata.Parameter

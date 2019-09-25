@@ -4,15 +4,15 @@ using System.Linq;
 using Unity.EditorCoroutines.Editor;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Reflect.Services;
+using UnityEngine.Reflect;
 
 class ReflectWindow : EditorWindow
 {
     [SerializeField]
     string m_ImportFolder = "Reflect";
-    
+
     ProjectManagerInternal m_ProjectManagerInternal;
-    
+
     Vector2 m_ScrollPosition;
 
     string m_TaskInProgressName;
@@ -24,10 +24,12 @@ class ReflectWindow : EditorWindow
     const double k_UpdateIntervalMs = 1000.0;
 
     string m_FullImportFolder;
-    
+
     static GUIStyle s_HeaderStyle;
 
-    [MenuItem("Window/Reflect")]
+    EditorCoroutine m_RefreshProjectsCoroutine;
+
+    [UnityEditor.MenuItem("Window/Reflect")]
     static void OpenWindow()
     {
         var window = GetWindow<ReflectWindow>("Reflect");
@@ -35,16 +37,16 @@ class ReflectWindow : EditorWindow
     }
 
     void OnEnable()
-    {        
+    {
         StartProjectDiscovery();
 
         EditorApplication.update += OnEditorUpdate;
     }
-    
+
     void OnDisable()
-    {        
+    {
         StopProjectDiscovery();
-        
+
         EditorApplication.update -= OnEditorUpdate;
     }
 
@@ -53,14 +55,14 @@ class ReflectWindow : EditorWindow
         if (m_ProjectManagerInternal == null)
         {
             m_FullImportFolder = Path.Combine(Application.dataPath, m_ImportFolder);
-            m_ProjectManagerInternal = new ProjectManagerInternal(m_FullImportFolder, true);
-            
+            m_ProjectManagerInternal = new ProjectManagerWithProjectServerInternal(m_FullImportFolder, true);
+
             m_ProjectManagerInternal.progressChanged += (f, s) =>
             {
                 m_TaskProgress = f;
                 m_TaskInProgressName = s;
             };
-        
+
             m_ProjectManagerInternal.taskCompleted += () => {
                 m_TaskInProgressName = null;
                 m_TaskProgress = 0.0f;
@@ -71,8 +73,20 @@ class ReflectWindow : EditorWindow
         }
 
         m_ProjectManagerInternal.OnEnable();
-        
+
         m_ProjectManagerInternal.StartDiscovery();
+
+        if (m_ProjectManagerInternal is ProjectManagerWithProjectServerInternal projectServerManager)
+        {
+            if (m_RefreshProjectsCoroutine != null)
+            {
+                EditorCoroutineUtility.StopCoroutine(m_RefreshProjectsCoroutine);
+            }
+
+            // NOTE: Set `projectServerAddress` to `127.0.0.1:55555` to test against a local project server
+            m_RefreshProjectsCoroutine = EditorCoroutineUtility.StartCoroutine(
+                projectServerManager.RefreshProjectListCoroutine(accessToken: string.Empty), this);
+        }
     }
 
     void StopProjectDiscovery()
@@ -91,28 +105,28 @@ class ReflectWindow : EditorWindow
     {
         if (Application.isPlaying)
             return;
-        
+
         var now = DateTime.Now;
 
         if ((now - m_LastUpdate).TotalMilliseconds >= k_UpdateIntervalMs)
         {
             m_LastUpdate = now;
             m_ProjectManagerInternal.Update();
-            Repaint();   
+            Repaint();
         }
     }
-    
+
     void OnGUI()
     {
         if (s_HeaderStyle == null)
             s_HeaderStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
 
         EditorGUILayout.Space();
-        
+
         if (Application.isPlaying)
         {
             StopProjectDiscovery();
-            
+
             EditorGUILayout.HelpBox("Reflect import features are unavailable during play mode.", MessageType.Info);
             return;
         }
@@ -123,20 +137,20 @@ class ReflectWindow : EditorWindow
         }
 
         m_ShowAllProjects = EditorGUILayout.Toggle("Show All Projects", m_ShowAllProjects);
-        
+
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Projects", s_HeaderStyle);
-        
+
         var projects = m_ProjectManagerInternal.Projects;
 
         m_ScrollPosition = EditorGUILayout.BeginScrollView(m_ScrollPosition);
-        
+
         EditorGUILayout.BeginVertical();
 
         var projectFound = false;
-        
+
         var taskInProgress = !string.IsNullOrEmpty(m_TaskInProgressName);
-        
+
         if (projects.Any())
         {
             foreach (var project in projects)
@@ -145,7 +159,7 @@ class ReflectWindow : EditorWindow
                     continue;
 
                 projectFound = true;
-                
+
                 using (new EditorGUI.DisabledScope(taskInProgress))
                 {
                     if (ProjectGUI(project))
@@ -155,14 +169,14 @@ class ReflectWindow : EditorWindow
                 }
             }
         }
-        
+
         if (!projectFound)
         {
             EditorGUILayout.LabelField("Gathering available projects...");
         }
 
         EditorGUILayout.EndVertical();
-        
+
         EditorGUILayout.EndScrollView();
 
         var rect = EditorGUILayout.GetControlRect();
@@ -176,19 +190,19 @@ class ReflectWindow : EditorWindow
     bool ProjectGUI(Project project)
     {
         var boxStyle = new GUIStyle(GUI.skin.box);
-        
+
         EditorGUILayout.BeginVertical(boxStyle);
-        
+
         EditorGUILayout.LabelField(project.name, s_HeaderStyle);
         EditorGUILayout.LabelField(project.description);
 
         var pressed = false;
-        
+
         EditorGUILayout.BeginHorizontal();
-        
+
         var connected = m_ProjectManagerInternal.IsProjectAvailableOnline(project);
         var hasLocalData = m_ProjectManagerInternal.IsProjectAvailableOffline(project);
-        
+
         var str = hasLocalData ? "Update" : "Import";
 
         using (new EditorGUI.DisabledScope(!connected))
@@ -203,9 +217,9 @@ class ReflectWindow : EditorWindow
             try
             {
                 path = "Assets" + path.Replace(Application.dataPath, "");
-            
+
                 var id = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>( path ).GetInstanceID();
-            
+
                 EditorGUIUtility.PingObject(id);
             }
             catch (Exception)
@@ -215,7 +229,7 @@ class ReflectWindow : EditorWindow
         }
 
         EditorGUILayout.EndHorizontal();
-        
+
         EditorGUILayout.EndVertical();
 
         return pressed;

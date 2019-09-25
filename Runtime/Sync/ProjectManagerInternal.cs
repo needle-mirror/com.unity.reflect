@@ -7,11 +7,12 @@ using System.Xml.Serialization;
 using Unity.Reflect;
 using Unity.Reflect.Data;
 using Unity.Reflect.IO;
+using Unity.Reflect.Model;
 using Unity.Reflect.Services;
 using Unity.Reflect.Utils;
 using File = Unity.Reflect.IO.File;
 
-namespace UnityEngine.Reflect.Services
+namespace UnityEngine.Reflect
 {
     [Serializable]
     public class Project
@@ -45,9 +46,9 @@ namespace UnityEngine.Reflect.Services
         }
     }
 
-    public class ProjectManagerInternal : IProgressTask
+    abstract class ProjectManagerInternal : IProgressTask
     {
-        class ProjectEntry
+        public class ProjectEntry
         {
             public Project project;
             public List<Action<Project>> listeners = new List<Action<Project>>();
@@ -65,60 +66,58 @@ namespace UnityEngine.Reflect.Services
                 }
             }
         }
-        
-        Dictionary<string, ProjectEntry> m_Projects = new Dictionary<string, ProjectEntry>();
+
+        readonly Dictionary<string, ProjectEntry> m_Projects = new Dictionary<string, ProjectEntry>();
 
         public event Action<Project> onProjectAdded;
         public event Action<Project> onProjectChanged;
-        public event Action<Project> onProjectRemoved;
-        
-        struct ProjectEvent
-        {
-            public enum Type
-            {
-                Added,
-                Removed
-            }
 
-            public Type type;
-            public ProjectInfo info;
-        }
-        
-        Queue<ProjectEvent> m_PendingProjectEvents = new Queue<ProjectEvent>();
+        readonly HashSet<string> m_CurrentDownloadingProjectId = new HashSet<string>();
 
-        HashSet<string> m_CurrentDownloadingProjectId = new HashSet<string>();
-        
         LocalStorage m_LocalStorage;
-        ProjectDiscovery m_ProjectDiscovery;
-        
+
         public IEnumerable<Project> Projects => m_Projects.Values.Select(v => v.project);
 
-        readonly string k_ProjectDataFileName = "index.xml";
+        const string k_ProjectDataFileName = "index.xml";
 
-        bool m_UseProjectNameAsRootFolder;
+        readonly bool m_UseProjectNameAsRootFolder;
 
-        public ProjectManagerInternal(string storageRoot, bool useProjectNameAsRootFolder)
+        const string kDownloading = "Downloading";
+
+        #region Abstract
+
+        public abstract void StartDiscovery();
+
+        public abstract void StopDiscovery();
+
+        public abstract void OnEnable();
+
+        public abstract void OnDisable();
+
+        public abstract void Update();
+
+        #endregion
+
+        protected ProjectManagerInternal(string storageRoot, bool useProjectNameAsRootFolder)
         {
             m_UseProjectNameAsRootFolder = useProjectNameAsRootFolder;
             Init(storageRoot);
         }
-        
-        public ProjectManagerInternal()
+
+        protected ProjectManagerInternal()
         {
             Init(Application.persistentDataPath);
         }
 
         void Init(string storageRoot)
         {
-            m_ProjectDiscovery = new ProjectDiscovery(false);
-
             m_LocalStorage = new LocalStorage(storageRoot);
-            
+
             // Check for local projects
             var projects = GetLocalProjectsData(storageRoot);
             foreach (var project in projects)
             {
-                AddOrUpdateProjectInternal(project);
+                UpdateProjectInternal(project, true);
             }
         }
 
@@ -126,36 +125,28 @@ namespace UnityEngine.Reflect.Services
         {
             return m_UseProjectNameAsRootFolder ? FileUtils.SanitizeName(project.name) : project.projectId;
         }
-        
-        public bool IsProjectAvailableOffline(Project project)
-        {
-            return m_LocalStorage.HasLocalData(ResolveProjectFolderName(project));
-        }
 
-        public bool IsProjectAvailableOnline(Project project)
-        {
-            if (m_Projects.TryGetValue(project.serverProjectId, out var entry))
-            {
-                return entry.project.channel != null;
-            }
-            return false;
-        }
-        
+        bool IsProjectAvailable(Project project) => m_Projects.ContainsKey(project.serverProjectId);
+
+        public bool IsProjectAvailableOffline(Project project) => IsProjectAvailable(project) && m_LocalStorage.HasLocalData(ResolveProjectFolderName(project));
+
+        public bool IsProjectAvailableOnline(Project project) => IsProjectAvailable(project) && project.channel != null;
+
         public string GetProjectFolder(Project project)
         {
             return m_LocalStorage.GetProjectFolder(ResolveProjectFolderName(project));
         }
-        
-        public string GetSessionFolder(Project project, string sessionId)
+
+        public string GetSourceProjectFolder(Project project, string sessionId)
         {
-            return m_LocalStorage.GetSessionFolder(ResolveProjectFolderName(project), sessionId);
+            return m_LocalStorage.GetSourceProjectFolder(ResolveProjectFolderName(project), sessionId);
         }
-        
-        public IEnumerable<ProjectSession> LoadProjectManifests(Project project)
+
+        public IEnumerable<SourceProject> LoadProjectManifests(Project project)
         {
             return m_LocalStorage.LoadProjectManifests(ResolveProjectFolderName(project));
         }
-        
+
         public IEnumerator DownloadProjectLocally(string serverProjectId, bool incremental)
         {
             if (!m_Projects.TryGetValue(serverProjectId, out var entry))
@@ -163,7 +154,7 @@ namespace UnityEngine.Reflect.Services
                 Debug.LogError($"Cannot find project '{serverProjectId}'");
                 yield break;
             }
-            
+
             var project = entry.project;
 
             if (project.channel == null)
@@ -172,68 +163,73 @@ namespace UnityEngine.Reflect.Services
                 yield break;
             }
 
-            if(m_CurrentDownloadingProjectId.Contains(project.projectId))
+            if (m_CurrentDownloadingProjectId.Contains(project.projectId))
             {
                 Debug.LogError($"Already downloading project '{project.projectId}'");
                 yield break;
             }
-            m_CurrentDownloadingProjectId.Add(project.projectId);
 
-            // Create and connect gRPC channel to SyncServer
-            var client = Player.CreateClient(project.channel);
-            client.Connect();
-
-            var responses = client.GetManifests(project.projectId);
-            
-            var manifestEntries = responses.ToArray();
-
-            const string kDownloading = "Downloading";
-            
-            progressChanged?.Invoke(0.0f, kDownloading);
-
-            var total = manifestEntries.Length;
-            var projectPercent = 1.0f / total;
-
-            var localManifests = new Dictionary<string, SyncManifest>();
-
-            if (incremental)
+            try
             {
-                var localProjectSessions = m_LocalStorage.LoadProjectManifests(ResolveProjectFolderName(project));
+                m_CurrentDownloadingProjectId.Add(project.projectId);
 
-                foreach (var projectSession in localProjectSessions)
+                // Create and connect gRPC channel to SyncServer
+                var client = Player.CreateClient(project.channel);
+                client.Connect();
+
+                var responses = client.GetManifests(project.projectId);
+
+                var manifestEntries = responses.ToArray();
+
+                progressChanged?.Invoke(0.0f, kDownloading);
+
+                var total = manifestEntries.Length;
+                var projectPercent = 1.0f / total;
+
+                var localManifests = new Dictionary<string, SyncManifest>();
+
+                if (incremental)
                 {
-                    localManifests.Add(projectSession.sessionId, projectSession.manifest);
-                }
-            }
+                    var localSourceProjects = m_LocalStorage.LoadProjectManifests(ResolveProjectFolderName(project));
 
-            for (int i = 0; i < total; ++i)
-            {
-                var manifestEntry = manifestEntries[i];
-
-                localManifests.TryGetValue(manifestEntry.SessionId, out var oldManifest);
-                
-                yield return DownloadProjectSessionLocally(project, manifestEntry.SessionId,
-                    oldManifest, manifestEntry.Manifest,
-                    client,
-                    p =>
+                    foreach (var sourceProject in localSourceProjects)
                     {
-                        var percent = (i + p) * projectPercent;
-                        progressChanged?.Invoke(percent, kDownloading);
-                    });
-            }
+                        localManifests.Add(sourceProject.sourceId, sourceProject.manifest);
+                    }
+                }
 
-            SaveProjectDataLocally(project);
-            m_CurrentDownloadingProjectId.Remove(project.projectId);
-            
-            onProjectChanged?.Invoke(project);
-            
-            progressChanged?.Invoke(1.0f, kDownloading);
-            
-            taskCompleted?.Invoke();
+                for (int i = 0; i < total; ++i)
+                {
+                    var manifestEntry = manifestEntries[i];
+
+                    localManifests.TryGetValue(manifestEntry.SourceId, out var oldManifest);
+
+                    yield return DownloadSourceProjectLocally(project, manifestEntry.SourceId,
+                        oldManifest, manifestEntry.Manifest,
+                        client,
+                        p =>
+                        {
+                            var percent = (i + p) * projectPercent;
+                            progressChanged?.Invoke(percent, kDownloading);
+                        });
+                }
+
+                SaveProjectDataLocally(project);
+
+                onProjectChanged?.Invoke(project);
+
+                progressChanged?.Invoke(1.0f, kDownloading);
+            }
+            finally
+            {
+                m_CurrentDownloadingProjectId.Remove(project.projectId);
+
+                taskCompleted?.Invoke();
+            }
         }
-        
-        public IEnumerator DownloadProjectSessionLocally(Project project, string sessionId, SyncManifest oldManifest, SyncManifest newManifest, IPlayerClient client, Action<float> onProgress)
-        {                       
+
+        public IEnumerator DownloadSourceProjectLocally(Project project, string sessionId, SyncManifest oldManifest, SyncManifest newManifest, IPlayerClient client, Action<float> onProgress)
+        {
             List<string> dstPaths;
 
             if (oldManifest == null)
@@ -245,31 +241,35 @@ namespace UnityEngine.Reflect.Services
             {
                 oldManifest.ComputeDiff(newManifest, out var modified, out var deleted);
                 dstPaths = modified.Select(e => e.DstPath).ToList();
-                
+
                 // TODO Handle deleted models
             }
 
             onProgress?.Invoke(0.0f);
 
-            var destinationFolder = m_LocalStorage.GetSessionFolder(ResolveProjectFolderName(project), sessionId); 
-            
+            var destinationFolder = m_LocalStorage.GetSourceProjectFolder(ResolveProjectFolderName(project), sessionId);
+
             var total = dstPaths.Count;
-            
+
             for (int i = 0; i < total; ++i)
             {
                 var dstPath = dstPaths[i];
-                
+
                 // TODO No need to deserialize then serialize back the SyncModel when all we need is to download the file locally
                 var syncModel = client.GetSyncModel(project.projectId, sessionId, dstPath); // TODO var bitArray = client.GetSyncModelRaw(...) or client.Download(...)
 
                 if (syncModel != null)
                 {
                     var fullPath = Path.Combine(destinationFolder, dstPath);
-                    
+
                     var directory = Path.GetDirectoryName(fullPath);
 
                     if (!Directory.Exists(directory))
                         Directory.CreateDirectory(directory);
+
+                    // Replace model names with local model paths
+                    syncModel.Name = dstPath;
+                    SetReferencedSyncModelPath(syncModel, newManifest);
 
                     File.Save(syncModel, fullPath);
                 }
@@ -277,35 +277,119 @@ namespace UnityEngine.Reflect.Services
                 {
                     Debug.LogError("Unable to get '" + dstPath + "'...");
                 }
-                
-                onProgress?.Invoke((i + 1.0f)/total);
+
+                onProgress?.Invoke((i + 1.0f) / total);
 
                 yield return null;
             }
-            
+
             // Don't forget the manifest itself
             newManifest.Save(destinationFolder);
         }
 
+        public void SetReferencedSyncModelPath(ISyncModel syncModel, SyncManifest manifest)
+        {
+            switch (syncModel)
+            {
+                case SyncPrefab syncPrefab:
+                    SetReferencedSyncModelPath(syncPrefab, manifest);
+                    break;
+
+                case SyncObject syncObject:
+                    SetReferencedSyncModelPath(syncObject, manifest);
+                    break;
+
+                case SyncMaterial syncMaterial:
+                    SetReferencedSyncModelPath(syncMaterial, manifest);
+                    break;
+            }
+        }
+
+        void SetReferencedSyncModelPath(SyncPrefab syncPrefab, SyncManifest manifest)
+        {
+            foreach (var instance in syncPrefab.Instances)
+            {
+                SetReferencedSyncModelPath(instance, manifest);
+            }
+        }
+
+        void SetReferencedSyncModelPath(SyncObjectInstance instance, SyncManifest manifest)
+        {
+            instance.Object = GetSyncModelLocalPath<SyncObject>(instance.Object, manifest);
+        }
+
+        void SetReferencedSyncModelPath(SyncObject syncObject, SyncManifest manifest)
+        {
+            syncObject.Mesh = GetSyncModelLocalPath<SyncMesh>(syncObject.Mesh, manifest);
+            for (var i = 0; i < syncObject.Materials.Count; ++i)
+            {
+                syncObject.Materials[i] = GetSyncModelLocalPath<SyncMaterial>(syncObject.Materials[i], manifest);
+            }
+            foreach (var child in syncObject.Children)
+            {
+                SetReferencedSyncModelPath(child, manifest);
+            }
+        }
+
+        void SetReferencedSyncModelPath(SyncMaterial material, SyncManifest manifest)
+        {
+            SetReferencedSyncModelPath(material.AlbedoMap, manifest);
+            SetReferencedSyncModelPath(material.AlphaMap, manifest);
+            SetReferencedSyncModelPath(material.NormalMap, manifest);
+            SetReferencedSyncModelPath(material.CutoutMap, manifest);
+            SetReferencedSyncModelPath(material.EmissionMap, manifest);
+            SetReferencedSyncModelPath(material.GlossinessMap, manifest);
+            SetReferencedSyncModelPath(material.MetallicMap, manifest);
+        }
+
+        void SetReferencedSyncModelPath(SyncMap map, SyncManifest manifest)
+        {
+            if (map?.Texture == null)
+                return;
+
+            map.Texture = GetSyncModelLocalPath<SyncTexture>(map.Texture, manifest);
+        }
+
+        string GetSyncModelLocalPath<T>(string modelName, SyncManifest manifest) where T : ISyncModel
+        {
+            var path = "";
+            if (string.IsNullOrEmpty(modelName))
+            {
+                return path;
+            }
+
+            var key = PersistentKey.GetKey<T>(modelName);
+            if (manifest.Content.TryGetValue(key, out var entry))
+            {
+                path = entry.DstPath;
+            }
+            else
+            {
+                Debug.LogError("Unable to get local path for '" + key + "'...");
+            }
+
+            return path;
+        }
+
         public IEnumerator DeleteProjectLocally(Project project)
         {
-            var projectFolderPath = m_LocalStorage.GetProjectFolder(ResolveProjectFolderName(project)); 
-            if(!Directory.Exists(projectFolderPath))
+            var projectFolderPath = m_LocalStorage.GetProjectFolder(ResolveProjectFolderName(project));
+            if (!Directory.Exists(projectFolderPath))
             {
                 Debug.LogWarning($"Cannot delete locally stored project '{project.projectId}'");
                 yield break;
             }
-            
-            if(m_CurrentDownloadingProjectId.Contains(project.projectId))
+
+            if (m_CurrentDownloadingProjectId.Contains(project.projectId))
             {
                 Debug.LogWarning($"Cannot delete currently downloading project '{project.projectId}'");
                 yield break;
             }
-            
+
             const string kDeleting = "Deleting";
-            
+
             progressChanged?.Invoke(0.0f, kDeleting);
-            
+
             // Deleting each file individually is slow. Instead, get all leaf directories and delete them one after the other.
             var projectDirectories = Directory.EnumerateDirectories(projectFolderPath, "*.*", SearchOption.AllDirectories)
                 .Where(f => !Directory.EnumerateDirectories(f, "*.*", SearchOption.TopDirectoryOnly).Any()).ToList();
@@ -315,7 +399,7 @@ namespace UnityEngine.Reflect.Services
             for (int i = 0; i < projectDirectories.Count; ++i)
             {
                 Directory.Delete(projectDirectories[i], true);
-                
+
                 progressChanged?.Invoke((float)i / folderCount, kDeleting);
                 yield return null;
             }
@@ -324,15 +408,12 @@ namespace UnityEngine.Reflect.Services
 
             progressChanged?.Invoke(1.0f, kDeleting);
             yield return null;
-            
-            if (m_Projects.TryGetValue(project.serverProjectId, out var entry))
-            {
-                RemoveProjectInternal(entry.project);
-            }
+
+            UpdateProjectInternal(project, false);
 
             taskCompleted?.Invoke();
         }
-        
+
         void SaveProjectDataLocally(Project project)
         {
             var localProjectFolder = m_LocalStorage.GetProjectFolder(ResolveProjectFolderName(project));
@@ -341,8 +422,8 @@ namespace UnityEngine.Reflect.Services
 
             if (!Directory.Exists(directory))
                 Directory.CreateDirectory(directory);
-            
-            if(System.IO.File.Exists(projectDataFilePath))
+
+            if (System.IO.File.Exists(projectDataFilePath))
             {
                 System.IO.File.Delete(projectDataFilePath);
             }
@@ -361,7 +442,7 @@ namespace UnityEngine.Reflect.Services
 
             if (!Directory.Exists(storageRoot))
                 return projects;
-            
+
             var projectsDataPath = Directory.EnumerateFiles(storageRoot, k_ProjectDataFileName, SearchOption.AllDirectories);
 
             XmlSerializer serializer = new XmlSerializer(typeof(Project));
@@ -379,7 +460,7 @@ namespace UnityEngine.Reflect.Services
                     Debug.LogWarning($"Could not read xml file '{path}'");
                 }
             }
-            
+
             return projects;
         }
 
@@ -387,114 +468,30 @@ namespace UnityEngine.Reflect.Services
         {
             if (!m_Projects.TryGetValue(serverProjectId, out var entry))
             {
-                m_Projects[serverProjectId] = entry = new ProjectEntry(Project.Empty);    
+                m_Projects[serverProjectId] = entry = new ProjectEntry(Project.Empty);
             }
-            
+
             entry.listeners.Add(callback);
         }
 
-        public void StartDiscovery()
+        protected void UpdateProjectInternal(Project project, bool canAddProject)
         {
-            m_ProjectDiscovery?.Start();
-        }
-
-        public void StopDiscovery()
-        {
-            m_ProjectDiscovery?.Stop();
-        }
-
-        public void OnEnable()
-        {
-            m_ProjectDiscovery.OnProjectAdded += ProjectDiscoveryProjectAdded;
-            m_ProjectDiscovery.OnProjectRemoved += ProjectDiscoveryProjectRemoved;
-        }
-
-        public void OnDisable()
-        {
-            m_ProjectDiscovery.Stop();
-            
-            m_ProjectDiscovery.OnProjectAdded -= ProjectDiscoveryProjectAdded;
-            m_ProjectDiscovery.OnProjectRemoved -= ProjectDiscoveryProjectRemoved;
-        }
-
-        public void Update()
-        {
-            lock (m_PendingProjectEvents)
+            if (!project.IsValid())
             {
-                while (m_PendingProjectEvents.Count > 0)
-                {
-                    var projectEvent = m_PendingProjectEvents.Dequeue();
-
-                    var projectInfo = projectEvent.info;
-                    
-                    if (projectEvent.type == ProjectEvent.Type.Removed)
-                    {
-                        projectInfo.ServiceChannel = null;
-                    }
-                    
-                    var project = CreateProjectFromProjectInfo(projectInfo);
-
-                    if (projectEvent.type == ProjectEvent.Type.Added)
-                    {
-                        AddOrUpdateProjectInternal(project);
-                    }
-                    else
-                    {
-                        RemoveProjectInternal(project);
-                    }
-                }
+                return;
             }
-        }
 
-        void AddOrUpdateProjectInternal(Project project)
-        {
-            if(project.IsValid())
-            {
-                if (!m_Projects.TryGetValue(project.serverProjectId, out var entry))
-                {
-                    m_Projects[project.serverProjectId] = entry = new ProjectEntry(project);    
-                }
-                else
-                {
-                    entry.project = project;
-                }
-
-                entry.NotifyChange();
-            
-                onProjectAdded?.Invoke(project);
-            }
-        }
-        
-        void RemoveProjectInternal(Project project)
-        {
             if (m_Projects.TryGetValue(project.serverProjectId, out var entry))
             {
                 entry.project = project;
                 entry.NotifyChange();
+                onProjectChanged?.Invoke(project);
             }
-            
-            onProjectRemoved?.Invoke(project);
-        }
-
-        void ProjectDiscoveryProjectAdded(ProjectInfo projectInfo)
-        {
-            lock (m_PendingProjectEvents)
+            else if (canAddProject)
             {
-                m_PendingProjectEvents.Enqueue(new ProjectEvent { type = ProjectEvent.Type.Added, info = projectInfo });
+                m_Projects[project.serverProjectId] = new ProjectEntry(project);
+                onProjectAdded?.Invoke(project);
             }
-        }
-        
-        void ProjectDiscoveryProjectRemoved(ProjectInfo projectInfo)
-        {
-            lock (m_PendingProjectEvents)
-            {
-                m_PendingProjectEvents.Enqueue(new ProjectEvent { type = ProjectEvent.Type.Removed, info = projectInfo });
-            }
-        }
-
-        static Project CreateProjectFromProjectInfo(ProjectInfo projectInfo)
-        {
-            return new Project(projectInfo.ServerProjectId, projectInfo.ProjectId, projectInfo.Name, projectInfo.ServerName, projectInfo.ServiceChannel);
         }
 
         public void Cancel()

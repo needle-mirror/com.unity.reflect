@@ -1,0 +1,14 @@
+{
+    "name": "Unity.Reflect.EditorTests",
+    "references": [
+        "Unity.Reflect.Editor",
+        "Unity.Reflect"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": []
+}

@@ -3,7 +3,7 @@ using Unity.Reflect.Model;
 
 namespace UnityEngine.Reflect
 {
-    public class SyncElementSettings
+    public class SyncObjectImportSettings
     {
         public bool importLights;
         public Material defaultMaterial;
@@ -30,22 +30,22 @@ namespace UnityEngine.Reflect
 
             foreach (var component in components)
             {
-                if (!(component is Transform) && !(component is SyncObjectBinding))
+                if (!(component is Transform) && !(component is SyncObjectBinding) && !(component is Renderer))
                     Object.DestroyImmediate(component);
             }
         }
 
-        protected override void ImportInternal(SyncObject syncElement, GameObject gameObject, object settings)
+        protected override void ImportInternal(SyncObject syncObject, GameObject gameObject, object settings)
         {
-            Import(syncElement, gameObject, (SyncElementSettings)settings);
+            Import(syncObject, gameObject, (SyncObjectImportSettings)settings);
         }
 
-        static void Import(SyncObject syncElement, GameObject gameObject, SyncElementSettings settings)
+        static void Import(SyncObject syncObject, GameObject gameObject, SyncObjectImportSettings settings)
         {            
-            if (syncElement.Metadata != null && syncElement.Metadata.Count > 0)
+            if (syncObject.Metadata != null && syncObject.Metadata.Count() > 0)
             {
                 var model = gameObject.AddComponent<Metadata>();
-                foreach (var parameter in syncElement.Metadata)
+                foreach (var parameter in syncObject.Metadata.Parameters)
                 {
                     var uParameter = parameter.Value;
                     model.parameters.dictionary.Add(parameter.Key, new Metadata.Parameter
@@ -55,21 +55,25 @@ namespace UnityEngine.Reflect
                 }
             }
 
-            if (!string.IsNullOrEmpty(syncElement.Mesh))
+            if (!string.IsNullOrEmpty(syncObject.Mesh))
             {
-                var mesh = settings.meshCache.GetMesh(syncElement.Mesh);
+                var mesh = settings.meshCache.GetMesh(syncObject.Mesh);
 
                 if (mesh != null)
                 {
                     var meshFilter = gameObject.AddComponent<MeshFilter>();
-                    meshFilter.sharedMesh = settings.meshCache.GetMesh(syncElement.Mesh);
-                    
-                    var renderer = gameObject.AddComponent<MeshRenderer>();
+                    meshFilter.sharedMesh = mesh;
+
+                    var renderer = gameObject.GetComponent<MeshRenderer>();
+                    if (renderer == null)
+                    {
+                        renderer = gameObject.AddComponent<MeshRenderer>();
+                    }
 
                     var materials = new Material[meshFilter.sharedMesh.subMeshCount];
                     for (int i = 0; i < materials.Length; ++i)
                     {
-                        var materialName = i < syncElement.Materials.Count ? syncElement.Materials[i] : null;
+                        var materialName = i < syncObject.Materials.Count ? syncObject.Materials[i] : null;
                         materials[i] = settings.materialCache.GetMaterial(materialName) ?? settings.defaultMaterial;
                     }
 
@@ -77,34 +81,28 @@ namespace UnityEngine.Reflect
                 }
             }
 
-            if (settings.importLights && syncElement.Lights != null)
+            if (settings.importLights && syncObject.Light != null)
             {
-                foreach (var syncLight in syncElement.Lights)
-                {
-                    ImportLight(syncLight, gameObject);
-                }
+                ImportLight(syncObject.Light, gameObject);
             }
             
-            if (syncElement.Rpcs != null)
+            if (syncObject.Rpc != null)
             {
-                foreach (var syncRPC in syncElement.Rpcs)
-                {
-                    ImportRPC(syncRPC, gameObject);
-                }
+                ImportRPC(syncObject.Rpc, gameObject);
             }
             
-            if (syncElement.Cameras != null)
+            if (syncObject.Camera != null)
             {
-                foreach (var syncCamera in syncElement.Cameras)
-                {
-                    ImportCamera(syncCamera, gameObject);
-                }
+                ImportCamera(syncObject.Camera, gameObject);
             }
 
-            if (syncElement.Children != null)
+            if (syncObject.Children != null)
             {
-                foreach (var child in syncElement.Children)
+                foreach (var child in syncObject.Children)
                 {
+                    if (IsEmpty(child, settings))
+                        continue;
+                    
                     var childObject = new GameObject(child.Name);
                                 
                     childObject.transform.parent = gameObject.transform;
@@ -115,27 +113,40 @@ namespace UnityEngine.Reflect
             }
         }
 
+        static bool IsEmpty(SyncObject syncObject, SyncObjectImportSettings settings)
+        {
+            if (syncObject.Children != null && syncObject.Children.Count > 0)
+                return false;
+
+            if (!string.IsNullOrEmpty(syncObject.Mesh))
+                return false;
+
+            if (settings.importLights && syncObject.Light != null)
+                return false;
+            
+            if (syncObject.Rpc != null)
+                return false;
+            
+            if (syncObject.Camera != null)
+                return false;
+
+            return true;
+        }
+
         static void ImportLight(SyncLight syncLight, GameObject parent)
         {
-            var lightGameObject = new GameObject(syncLight.Name);
-            lightGameObject.transform.parent = parent.transform;
-
-            var light = lightGameObject.AddComponent<Light>();
-            
             // TODO adjust based on the intensityUnit
-            // This fit the Candela unit
-            var rangeMultiplier = 0.5f;
-            var intensityMultiplier = 0.0001f;
+            // This fit the Candelas unit
+            const float rangeMultiplier = 0.5f;
 
-            light.name = syncLight.Name;
-            light.intensity = ImportersUtils.GetCandelasIntensity(syncLight.Intensity, syncLight.IntensityUnit, syncLight.Type, syncLight.SpotAngle);
-            light.intensity = light.intensity * intensityMultiplier;
+            var intensity = ImportersUtils.GetCandelasIntensity(syncLight.Intensity, syncLight.IntensityUnit, syncLight.Type, syncLight.SpotAngle);
 
             // TODO Investigate why Light.UseColorTemperature is not exposed to C# and let the light do this calculation
             var cct = ImportersUtils.ColorFromTemperature(syncLight.Temperature);
 
-
             var filter = new Color(syncLight.Color.R, syncLight.Color.G, syncLight.Color.B);
+            
+            var light = parent.AddComponent<Light>();
             
             light.color =  cct * filter;
             light.colorTemperature = syncLight.Temperature;
@@ -143,35 +154,39 @@ namespace UnityEngine.Reflect
             switch (syncLight.Type)
             {
                 case SyncLight.Types.Type.Spot:
+                {
                     light.spotAngle = syncLight.SpotAngle;
                     light.shadows = LightShadows.Hard;
                     light.range = (syncLight.Range * rangeMultiplier);
                     light.type = LightType.Spot;
-                    break;
+                    light.intensity = intensity * 0.1f;
+                }
+                break;
+
                 case SyncLight.Types.Type.PointType:
+                {
                     light.type = LightType.Point;
-                    light.range = syncLight.Range == 0.0f ? 1.0f:(syncLight.Range  * rangeMultiplier);
-                    break;
+                    light.range = syncLight.Range.Equals(0.0f) ? 1.0f : (syncLight.Range * rangeMultiplier);
+                    light.intensity = intensity * 0.0001f;
+                }
+                break;
+
                 case SyncLight.Types.Type.Directional:
+                {
                     light.type = LightType.Directional;
-                    break;
+                    light.intensity = intensity * 0.0001f;
+                }
+                break;
             }
-            
-            ImportersUtils.SetTransform(lightGameObject.transform, syncLight.Transform);
         }
 
         static void ImportRPC(SyncRPC syncRPC, GameObject parent)
         {
-            var rpcGameObject = new GameObject(syncRPC.Name);
-            rpcGameObject.transform.parent = parent.transform;
-
-            ImportersUtils.SetTransform(rpcGameObject.transform, syncRPC.Transform);
         }
 
         static void ImportCamera(SyncCamera syncCamera, GameObject parent)
         {
             parent.name = "[POI] " + syncCamera.Name; 
-            ImportersUtils.SetTransform(parent.transform, syncCamera.Transform);
             
             var poi = parent.AddComponent<POI>();
 

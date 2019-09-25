@@ -1,16 +1,9 @@
-﻿using System;
-using UnityEngine;
-using UnityEngine.UI;
+﻿using UnityEngine.UI;
 
 namespace UnityEngine.Reflect
 {
     public class MetadataMenu : Menu
     {
-
-        protected override void Awake()
-        {
-            base.Awake();
-        }
 
         protected new void Start()
         {
@@ -20,7 +13,7 @@ namespace UnityEngine.Reflect
 
             //  add filters
             float y = 0f;
-            foreach (string value in nodes.Keys)
+            foreach (var value in nodes.Keys)
             {
                 MenuItem filter;
                 nodes.TryGetValue(value, out filter);
@@ -40,19 +33,19 @@ namespace UnityEngine.Reflect
             scrollContent.GetComponent<RectTransform>().offsetMin = offset;
         }
 
-        public override void AddNode(Transform node)
+        public override bool AddNode(Transform node)
         {
+            var ret = false;
             if (node.GetComponent<Renderer>() != null)
             {
-                Metadata model = node.GetComponent<Metadata>();
+                var model = node.GetComponent<Metadata>();
                 if (model != null)
                 {
                     var value = model.GetParameter(key);
                     if (!string.IsNullOrEmpty(value))
                     {
                         MenuItem item;
-                        nodes.TryGetValue(value, out item);
-                        if (item == null)
+                        if (!nodes.TryGetValue(value, out item))
                         {
                             var menuitem = NewMenuItem();
                             item = menuitem.GetComponent<MetadataMenuItem>();
@@ -60,7 +53,30 @@ namespace UnityEngine.Reflect
                             nodes.Add(value, item);
                         }
 
-                        item.AddNode(model.transform);
+                        ret = item.AddNode(model.transform);
+                    }
+                }
+            }
+
+            return ret;
+        }
+    
+        public override void RemoveNode(Transform node)
+        {
+            if (node.GetComponent<Renderer>() != null)
+            {
+                var model = node.GetComponent<Metadata>();
+                if (model != null)
+                {
+                    var value = model.GetParameter(key);
+                    if (!string.IsNullOrEmpty(value))
+                    {
+                        MenuItem item;
+                        nodes.TryGetValue(value, out item);
+                        if (item != null)
+                        {
+                            item.RemoveNode(model.transform);
+                        }
                     }
                 }
             }

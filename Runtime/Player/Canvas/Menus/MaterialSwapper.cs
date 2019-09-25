@@ -4,64 +4,56 @@ namespace UnityEngine.Reflect
 {
     public class MaterialSwapper
     {
-        List<Renderer> renderers;
-        List<Material[]> originalMaterials;
+        Dictionary<Renderer, Material[]> renderers;
 
         public MaterialSwapper()
         {
-            renderers = new List<Renderer>();
-            originalMaterials = new List<Material[]>();
+            renderers = new Dictionary<Renderer, Material[]>();
         }
 
         public void AddRenderer(Renderer inRenderer)
         {
-            renderers.Add(inRenderer);
-            originalMaterials.Add(inRenderer.materials);
+            renderers[inRenderer] = inRenderer.materials;
         }
 
-        public bool ContainsRenderer(Renderer inRenderer)
+        public void RemoveRenderer(Renderer inRenderer)
         {
-            return renderers.Contains(inRenderer);
+            renderers.Remove(inRenderer);
         }
-        
-        public int Count()
-        {
-            return renderers.Count;
-        }
-        
+
         public void Clear()
         {
             renderers.Clear();
-            originalMaterials.Clear();
         }
 
-        public void SetMaterial(Material inMaterial, HashSet<Renderer> excludedRenderer = null, int inStartAt = 0)
+        public void SetMaterial(Material inMaterial, HashSet<Renderer> excludedRenderer = null)
         {
-            foreach (Renderer r in renderers)
+            foreach (var r in renderers)
             {
-                if ((excludedRenderer == null) || !excludedRenderer.Contains(r))
+                if ((excludedRenderer == null) || !excludedRenderer.Contains(r.Key))
                 {
-                    Material[] mats = r.sharedMaterials;
-                    for (int m = inStartAt; m < mats.Length; ++m)
-                    {
-                        mats[m] = inMaterial;
-                    }
-
-                    r.sharedMaterials = mats;
+                    SwapRenderer(r.Key, inMaterial);
                 }
             }
         }
 
+        public void SwapRenderer(Renderer renderer, Material material)
+        {
+            Material[] mats = renderer.sharedMaterials;
+            for (int m = 0; m < mats.Length; ++m)
+            {
+                mats[m] = material;
+            }
+
+            renderer.sharedMaterials = mats;
+        }
+        
         public void Restore()
         {
-            for (int r = 0; r < renderers.Count; ++r)
+            foreach (var r in renderers)
             {
-                Renderer renderer = renderers[r];
-                if (renderer != null)
-                {
-                    Material[] mats = originalMaterials[r];
-                    renderer.sharedMaterials = mats;
-                }
+                Material[] mats = r.Value;
+                r.Key.sharedMaterials = mats;
             }
         }
     }

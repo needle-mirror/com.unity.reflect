@@ -43,10 +43,24 @@ namespace UnityEngine.Reflect
         }
     }
 
-    abstract class RuntimeCache<TModel, TAsset> where TModel : ISyncModel, IMessage where TAsset : class
+    abstract class RuntimeCache<TModel, TAsset> where TModel : ISyncModel, IMessage where TAsset : UnityEngine.Object
     {
+        struct OwnerCount
+        {
+            public string Key;
+            public int Count;
+
+            public OwnerCount(string key)
+            {
+                Key = key;
+                Count = 0;
+            }
+        }
+
         readonly Dictionary<string, TAsset> m_Cache = new Dictionary<string, TAsset>();
-        
+
+        readonly Dictionary<int, OwnerCount> m_OwnerCount = new Dictionary<int, OwnerCount>();
+
         readonly RuntimeImporter<TModel, TAsset> m_Importer;
 
         readonly AssetSource m_AssetSource;
@@ -59,21 +73,50 @@ namespace UnityEngine.Reflect
         
         public TAsset Get(string key)
         {
-            key = KeyFromPath(key);
-            return m_Cache[key];
+            return m_Cache[KeyFromPath(key)];
         }
         
         public void Set(string path, TAsset obj)
         {
-            m_Cache[KeyFromPath(path)] = obj;
+            string key = KeyFromPath(path);
+            m_Cache[key] = obj;
+            m_OwnerCount[obj.GetInstanceID()] = new OwnerCount(key);
         }
 
         public TAsset TryGet(string key)
         {
-            key = KeyFromPath(key);
-            m_Cache.TryGetValue(key, out var value);
+            m_Cache.TryGetValue(KeyFromPath(key), out var value);
             
             return value;
+        }
+
+        public void OwnAsset(TAsset asset)
+        {
+            int id = asset.GetInstanceID();
+            if (m_OwnerCount.TryGetValue(id, out var ownercount))
+            {
+                ++ownercount.Count;
+                m_OwnerCount[id] = ownercount;
+            }
+        }
+
+        public void ReleaseAsset(TAsset asset)
+        {
+            int id = asset.GetInstanceID();
+            if (m_OwnerCount.TryGetValue(id, out var ownercount))
+            {
+                if (ownercount.Count == 1)
+                {
+                    m_OwnerCount.Remove(id);
+                    m_Cache.Remove(ownercount.Key);
+                    Object.Destroy(asset);
+                }
+                else
+                {
+                    --ownercount.Count;
+                    m_OwnerCount[id] = ownercount;
+                }
+            }
         }
 
         protected TAsset Reimport(string key, object settings)
@@ -90,18 +133,17 @@ namespace UnityEngine.Reflect
         protected TAsset Import(string key, object settings)
         {
             var value = TryGet(key);
+            if (value == null)
+            {
+                var model = m_AssetSource.LoadModel<TModel>(key);
 
-            if (value != null)
-                return value;
-           
-            var model =  m_AssetSource.LoadModel<TModel>(key);
+                if (model == null)
+                    return default;
 
-            if (model == null)
-                return default;
-            
-            value = m_Importer.Import(model, settings);
+                value = m_Importer.Import(model, settings);
 
-            Set(key, value);
+                Set(key, value);
+            }
             
             return value;
         }
