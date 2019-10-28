@@ -29,6 +29,7 @@ namespace UnityEngine.Reflect
             if (m_SyncManager != null)
             {
                 m_SyncManager.onInstanceAdded += OnInstanceAdded;
+                m_SyncManager.onSyncUpdateEnd += OnSyncUpdateEnd;
             }
 
             //    dynamically set the maximum size
@@ -76,12 +77,19 @@ namespace UnityEngine.Reflect
 
             foreach (var entity in prefab.Instances)
             {
-                var position = new Vector3(entity.Transform.Position.X, entity.Transform.Position.Y, entity.Transform.Position.Z);
-                var reference = new StreamingReference(instance, new SyncObjectBinding.Identifier(entity), position);
+                var reference = new StreamingReference(instance, new SyncObjectBinding.Identifier(entity), entity.Transform.Position);
                 m_References.Add(reference);
             }
 
             m_Instances[instance] = prefab;
+        }
+
+        void OnSyncUpdateEnd(bool hasChanged)
+        {
+            if (hasChanged)
+            {
+                UpdateScores();
+            }
         }
 
         private void Update()

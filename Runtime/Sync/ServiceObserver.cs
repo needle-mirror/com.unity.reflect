@@ -1,178 +1,114 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading;
-using Grpc.Core;
 using Unity.Reflect;
 using Unity.Reflect.Data;
 
 namespace UnityEngine.Reflect
-{    
+{
     class ServiceObserver
-    {       
+    {
         public delegate void ManifestUpdated(string projectId, string sessionId, SyncManifest newManifest);
         public event ManifestUpdated OnManifestUpdated;
 
-        public delegate void EventStreamUpdated(string serverProjectId, bool connected);
+        public delegate void EventStreamUpdated(bool connected);
         public event EventStreamUpdated OnEventStreamUpdated;
 
-        public IPlayerClient Client => m_Client;
-        
-        IPlayerClient m_Client;
+        public IPlayerClient Client { get; private set; }
 
-        bool m_ObservingManifest = false;
-        
-        HashSet<string> m_UpdatedManifests = new HashSet<string>();
+        readonly HashSet<string> m_UpdatedManifests = new HashSet<string>();
         string m_ObservedProjectId;
-        string m_ObservedServerProjectId;
 
-        Dictionary<TargetChannel, string> m_ChannelStreams = new Dictionary<TargetChannel, string>();
-        
-        public TargetChannel observingChannel => m_ServerChannel;
-        TargetChannel m_ServerChannel = null;
-
-        public void Connect(Project project, TargetChannel serverChannel)
+        public void Connect(Project project)
         {
+            Disconnect();
             m_ObservedProjectId = project.projectId;
-            m_ObservedServerProjectId = project.serverProjectId;
-            // If active channel is same as requestedChannel
-            if(m_ServerChannel != null && m_ServerChannel.Address.Equals(serverChannel.Address))
-            {
-                Debug.Log($"Connect to same channel:{m_Client != null}:{m_ObservingManifest}");
-                m_ServerChannel = serverChannel;
-                if (!m_ObservingManifest)
-                {
-                    if(m_ChannelStreams.ContainsKey(m_ServerChannel))
-                    {
-                        m_ChannelStreams.Remove(m_ServerChannel);
-                    }
-                    if(m_Client != null)
-                    {
-                        try
-                        {
-                            m_Client = Player.CreateClient(serverChannel);
-                            m_Client.OnConnectionStatusChanged += StreamEventNotify;
-                            Debug.Log($"Reconnect client to previously connected channel");
-                        }
-                        catch(Exception ex)
-                        {
-                            Debug.Log($"Exception occured on recreating m_Client: {ex}");
-                        }
-                    }
-                    ObserveClient();
-                }
-            }
-            else
-            {
-                // Disconnect previous channel events
-                if(m_ServerChannel != null)
-                {
-                    Debug.Log($"Disconnect from previous channel");
-                    ReleaseClient();
-                }
-                // Create new client from channel and start observation 
-                m_ServerChannel = serverChannel;
-                if(m_ChannelStreams.ContainsKey(m_ServerChannel))
-                {
-                    m_ChannelStreams.Remove(m_ServerChannel);
-                }
-                m_Client = Player.CreateClient(serverChannel);
-                m_Client.OnConnectionStatusChanged += StreamEventNotify;
-                Debug.Log($"Connect to new channel");
-                ObserveClient();
-            }
 
-            lock (m_UpdatedManifests)
+            // Create new client from channel and start observation
+            Debug.Log($"Connect to new channel");
+            Client = Player.CreateClient(project, ProjectServerEnvironment.UnityUser);            
+            Client.ConnectionStatusChanged += ConnectionStatusChanged;
+        }
+
+        public void StartSync()
+        {
+            Client.ManifestUpdated += OnManifestUpdate;
+            UpdateAllManifests();
+        }
+
+        public void StopSync()
+        {
+            Client.ManifestUpdated -= OnManifestUpdate;
+            PopPendingEvents();
+        }
+
+        public void ProcessPendingEvents()
+        {
+            foreach (var sourceId in PopPendingEvents())
             {
-                m_UpdatedManifests.Clear();
+                var newManifest = Client.GetManifest(sourceId);
+                OnManifestUpdated?.Invoke(m_ObservedProjectId, sourceId, newManifest.Manifest);
             }
         }
 
-        internal void ProcessPendingEvents()
+        void UpdateAllManifests()
         {
-            lock (m_UpdatedManifests)
-            {
-                foreach (var sessionId in m_UpdatedManifests)
-                {
-                    var newManifest = m_Client.GetManifest(m_ObservedProjectId, sessionId);
-                    OnManifestUpdated?.Invoke(m_ObservedProjectId, sessionId, newManifest);
-                }
-                m_UpdatedManifests.Clear();
-            }
-        }
-
-        public void UpdateAllManifests()
-        {
-            var response = m_Client.GetManifests(m_ObservedProjectId);
+            var response = Client.GetManifests();
 
             foreach (var responseManifest in response)
             {
-                OnManifestUpdated?.Invoke(m_ObservedProjectId, responseManifest.SourceId, responseManifest.Manifest);    
+                OnManifestUpdated?.Invoke(m_ObservedProjectId, responseManifest.SourceId, responseManifest.Manifest);
             }
         }
 
-        public void ClearPendingEvents()
+        public void Disconnect()
+        {
+            if (Client == null)
+            {
+                return;
+            }
+
+            StopSync();            
+            Client.ConnectionStatusChanged -= ConnectionStatusChanged;
+            try
+            {
+                Debug.Log($"Releasing observation of service.");
+                Client.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"An error occured releasing m_Client: {ex.Message}");
+            }
+            Client = null;
+        }
+
+        IEnumerable<string> PopPendingEvents()
         {
             lock (m_UpdatedManifests)
             {
+                var pendingEvents = new HashSet<string>(m_UpdatedManifests);
                 m_UpdatedManifests.Clear();
+                return pendingEvents;
             }
         }
 
-        void ObserveClient()
-        {
-            m_Client.OnManifestUpdate += OnManifestUpdate;
-            m_Client.ObserveManifestUpdate();
-            m_ObservingManifest = true;
-            Debug.Log($"Starting Observing service.");
-        }
-       
-        public void ReleaseClient()
-        {
-            if (m_ObservingManifest)
-            {
-                try
-                {
-                    Debug.Log($"Releasing observation of service.");
-                    m_Client.ReleaseManifestUpdate();
-                    m_Client.OnManifestUpdate -= OnManifestUpdate;
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"An error occured releasing m_Client: {ex.Message}");
-                }
-                m_ObservingManifest = false;
-            }
-        }
-
-        void OnManifestUpdate(string key)
+        void OnManifestUpdate(object sender, ManifestUpdatedEventArgs e)
         {
             lock (m_UpdatedManifests)
             {
-                if (!m_UpdatedManifests.Contains(key))
-                {
-                    m_UpdatedManifests.Add(key);
-                }
+                m_UpdatedManifests.Add(e.SourceId);
             }
         }
 
-        void StreamEventNotify(ConnectionStatus status, string id)
+        void ConnectionStatusChanged(ConnectionStatus status)
         {
-            Debug.Log($"ServiceObserver.StreamEventNotify on projectId '{m_ObservedProjectId}':{id}, {status}");
+            Debug.Log($"ServiceObserver.StreamEventNotify on projectId '{m_ObservedProjectId}', {status}");
             var isConnected = status.Equals(ConnectionStatus.Connected);
-            if(!m_ChannelStreams.ContainsKey(m_ServerChannel) && isConnected)
+            if (!isConnected)
             {
-                m_ChannelStreams.Add(m_ServerChannel, id);
-                OnEventStreamUpdated?.Invoke(m_ObservedServerProjectId, isConnected);
+                Disconnect();
             }
-            else
-            {
-                if(m_ChannelStreams[m_ServerChannel].Equals(id) && !isConnected)
-                {
-                    m_ChannelStreams.Remove(m_ServerChannel);
-                    OnEventStreamUpdated?.Invoke(m_ObservedServerProjectId, isConnected);
-                }
-            }
-        }
 
+            OnEventStreamUpdated?.Invoke(isConnected);
+        }
     }
 }

@@ -4,10 +4,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Reflect;
 using Unity.Reflect.Data;
 using Unity.Reflect.Model;
 using Unity.Reflect.Utils;
-using UnityEngine;
 
 namespace UnityEngine.Reflect
 {
@@ -25,6 +25,9 @@ namespace UnityEngine.Reflect
         [SerializeField]
         Transform m_SyncRoot;
 
+        [SerializeField]
+        Shader[] m_Shaders;
+        
         public Transform syncRoot => m_SyncRoot;
 
         public delegate void EventHandler(SyncInstance instance);
@@ -34,19 +37,19 @@ namespace UnityEngine.Reflect
 
         public IReadOnlyDictionary<string, SyncInstance> syncInstances => m_SyncInstances;
 
-        Dictionary<string, SyncInstance> m_SyncInstances = new Dictionary<string, SyncInstance>();
+        readonly Dictionary<string, SyncInstance> m_SyncInstances = new Dictionary<string, SyncInstance>();
 
-        ServiceObserver m_Observer;
-
-        bool m_ForceUpdate;
-
-        bool m_SyncEnabled;
+        readonly ServiceObserver m_Observer = new ServiceObserver();
 
         Project m_SelectedProject = Project.Empty;
 
         Coroutine m_ApplyChangesCoroutine;
 
-        public Project selectedProject => m_SelectedProject;
+        public SyncManager()
+        {
+            m_Observer.OnManifestUpdated += OnManifestUpdated;
+            m_Observer.OnEventStreamUpdated += OnEventStreamUpdated;
+        }
 
         public void LogReceived(Unity.Reflect.Utils.Logger.Level level, string msg)
         {
@@ -75,7 +78,7 @@ namespace UnityEngine.Reflect
         void OnDestroy()
         {
             Debug.Log("Releasing observer...");
-            m_Observer?.ReleaseClient();
+            m_Observer.Disconnect();
         }
 
         public IEnumerator Open(Project project)
@@ -85,6 +88,8 @@ namespace UnityEngine.Reflect
                 Debug.LogWarning($"Project is already opened '{m_SelectedProject.name}'");
                 yield break;
             }
+
+            m_Observer.Disconnect();
 
             m_SelectedProject = project;
 
@@ -118,11 +123,10 @@ namespace UnityEngine.Reflect
 
             m_SyncMenu.Register(this);
 
-            if (m_SelectedProject.channel != null)
+            if (m_ProjectManager.IsProjectAvailableOnline(m_SelectedProject))
             {
-                onSyncEnabled?.Invoke();
-
-                yield return StartSyncInternal();
+                EnableSync();
+                yield return null;
             }
 
             taskCompleted?.Invoke();
@@ -182,23 +186,20 @@ namespace UnityEngine.Reflect
             m_SyncInstancesRoot.parent = m_SyncRoot;
         }
 
-        public bool IsProjectOpened(Project project)
-        {
-            return m_SelectedProject.serverProjectId.Equals(project.serverProjectId);
-        }
+        public bool IsProjectOpened(Project project) => m_SelectedProject.serverProjectId == project.serverProjectId;
 
         public void Close()
         {
-            if (m_SelectedProject.IsValid())
+            if (m_SelectedProject != Project.Empty)
             {            
                 ResetSyncRoot();
                 
-                OnSyncStop();
+                StopSync();
                 m_SyncInstances.Clear();
             
                 m_SelectedProject = Project.Empty;
-            
-                onSyncDisabled?.Invoke();
+
+                DisableSync();
 
                 m_SyncMenu.UnRegister(this);
 
@@ -206,15 +207,14 @@ namespace UnityEngine.Reflect
             }
         }
 
-        public void OnSyncStart()
+        public void StartSync()
         {
-            m_SyncEnabled = true;
-            m_ForceUpdate = true;
+            m_Observer.StartSync();
         }
         
-        public void OnSyncStop()
-        {  
-            m_SyncEnabled = false;
+        public void StopSync()
+        {
+            m_Observer.StopSync();
         }
 
         public void ApplyPrefabChanges()
@@ -234,60 +234,33 @@ namespace UnityEngine.Reflect
             }
         }
 
-        IEnumerator StartSyncInternal()
-        {            
-            if (m_SelectedProject.channel == null)
-            {
-                Debug.LogError($"Cannot start Sync on project {m_SelectedProject.name}. Not connected.");
-                yield break;
-            }
-
-            if (m_SelectedProject.channel != null)
-            {
-                m_ForceUpdate = true;
-            }
-        }
-        
-        bool IsSyncing()
-        {
-            return m_SyncEnabled && m_Observer != null;
-        }
-
         void OnManifestUpdated(string projectId, string sessionId, SyncManifest manifest)
         {
             StartCoroutine(ManifestUpdatedInternal(projectId, sessionId, manifest));
         }
 
-        void OnEventStreamUpdated(string serverProjectId, bool connected)
+        void OnEventStreamUpdated(bool connected)
         {
-            Debug.Log($"OnEventStreamUpdated:{serverProjectId}");
-            if(m_SelectedProject.IsValid() && m_SelectedProject.serverProjectId.Equals(serverProjectId) && m_SelectedProject.channel != null)
+            Debug.Log($"OnEventStreamUpdated:{m_SelectedProject.serverProjectId}");
+
+            if (!connected)
             {
-                if(!connected)
-                {
-                    Debug.Log("Project lost event stream. Disabling sync and Releasing observer...");
-                    m_SelectedProject.channel = null;
-                    DisableSync();
-                }
+                Debug.Log("Project lost event stream. Disabling sync and Releasing observer...");
+                DisableSync();
             }
         }
 
         void OnProjectUpdated(Project project)
         {
-            Debug.Log($"OnProjectUpdated '{project.serverProjectId}', Channel exists: {project.channel != null}");
+            Debug.Log($"OnProjectUpdated '{project.serverProjectId}', Channel exists: {m_ProjectManager.IsProjectAvailableOnline(project)}");
 
             if (!IsProjectOpened(project))
             {
                 return;
             }
 
-            if (m_SelectedProject.channel != null && project.channel == null)
-            {
-                Debug.Log("Project lost connection. Disabling sync and Releasing observer...");
-                DisableSync();
-                m_Observer?.ReleaseClient();
-            }
-            else if (project.channel != null)
+            m_SelectedProject = project;
+            if (m_ProjectManager.IsProjectAvailableOnline(project))
             {
                 Debug.Log($"Project '{project.name}' Connected.");
                 EnableSync();
@@ -301,19 +274,21 @@ namespace UnityEngine.Reflect
 
         void EnableSync()
         {
-            if (IsSyncing())
+            try
             {
-                m_ForceUpdate = true;
-            }  
-            onSyncEnabled?.Invoke();
+                // TODO: Make this run a Task + IEnumerator
+                m_Observer.Connect(m_SelectedProject);
+                onSyncEnabled?.Invoke();
+            }
+            catch (ConnectionException)
+            {
+                DisableSync();
+            }            
         }
 
         void DisableSync()
         {
-            if (IsSyncing())
-            {
-                OnSyncStop();
-            }
+            m_Observer.Disconnect();
             onSyncDisabled?.Invoke();
         }
 
@@ -321,26 +296,22 @@ namespace UnityEngine.Reflect
         {
             if(!m_SelectedProject.projectId.Equals(projectId))
             {
-                yield return null;
+                yield break;
             }
-            else
-            {
-                onSyncUpdateBegin?.Invoke();
-            
-                m_SyncInstances.TryGetValue(sessionId, out var syncInstance);
-            
-                if (syncInstance == null)
-                {
-                      var folder = m_ProjectManager.GetSourceProjectFolder(m_SelectedProject, sessionId);
-                      m_SyncInstances[sessionId] = syncInstance = new SyncInstance(m_SyncInstancesRoot, folder);
-                }
 
-                yield return m_ProjectManager.DownloadSourceProjectLocally(m_SelectedProject, sessionId, syncInstance.Manifest, manifest, m_Observer.Client, null);
+            onSyncUpdateBegin?.Invoke();
             
-                syncInstance.ApplyModifications(manifest);
-            
-                onSyncUpdateEnd?.Invoke();
+            if (!m_SyncInstances.TryGetValue(sessionId, out var syncInstance))
+            {
+                var folder = m_ProjectManager.GetSourceProjectFolder(m_SelectedProject, sessionId);
+                m_SyncInstances[sessionId] = syncInstance = new SyncInstance(m_SyncInstancesRoot, folder);
             }
+
+            yield return m_ProjectManager.DownloadSourceProjectLocally(m_SelectedProject, sessionId, syncInstance.Manifest, manifest, m_Observer.Client, null);
+            
+            var hasChanged = syncInstance.ApplyModifications(manifest);
+            
+            onSyncUpdateEnd?.Invoke(hasChanged);
         }
 
 		void Awake()
@@ -358,12 +329,11 @@ namespace UnityEngine.Reflect
         void OnApplicationPause(bool isPaused)
         {
             Debug.Log($"OnApplicationPause: {isPaused}");
-            if(m_SelectedProject.IsValid() && m_SelectedProject.channel != null)
+            if (m_ProjectManager.IsProjectAvailableOnline(m_SelectedProject))
             {
                 if(isPaused)
                 {
                     DisableSync();
-                    m_Observer?.ReleaseClient();
                 }
                 else
                 {
@@ -374,37 +344,13 @@ namespace UnityEngine.Reflect
 
         void Update()
         {
-            if (m_ForceUpdate)
-            {
-                if (m_SelectedProject.channel != null)
-                {
-                    if(m_Observer == null)
-                    {
-                        Debug.Log("First time creating ServiceObserver");
-                        m_Observer = new ServiceObserver();
-                        m_Observer.OnManifestUpdated += OnManifestUpdated;
-                        m_Observer.OnEventStreamUpdated += OnEventStreamUpdated;
-                    }
-                    m_Observer.Connect(m_SelectedProject, m_SelectedProject.channel);
-                    // Apply any modifications right Away
-                    m_Observer.UpdateAllManifests();
-                    m_Observer.ClearPendingEvents();
-                }
-                m_ForceUpdate = false;
-            }
-            else
-            {
-                if (IsSyncing())
-                {
-                    m_Observer.ProcessPendingEvents();
-                }
-            }
+            m_Observer.ProcessPendingEvents();
         }
 
         public event Action onSyncEnabled;
         public event Action onSyncDisabled;
         public event Action onSyncUpdateBegin;
-        public event Action onSyncUpdateEnd;
+        public event Action<bool> onSyncUpdateEnd;
 
         public event Action onProjectOpened;
         public event Action onProjectClosed;

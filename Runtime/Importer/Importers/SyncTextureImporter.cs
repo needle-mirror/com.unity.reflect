@@ -26,7 +26,7 @@ namespace UnityEngine.Reflect
 
         protected override void ImportInternal(SyncTexture syncTexture, Texture2D texture, object settings)
         {           
-            var data = syncTexture.Source.ToByteArray();
+            var data = syncTexture.Source;
 
             texture.LoadImage(data);
 

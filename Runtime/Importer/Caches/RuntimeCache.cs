@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Google.Protobuf;
 using Unity.Reflect.Model;
 using File = Unity.Reflect.IO.File;
 
@@ -10,13 +9,13 @@ namespace UnityEngine.Reflect
 {
     class AssetSource
     {
-        List<string> m_Sources;
+        List<string> m_Sources; // FixMe Only ONE source
         public AssetSource(params string[] sources)
         {
             m_Sources = sources.ToList();
         }
         
-        public T LoadModel<T>(string key) where T : IMessage, ISyncModel
+        public T LoadModel<T>(string key) where T : class, ISyncModel
         {
             var expectedPath = ExpectedPath(key);
             if (expectedPath == null)
@@ -43,7 +42,7 @@ namespace UnityEngine.Reflect
         }
     }
 
-    abstract class RuntimeCache<TModel, TAsset> where TModel : ISyncModel, IMessage where TAsset : UnityEngine.Object
+    abstract class RuntimeCache<TModel, TAsset> where TModel : class, ISyncModel where TAsset : UnityEngine.Object
     {
         struct OwnerCount
         {

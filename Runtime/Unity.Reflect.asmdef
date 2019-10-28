@@ -1,8 +1,17 @@
 {
     "name": "Unity.Reflect",
     "references": [
+        "Unity.Mathematics",
         "Unity.XR.ARFoundation",
-        "Unity.XR.ARSubsystems"
+        "Unity.XR.ARSubsystems",
+        "Unity.Postprocessing.Runtime",
+        "Unity.Labs.EditorXR",
+        "Unity.Labs.EditorXR.Interfaces",
+        "Unity.Labs.ModuleLoader",
+        "Unity.Labs.ModuleLoader.Interfaces",
+        "Unity.Labs.Utils",
+        "input-prototype",
+        "UnityEngine.SpatialTracking"
     ],
     "optionalUnityReferences": [],
     "includePlatforms": [],

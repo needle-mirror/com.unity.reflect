@@ -21,9 +21,9 @@ namespace UnityEngine.Reflect
         ARRaycastManager m_RayCastManager;
         ARPointCloudManager pointCloudManager;
 
-        Vector3 originalPosition;
-        Quaternion originalRotation;
-        Vector3 originalScale;
+        Vector3 originalPosition = Vector3.zero;
+        Quaternion originalRotation = Quaternion.identity;
+        Vector3 originalScale = Vector3.one;
 
         protected override void Awake()
         {

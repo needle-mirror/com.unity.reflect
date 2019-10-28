@@ -68,6 +68,17 @@ namespace UnityEngine.Reflect
             key = inKey;
         }
 
+        public string GetKey()
+        {
+            return key;
+        }
+
+        public MenuItem GetMenuItem(string value)
+        {
+            nodes.TryGetValue(value, out var item);
+            return item;
+        }
+        
         public void SetIndex(int inIndex)
         {
             index = inIndex;

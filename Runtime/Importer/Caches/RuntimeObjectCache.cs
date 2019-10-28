@@ -7,7 +7,7 @@ namespace UnityEngine.Reflect
 {
     public interface IObjectCache
     {
-        GameObject CreateInstance(string key);
+        SyncObjectBinding CreateInstance(string key);
     }
     
     class RuntimeObjectCache : IObjectCache
@@ -39,33 +39,28 @@ namespace UnityEngine.Reflect
             }
         }
 
-        public void Add(SyncObjectBinding syncObject)
+        public SyncObjectBinding CreateInstance(string key)
         {
-            if (!m_Instances.TryGetValue(syncObject.identifier.key, out var list))
-            {
-                m_Instances[syncObject.identifier.key] = list = new List<GameObject>();
-            }
-            
-            list.Add(syncObject.gameObject);
-                
-        }
-        
-        public GameObject CreateInstance(string key)
-        {
-            if (m_Instances.ContainsKey(key))
-            {
-                return Object.Instantiate(m_Instances[key].First());
-            }
-            
             var model = m_AssetSource.LoadModel<SyncObject>(key);
 
             if (model == null)
                 return null;
             
-            var value = m_SyncObjectImporter.Import(model, m_Settings);
-            m_Instances[key] = new List<GameObject> { value };
+            var gameObject = m_SyncObjectImporter.Import(model, m_Settings);
 
-            return value;
+            if (!m_Instances.TryGetValue(key, out var list))
+            {
+                m_Instances[key] = list = new List<GameObject>();
+            }
+            
+            list.Add(gameObject);
+
+            var syncObject = gameObject.GetComponent<SyncObjectBinding>();
+            
+            if (syncObject == null)
+                syncObject = gameObject.AddComponent<SyncObjectBinding>();
+            
+            return syncObject;
         }
         
         public void RemoveInstance(SyncObjectBinding syncObject)

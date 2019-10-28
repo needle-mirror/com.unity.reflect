@@ -306,9 +306,12 @@ MonoBehaviour:
   buttonBackground: {fileID: 8773869591644059378}
   ui: {fileID: 8773869591524241817}
   listControl: {fileID: 4240198501708856576}
-  arCamera: {fileID: 0}
-  arTabletopUI: {fileID: 0}
-  onScreenCamera: {fileID: 0}
+  tableTopMenu: {fileID: 0}
+  vrSetup: {fileID: 0}
+  defaultColor: {r: 1, g: 1, b: 1, a: 0}
+  failColor: {r: 1, g: 0, b: 0, a: 0}
+  partialColor: {r: 1, g: 1, b: 0, a: 0}
+  successColor: {r: 0, g: 1, b: 0, a: 0}
 --- !u!1 &8773869591907291433
 GameObject:
   m_ObjectHideFlags: 0

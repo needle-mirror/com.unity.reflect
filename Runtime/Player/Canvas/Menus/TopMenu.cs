@@ -14,6 +14,8 @@ namespace UnityEngine.Reflect
         const float stepX = 80f;
         int index;
 
+        public static bool s_CanShowButtons = true;
+
         static List<TopMenu> sTopMenus = new List<TopMenu>();
 
         protected virtual void Awake()
@@ -31,7 +33,7 @@ namespace UnityEngine.Reflect
             if (button != null)
             {
                 //  layout buttons horizontally
-                float posx = stepX * (index - (sTopMenus.Count * 0.25f));
+                float posx = stepX * (index - (sTopMenus.Count * 0.5f) + 0.5f);
 
                 RectTransform rect = button.GetComponent<RectTransform>();
                 Vector2 offset = rect.offsetMin;
@@ -87,8 +89,14 @@ namespace UnityEngine.Reflect
             OnVisiblityChanged?.Invoke(false);
         }
 
-        protected static void ShowButtons()
+        public void ShowButtons()
         {
+            if (!s_CanShowButtons)
+            {
+                HideButtons();
+                return;
+            }
+
             foreach (var m in sTopMenus)
             {
                 if (m.button != null)
@@ -99,7 +107,7 @@ namespace UnityEngine.Reflect
             }
         }
 
-        protected void HideButtons()
+        public void HideButtons()
         {
             foreach (var m in sTopMenus)
             {

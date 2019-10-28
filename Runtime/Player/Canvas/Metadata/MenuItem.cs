@@ -7,33 +7,54 @@ namespace UnityEngine.Reflect
 {
     public class MenuItem : MonoBehaviour
     {
-        public Text text;
-        public Material selectedMaterial;
+        public Text m_Text;
+        public Material m_SelectedMaterial;
+        public MetadataTopMenu m_MetadataTopMenu;
 
-        protected string value;
-        protected HashSet<Renderer> nodes = new HashSet<Renderer>();
-        FilterView filterView = new FilterView();
+        Menu m_Menu;
+        protected string m_Value;
+        protected HashSet<Renderer> m_Nodes = new HashSet<Renderer>();
+        FilterView m_FilterView = new FilterView();
 
-        static MenuItem sActiveMenuItem;
+        static MenuItem s_ActiveMenuItem;
 
         public static MenuItem GetActiveMenuItem()
         {
-            return sActiveMenuItem;
+            return s_ActiveMenuItem;
         }
 
         void Start()
         {
-            text.text = value;
+            m_Text.text = m_Value;
         }
 
-        public void Initialize(string inValue)
+        public void Initialize(Menu menu, string inValue)
         {
-            value = inValue;
+            m_Menu = menu;
+            m_Value = inValue;
         }
 
+        private void OnDestroy()
+        {
+            if (GetActiveMenuItem() == this)
+            {
+                Deactivate();
+            }
+        }
+
+        public Menu GetMenu()
+        {
+            return m_Menu;
+        }
+        
+        public string GetValue()
+        {
+            return m_Value;
+        }
+        
         public FilterView GetFilterView()
         {
-            return filterView;
+            return m_FilterView;
         }
 
         public void SetPosition(float inY)
@@ -47,8 +68,8 @@ namespace UnityEngine.Reflect
             Renderer rend = node.GetComponent<Renderer>();
             if (rend != null)
             {
-                ret = nodes.Add(rend);
-                filterView.AddRenderer(rend);
+                ret = m_Nodes.Add(rend);
+                m_FilterView.AddRenderer(rend);
             }
 
             return ret;
@@ -59,7 +80,7 @@ namespace UnityEngine.Reflect
             Renderer rend = node.GetComponent<Renderer>();
             if (rend != null)
             {
-                nodes.Remove(rend);
+                m_Nodes.Remove(rend);
             }
         }
 
@@ -67,36 +88,36 @@ namespace UnityEngine.Reflect
         {
         }
 
-        protected void Activate(bool hide = true)
+        public virtual void Activate(bool hide = true)
         {
-            text.fontStyle = FontStyle.Bold;
-            if (selectedMaterial != null)
+            m_Text.fontStyle = FontStyle.Bold;
+            if (m_SelectedMaterial != null)
             {
-                text.color = selectedMaterial.color;
+                m_Text.color = m_SelectedMaterial.color;
             }
 
-            filterView.Aim(true);
+            m_FilterView.Aim(true);
 
-            sActiveMenuItem = this;
+            s_ActiveMenuItem = this;
 
             if (hide)
             {
-                MetadataTopMenu.HideAllRenderers(nodes);
+                m_MetadataTopMenu.HideAllRenderers(m_Nodes);
             }
         }
 
         public virtual void Deactivate(bool show = true)
         {
-            text.fontStyle = FontStyle.Normal;
-            text.color = Color.white;
+            m_Text.fontStyle = FontStyle.Normal;
+            m_Text.color = Color.white;
 
-            filterView.Aim(false);
+            m_FilterView.Aim(false);
 
-            sActiveMenuItem = null;
+            s_ActiveMenuItem = null;
             
             if (show)
             {
-                MetadataTopMenu.ShowAllRenderers();
+                m_MetadataTopMenu.ShowAllRenderers();
             }
         }
     }

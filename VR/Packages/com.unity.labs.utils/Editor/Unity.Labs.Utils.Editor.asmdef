@@ -1,0 +1,12 @@
+{
+    "name": "Unity.Labs.Utils.Editor",
+    "references": [
+        "Unity.Labs.Utils"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false
+}

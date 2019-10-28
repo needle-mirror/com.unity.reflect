@@ -49,7 +49,7 @@ namespace UnityEngine.Reflect
                         {
                             var menuitem = NewMenuItem();
                             item = menuitem.GetComponent<MetadataMenuItem>();
-                            item.Initialize(value);
+                            item.Initialize(this, value);
                             nodes.Add(value, item);
                         }
 

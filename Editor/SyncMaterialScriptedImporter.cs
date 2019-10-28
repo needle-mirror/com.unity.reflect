@@ -25,11 +25,8 @@ namespace UnityEditor.Reflect
             var materialImporter = new SyncMaterialImporter();
             var material = materialImporter.Import(syncMaterial, this);
             
-            if (syncMaterial.Name != null)
-            {
-                material.name = Path.GetFileNameWithoutExtension(syncMaterial.Name);
-            }
-            
+            material.name = Path.GetFileNameWithoutExtension(syncMaterial.Name);
+
             ctx.AddObjectToAsset("material", material);
             
             var root = ScriptableObject.CreateInstance<ReflectScriptableObject>();

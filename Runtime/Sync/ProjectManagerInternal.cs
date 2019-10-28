@@ -8,47 +8,74 @@ using Unity.Reflect;
 using Unity.Reflect.Data;
 using Unity.Reflect.IO;
 using Unity.Reflect.Model;
-using Unity.Reflect.Services;
 using Unity.Reflect.Utils;
 using File = Unity.Reflect.IO.File;
 
 namespace UnityEngine.Reflect
 {
-    [Serializable]
-    public class Project
+    public class Project : ISerializationCallbackReceiver
     {
-        [XmlIgnore]
-        public static Project Empty = new Project(string.Empty, string.Empty, string.Empty, string.Empty, null);
+        [SerializeField]
+        string m_ProjectId;
 
-        public string serverProjectId;
-        public string projectId;
-        public string name;
-        public string description;
-        [XmlIgnore]
-        public TargetChannel channel;
+        [SerializeField]
+        string m_ProjectName;
 
-        public Project()
+        [SerializeField]
+        string m_ServerId;
+
+        [SerializeField]
+        string m_ServerName;
+
+        [SerializeField]
+        string[] m_EndpointAddresses;
+
+        [NonSerialized]
+        UnityProject m_UnityProject;
+
+        public static Project Empty { get; } = new Project(new UnityProject(UnityProjectHost.LocalService, string.Empty, string.Empty));
+        public string serverProjectId => $"{m_UnityProject.Host.ServerId}:{m_UnityProject.ProjectId}";
+        public string projectId => m_UnityProject.ProjectId;
+        public string name => m_UnityProject.Name;
+        public string description => m_UnityProject.Host.ServerName;
+        internal bool isAvailableOnline { get; set; }
+
+        private Project()
         {
         }
 
-        public Project(string serverProjectId, string projectId, string name, string description, TargetChannel channel)
+        internal Project(UnityProject onlineUnityProject)
         {
-            this.serverProjectId = serverProjectId;
-            this.projectId = projectId;
-            this.name = name;
-            this.description = description;
-            this.channel = channel;
+            m_UnityProject = onlineUnityProject;
+            isAvailableOnline = true;
         }
 
-        public bool IsValid()
+        void ISerializationCallbackReceiver.OnBeforeSerialize()
         {
-            return !string.IsNullOrEmpty(serverProjectId);
+            m_ProjectId = m_UnityProject.ProjectId;
+            m_ProjectName = m_UnityProject.Name;
+            m_ServerId = m_UnityProject.Host.ServerId;
+            m_ServerName = m_UnityProject.Host.ServerName;
+            m_EndpointAddresses = m_UnityProject.Host.EndpointAddresses.ToArray();
+        }
+
+        void ISerializationCallbackReceiver.OnAfterDeserialize()
+        {
+            var host = m_ServerId == UnityProjectHost.LocalService.ServerId ?
+                UnityProjectHost.LocalService : new UnityProjectHost(m_ServerId, m_ServerName, m_EndpointAddresses);
+            m_UnityProject = new UnityProject(host, m_ProjectId, m_ProjectName);
+            isAvailableOnline = false;
+        }
+
+        public static implicit operator UnityProject(Project project)
+        {
+            return project.m_UnityProject;
         }
     }
 
     abstract class ProjectManagerInternal : IProgressTask
     {
-        public class ProjectEntry
+        class ProjectEntry
         {
             public Project project;
             public List<Action<Project>> listeners = new List<Action<Project>>();
@@ -69,20 +96,24 @@ namespace UnityEngine.Reflect
 
         readonly Dictionary<string, ProjectEntry> m_Projects = new Dictionary<string, ProjectEntry>();
 
+        readonly string m_UserProjectsPersistentPath;
+
+        protected Dictionary<string, string[]> m_UserProjects = new Dictionary<string, string[]>();
+
         public event Action<Project> onProjectAdded;
         public event Action<Project> onProjectChanged;
 
         readonly HashSet<string> m_CurrentDownloadingProjectId = new HashSet<string>();
 
-        LocalStorage m_LocalStorage;
+        readonly LocalStorage m_LocalStorage;
 
         public IEnumerable<Project> Projects => m_Projects.Values.Select(v => v.project);
 
-        const string k_ProjectDataFileName = "index.xml";
+        const string k_ProjectDataFileName = "index.json";
 
-        readonly bool m_UseProjectNameAsRootFolder;
+        const string k_ProjectDataFolderName = "ProjectData";
 
-        const string kDownloading = "Downloading";
+        const string k_Downloading = "Downloading";
 
         #region Abstract
 
@@ -98,20 +129,11 @@ namespace UnityEngine.Reflect
 
         #endregion
 
-        protected ProjectManagerInternal(string storageRoot, bool useProjectNameAsRootFolder)
+        protected ProjectManagerInternal(string storageRoot, bool useServerFolder, bool useProjectNameAsRootFolder)
         {
-            m_UseProjectNameAsRootFolder = useProjectNameAsRootFolder;
-            Init(storageRoot);
-        }
-
-        protected ProjectManagerInternal()
-        {
-            Init(Application.persistentDataPath);
-        }
-
-        void Init(string storageRoot)
-        {
-            m_LocalStorage = new LocalStorage(storageRoot);
+            m_LocalStorage = new LocalStorage(storageRoot, useServerFolder, useProjectNameAsRootFolder);
+            m_UserProjectsPersistentPath = Path.Combine(storageRoot, "userProjects.data");
+            m_UserProjects = JsonSerializer.Load<Dictionary<string, string[]>>(m_UserProjectsPersistentPath);
 
             // Check for local projects
             var projects = GetLocalProjectsData(storageRoot);
@@ -121,30 +143,47 @@ namespace UnityEngine.Reflect
             }
         }
 
-        string ResolveProjectFolderName(Project project)
+        protected ProjectManagerInternal() : this($"{Application.persistentDataPath}/{k_ProjectDataFolderName}", true, false)
         {
-            return m_UseProjectNameAsRootFolder ? FileUtils.SanitizeName(project.name) : project.projectId;
+        }
+
+        protected void SaveUserProjectList()
+        {
+#if !UNITY_EDITOR
+            JsonSerializer.Save(m_UserProjectsPersistentPath, m_UserProjects);
+#endif
         }
 
         bool IsProjectAvailable(Project project) => m_Projects.ContainsKey(project.serverProjectId);
 
-        public bool IsProjectAvailableOffline(Project project) => IsProjectAvailable(project) && m_LocalStorage.HasLocalData(ResolveProjectFolderName(project));
+        public bool IsProjectAvailableOffline(Project project) => IsProjectAvailable(project) && m_LocalStorage.HasLocalData(project);
 
-        public bool IsProjectAvailableOnline(Project project) => IsProjectAvailable(project) && project.channel != null;
+        public bool IsProjectAvailableOnline(Project project) => IsProjectAvailable(project) && project.isAvailableOnline;
+
+        public bool IsProjectVisibleToUser(Project project)
+        {
+            if (ProjectServerEnvironment.UnityUser == null)
+            {
+                return false;
+            }
+
+            var userId = ProjectServerEnvironment.UnityUser.UserId;
+            return m_UserProjects.ContainsKey(userId) && m_UserProjects[userId].Contains(project.serverProjectId);
+        }
 
         public string GetProjectFolder(Project project)
         {
-            return m_LocalStorage.GetProjectFolder(ResolveProjectFolderName(project));
+            return m_LocalStorage.GetProjectFolder(project);
         }
 
         public string GetSourceProjectFolder(Project project, string sessionId)
         {
-            return m_LocalStorage.GetSourceProjectFolder(ResolveProjectFolderName(project), sessionId);
+            return m_LocalStorage.GetSourceProjectFolder(project, sessionId);
         }
 
         public IEnumerable<SourceProject> LoadProjectManifests(Project project)
         {
-            return m_LocalStorage.LoadProjectManifests(ResolveProjectFolderName(project));
+            return m_LocalStorage.LoadProjectManifests(project);
         }
 
         public IEnumerator DownloadProjectLocally(string serverProjectId, bool incremental)
@@ -157,7 +196,7 @@ namespace UnityEngine.Reflect
 
             var project = entry.project;
 
-            if (project.channel == null)
+            if (!IsProjectAvailableOnline(project))
             {
                 Debug.LogError($"Cannot download project '{project.projectId}' from server.");
                 yield break;
@@ -169,19 +208,17 @@ namespace UnityEngine.Reflect
                 yield break;
             }
 
+            m_CurrentDownloadingProjectId.Add(project.projectId);
+            IPlayerClient client = null;
             try
             {
-                m_CurrentDownloadingProjectId.Add(project.projectId);
-
                 // Create and connect gRPC channel to SyncServer
-                var client = Player.CreateClient(project.channel);
-                client.Connect();
-
-                var responses = client.GetManifests(project.projectId);
+                client = Player.CreateClient(project, ProjectServerEnvironment.UnityUser);
+                var responses = client.GetManifests();
 
                 var manifestEntries = responses.ToArray();
 
-                progressChanged?.Invoke(0.0f, kDownloading);
+                progressChanged?.Invoke(0.0f, k_Downloading);
 
                 var total = manifestEntries.Length;
                 var projectPercent = 1.0f / total;
@@ -190,7 +227,7 @@ namespace UnityEngine.Reflect
 
                 if (incremental)
                 {
-                    var localSourceProjects = m_LocalStorage.LoadProjectManifests(ResolveProjectFolderName(project));
+                    var localSourceProjects = m_LocalStorage.LoadProjectManifests(project);
 
                     foreach (var sourceProject in localSourceProjects)
                     {
@@ -210,7 +247,7 @@ namespace UnityEngine.Reflect
                         p =>
                         {
                             var percent = (i + p) * projectPercent;
-                            progressChanged?.Invoke(percent, kDownloading);
+                            progressChanged?.Invoke(percent, k_Downloading);
                         });
                 }
 
@@ -218,17 +255,17 @@ namespace UnityEngine.Reflect
 
                 onProjectChanged?.Invoke(project);
 
-                progressChanged?.Invoke(1.0f, kDownloading);
+                progressChanged?.Invoke(1.0f, k_Downloading);
             }
             finally
             {
                 m_CurrentDownloadingProjectId.Remove(project.projectId);
-
+                client?.Dispose();
                 taskCompleted?.Invoke();
             }
         }
 
-        public IEnumerator DownloadSourceProjectLocally(Project project, string sessionId, SyncManifest oldManifest, SyncManifest newManifest, IPlayerClient client, Action<float> onProgress)
+        public IEnumerator DownloadSourceProjectLocally(Project project, string sourceId, SyncManifest oldManifest, SyncManifest newManifest, IPlayerClient client, Action<float> onProgress)
         {
             List<string> dstPaths;
 
@@ -247,7 +284,7 @@ namespace UnityEngine.Reflect
 
             onProgress?.Invoke(0.0f);
 
-            var destinationFolder = m_LocalStorage.GetSourceProjectFolder(ResolveProjectFolderName(project), sessionId);
+            var destinationFolder = m_LocalStorage.GetSourceProjectFolder(project, sourceId);
 
             var total = dstPaths.Count;
 
@@ -256,7 +293,7 @@ namespace UnityEngine.Reflect
                 var dstPath = dstPaths[i];
 
                 // TODO No need to deserialize then serialize back the SyncModel when all we need is to download the file locally
-                var syncModel = client.GetSyncModel(project.projectId, sessionId, dstPath); // TODO var bitArray = client.GetSyncModelRaw(...) or client.Download(...)
+                var syncModel = client.GetSyncModel(sourceId, dstPath); // TODO var bitArray = client.GetSyncModelRaw(...) or client.Download(...)
 
                 if (syncModel != null)
                 {
@@ -267,7 +304,7 @@ namespace UnityEngine.Reflect
                     if (!Directory.Exists(directory))
                         Directory.CreateDirectory(directory);
 
-                    // Replace model names with local model paths
+                    // Replace model name with local model paths
                     syncModel.Name = dstPath;
                     SetReferencedSyncModelPath(syncModel, newManifest);
 
@@ -287,7 +324,7 @@ namespace UnityEngine.Reflect
             newManifest.Save(destinationFolder);
         }
 
-        public void SetReferencedSyncModelPath(ISyncModel syncModel, SyncManifest manifest)
+        static void SetReferencedSyncModelPath(ISyncModel syncModel, SyncManifest manifest)
         {
             switch (syncModel)
             {
@@ -305,7 +342,7 @@ namespace UnityEngine.Reflect
             }
         }
 
-        void SetReferencedSyncModelPath(SyncPrefab syncPrefab, SyncManifest manifest)
+        static void SetReferencedSyncModelPath(SyncPrefab syncPrefab, SyncManifest manifest)
         {
             foreach (var instance in syncPrefab.Instances)
             {
@@ -313,17 +350,17 @@ namespace UnityEngine.Reflect
             }
         }
 
-        void SetReferencedSyncModelPath(SyncObjectInstance instance, SyncManifest manifest)
+        static void SetReferencedSyncModelPath(SyncObjectInstance instance, SyncManifest manifest)
         {
-            instance.Object = GetSyncModelLocalPath<SyncObject>(instance.Object, manifest);
+            instance.ObjectId = new SyncId(GetSyncModelLocalPath<SyncObject>(instance.ObjectId.Value, manifest));
         }
 
-        void SetReferencedSyncModelPath(SyncObject syncObject, SyncManifest manifest)
+        static void SetReferencedSyncModelPath(SyncObject syncObject, SyncManifest manifest)
         {
-            syncObject.Mesh = GetSyncModelLocalPath<SyncMesh>(syncObject.Mesh, manifest);
-            for (var i = 0; i < syncObject.Materials.Count; ++i)
+            syncObject.MeshId = new SyncId(GetSyncModelLocalPath<SyncMesh>(syncObject.MeshId.Value, manifest));
+            for (var i = 0; i < syncObject.MaterialIds.Count; ++i)
             {
-                syncObject.Materials[i] = GetSyncModelLocalPath<SyncMaterial>(syncObject.Materials[i], manifest);
+                syncObject.MaterialIds[i] = new SyncId(GetSyncModelLocalPath<SyncMaterial>(syncObject.MaterialIds[i].Value, manifest));
             }
             foreach (var child in syncObject.Children)
             {
@@ -331,7 +368,7 @@ namespace UnityEngine.Reflect
             }
         }
 
-        void SetReferencedSyncModelPath(SyncMaterial material, SyncManifest manifest)
+        static void SetReferencedSyncModelPath(SyncMaterial material, SyncManifest manifest)
         {
             SetReferencedSyncModelPath(material.AlbedoMap, manifest);
             SetReferencedSyncModelPath(material.AlphaMap, manifest);
@@ -342,15 +379,15 @@ namespace UnityEngine.Reflect
             SetReferencedSyncModelPath(material.MetallicMap, manifest);
         }
 
-        void SetReferencedSyncModelPath(SyncMap map, SyncManifest manifest)
+        static void SetReferencedSyncModelPath(SyncMap map, SyncManifest manifest)
         {
-            if (map?.Texture == null)
+            if (map == null || map.TextureId == SyncId.None)
                 return;
 
-            map.Texture = GetSyncModelLocalPath<SyncTexture>(map.Texture, manifest);
+            map.TextureId = new SyncId(GetSyncModelLocalPath<SyncTexture>(map.TextureId.Value, manifest));
         }
 
-        string GetSyncModelLocalPath<T>(string modelName, SyncManifest manifest) where T : ISyncModel
+        static string GetSyncModelLocalPath<T>(string modelName, SyncManifest manifest) where T : ISyncModel
         {
             var path = "";
             if (string.IsNullOrEmpty(modelName))
@@ -373,7 +410,7 @@ namespace UnityEngine.Reflect
 
         public IEnumerator DeleteProjectLocally(Project project)
         {
-            var projectFolderPath = m_LocalStorage.GetProjectFolder(ResolveProjectFolderName(project));
+            var projectFolderPath = m_LocalStorage.GetProjectFolder(project);
             if (!Directory.Exists(projectFolderPath))
             {
                 Debug.LogWarning($"Cannot delete locally stored project '{project.projectId}'");
@@ -416,52 +453,23 @@ namespace UnityEngine.Reflect
 
         void SaveProjectDataLocally(Project project)
         {
-            var localProjectFolder = m_LocalStorage.GetProjectFolder(ResolveProjectFolderName(project));
+            var localProjectFolder = m_LocalStorage.GetProjectFolder(project);
             var projectDataFilePath = Path.Combine(localProjectFolder, k_ProjectDataFileName);
             var directory = Path.GetDirectoryName(projectDataFilePath);
 
             if (!Directory.Exists(directory))
                 Directory.CreateDirectory(directory);
 
-            if (System.IO.File.Exists(projectDataFilePath))
-            {
-                System.IO.File.Delete(projectDataFilePath);
-            }
-
-            XmlSerializer serializer = new XmlSerializer(typeof(Project));
-            using (FileStream fileStream = new FileStream(projectDataFilePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            using (StreamWriter streamWriter = new StreamWriter(fileStream))
-            {
-                serializer.Serialize(streamWriter, project);
-            }
+            System.IO.File.WriteAllText(projectDataFilePath, JsonUtility.ToJson(project));
         }
 
-        IEnumerable<Project> GetLocalProjectsData(string storageRoot)
+        static IEnumerable<Project> GetLocalProjectsData(string storageRoot)
         {
-            var projects = new List<Project>();
-
             if (!Directory.Exists(storageRoot))
-                return projects;
+                return Enumerable.Empty<Project>();
 
             var projectsDataPath = Directory.EnumerateFiles(storageRoot, k_ProjectDataFileName, SearchOption.AllDirectories);
-
-            XmlSerializer serializer = new XmlSerializer(typeof(Project));
-            foreach (var path in projectsDataPath)
-            {
-                try
-                {
-                    using (FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
-                    {
-                        projects.Add((Project)serializer.Deserialize(fileStream));
-                    }
-                }
-                catch (Exception)
-                {
-                    Debug.LogWarning($"Could not read xml file '{path}'");
-                }
-            }
-
-            return projects;
+            return projectsDataPath.Select(path => JsonUtility.FromJson<Project>(System.IO.File.ReadAllText(path)));
         }
 
         public void RegisterToProject(string serverProjectId, Action<Project> callback)
@@ -476,7 +484,7 @@ namespace UnityEngine.Reflect
 
         protected void UpdateProjectInternal(Project project, bool canAddProject)
         {
-            if (!project.IsValid())
+            if (project == Project.Empty)
             {
                 return;
             }

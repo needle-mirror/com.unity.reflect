@@ -17,7 +17,7 @@ namespace UnityEngine.Reflect
         // Used in shaders
         static bool IsTransparent(SyncMaterial syncMaterial)
         {
-            return syncMaterial.Alpha < 1.0f || !string.IsNullOrEmpty(syncMaterial.AlphaMap.Texture);
+            return syncMaterial.Alpha < 1.0f || syncMaterial.AlphaMap.TextureId != SyncId.None;
         }
         
         public static Shader GetShader(SyncMaterial syncMaterial)
@@ -27,7 +27,7 @@ namespace UnityEngine.Reflect
             return Shader.Find(shaderName);
         }
 
-        public static Material ComputeMaterial(SyncMaterial syncMaterial, Material material, ITextureCache textureCache)
+        public static void ComputeMaterial(SyncMaterial syncMaterial, Material material, ITextureCache textureCache)
         {
             material.name = syncMaterial.Name;
             material.shader = GetShader(syncMaterial);
@@ -49,7 +49,7 @@ namespace UnityEngine.Reflect
                 material.AssignMap("_AlphaMap", syncMaterial.AlphaMap, textureCache);
             }
 
-            if (!string.IsNullOrEmpty(syncMaterial.CutoutMap.Texture))
+            if (syncMaterial.CutoutMap.TextureId != SyncId.None)
             {
                 material.AssignMap("_CutoutMap", syncMaterial.CutoutMap, textureCache);
             }
@@ -73,13 +73,13 @@ namespace UnityEngine.Reflect
             // Emission
             var emissionMode = EmissionMode.None;
                 
-            if (!string.IsNullOrEmpty(syncMaterial.EmissionMap.Texture))
+            if (syncMaterial.EmissionMap.TextureId != SyncId.None)
             {
                 material.AssignMap("_EmissionMap", syncMaterial.EmissionMap, textureCache);
                     
                 emissionMode = EmissionMode.Map;
             }
-            else if (syncMaterial.Emission != SyncColor.Black())
+            else if (syncMaterial.Emission != SyncColor.Black)
             {
                 var emissionColor = ImportersUtils.ColorFromTemperature(syncMaterial.EmissionTemperature);
                 emissionColor *= ImportersUtils.GetUnityColor(syncMaterial.Emission);
@@ -96,8 +96,6 @@ namespace UnityEngine.Reflect
                 
             // Compile material
             ComputeKeywords(material);
-
-            return material;
         }
         
         public static void ComputeKeywords(Material material)
@@ -174,11 +172,11 @@ namespace UnityEngine.Reflect
 
         static void AssignMap(this Material material, string name, SyncMap map, ITextureCache textureCache)
         {
-            var texture2D = string.IsNullOrEmpty(map.Texture) ? null : textureCache.GetTexture(map.Texture);
+            var texture2D = map.TextureId != SyncId.None ? textureCache.GetTexture(map.TextureId.Value) : null;
 
             material.SetTexture(name, texture2D);
-            material.SetTextureOffset(name, new Vector2(map.Offset.X, map.Offset.Y));
-            material.SetTextureScale(name, new Vector2(map.Tiling.X, map.Tiling.Y));
+            material.SetTextureOffset(name, map.Offset);
+            material.SetTextureScale(name, map.Tiling);
             material.SetFloat(name + "_B", map.Brightness);
             material.SetFloat(name + "_I", map.Invert ? 1.0f : 0.0f);
             material.SetFloat(name + "_R", map.RotationDegrees);

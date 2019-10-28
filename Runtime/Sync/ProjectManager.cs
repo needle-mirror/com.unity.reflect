@@ -6,19 +6,18 @@ using System.Runtime.CompilerServices;
 using Unity.Reflect;
 using Unity.Reflect.Data;
 using Unity.Reflect.IO;
+using UnityEditor;
 using UnityEngine.Events;
 
 [assembly: InternalsVisibleTo("Unity.Reflect.Editor")]
 namespace UnityEngine.Reflect
 {
-    class ProjectManager : MonoBehaviour, IProgressTask
+    public class ProjectManager : MonoBehaviour, IProgressTask
     {
         ProjectManagerWithProjectServerInternal m_ProjectManagerInternal;
 
         public event Action<Project> onProjectAdded;
         public event Action<Project> onProjectChanged;
-
-        string m_ProjectServerAccessToken = string.Empty;
 
         public UnityEvent onAuthenticationFailure;
 
@@ -42,6 +41,11 @@ namespace UnityEngine.Reflect
         public bool IsProjectAvailableOnline(Project project)
         {
             return m_ProjectManagerInternal.IsProjectAvailableOnline(project);
+        }
+
+        public bool IsProjectVisibleToUser(Project project)
+        {
+            return m_ProjectManagerInternal.IsProjectVisibleToUser(project);
         }
 
         public string GetSourceProjectFolder(Project project, string sessionId)
@@ -80,7 +84,7 @@ namespace UnityEngine.Reflect
             {
                 StopCoroutine(m_RefreshProjectsCoroutine);
             }
-            m_RefreshProjectsCoroutine = StartCoroutine(m_ProjectManagerInternal.RefreshProjectListCoroutine(m_ProjectServerAccessToken));
+            m_RefreshProjectsCoroutine = StartCoroutine(m_ProjectManagerInternal.RefreshProjectListCoroutine());
         }
 
         public void StopDiscovery()
@@ -123,10 +127,15 @@ namespace UnityEngine.Reflect
             m_ProjectManagerInternal.Update();
         }
 
-        public void SetAccessToken(string token)
+        public void SetUnityUser(UnityUser unityUser = null)
         {
-            Debug.Log($"ProjectManager now using token:'{token}'.");
-            m_ProjectServerAccessToken = token;
+            Debug.Log($"ProjectManager.SetUnityUser: {unityUser != null}");
+            ProjectServerEnvironment.UnityUser = unityUser;
+
+            foreach (var project in Projects)
+            {
+                onProjectChanged?.Invoke(project);
+            }
         }
     }
 }

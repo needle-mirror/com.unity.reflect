@@ -1,15 +1,45 @@
-﻿
+
 using System.Collections;
+using UnityEngine.XR;
 using UnityEngine.XR.ARFoundation;
 
 namespace UnityEngine.Reflect
 {
     public class ARModeTopMenu : TopMenu
     {
-        public ListControl listControl;
-        public TableTopTopMenu tableTopMenu;
+        enum Mode
+        {
+            On_Screen, 
+            AR_Tabletop, 
+            AR_Immersive, 
+            VR
+        }
+
+        enum VRState
+        {
+            Disabled, 
+            Inactive, 
+            Ready, 
+            Unknown, 
+            Unsupported, 
+            UserNotPresent
+        }
+
+        const string STATUS_FORMAT = "Status: <color=#{0}>{1}</color>";
+
+        public ListControl m_ListControl;
+        public TableTopTopMenu m_TableTopMenu;
+        public VRSetup vrSetup;
+        public Color defaultColor;
+        public Color failColor;
+        public Color partialColor;
+        public Color successColor;
+        public Sprite m_OnScreenImage;
+        public Sprite m_TableTopImage;
+        public Sprite m_ImmersiveImage;
 
         ListControlDataSource source = new ListControlDataSource();
+        Mode currentMode = Mode.On_Screen;
 
         protected override void Start()
         {
@@ -17,8 +47,17 @@ namespace UnityEngine.Reflect
 
             StartCoroutine(CheckARAvailability());
             
-            listControl.SetDataSource(source);
-            listControl.onOpen += OnModeChanged;
+            m_ListControl.SetDataSource(source);
+            m_ListControl.onOpen += OnModeChanged;
+        }
+
+        protected void Update()
+        {
+            // auto update current mode since VR can switch without going through this menu
+            if (vrSetup.IsVRModeEnabled ^ currentMode == Mode.VR)
+            {
+                currentMode = vrSetup.IsVRModeEnabled ? Mode.VR : Mode.On_Screen;
+            }
         }
 
         IEnumerator CheckARAvailability()
@@ -34,50 +73,62 @@ namespace UnityEngine.Reflect
             FillMenu();
             
             //  align window with button
-            Vector2 windowpos = listControl.GetComponent<RectTransform>().offsetMin;
+            Vector2 windowpos = m_ListControl.GetComponent<RectTransform>().offsetMin;
             windowpos.x = buttonBackground.GetComponent<RectTransform>().offsetMin.x;
-            listControl.GetComponent<RectTransform>().offsetMin = windowpos;
+            m_ListControl.GetComponent<RectTransform>().offsetMin = windowpos;
 
             base.OnClick();
         }
 
         void FillMenu()
         {
-            if (source.GetItemCount() == 0)
+            if (source.GetItemCount() != 0)
             {
-                bool aravailable = (ARSession.state != ARSessionState.Unsupported);
+                source.Clear();
+            }
 
-                ListControlItemData onscreen = new ListControlItemData();
-                onscreen.id = "onscreen";
-                onscreen.title = "On Screen";
-                onscreen.description = "View model on device screen";
-                onscreen.image = Resources.Load<Sprite>("Textures/onscreen");
-                onscreen.options = ListControlItemData.Option.Open;
-                onscreen.enabled = aravailable;
-                source.AddItem(onscreen);
+            ListControlItemData onscreen = new ListControlItemData();
+            onscreen.id = Mode.On_Screen.ToString();
+            onscreen.title = "On Screen";
+            onscreen.description = "View model on device screen";
+            onscreen.image = m_OnScreenImage;
+            onscreen.options = ListControlItemData.Option.Open;
+            onscreen.enabled = currentMode.ToString() != onscreen.id;
+            source.AddItem(onscreen);
 
-                ListControlItemData tabletop = new ListControlItemData();
-                tabletop.id = "tabletop";
-                tabletop.title = "Tabletop AR";
-                tabletop.description = "Walk around a small-scale model in augmented reality";
-                tabletop.image = Resources.Load<Sprite>("Textures/tabletop-ar");
-                tabletop.options = ListControlItemData.Option.Open;
-                tabletop.enabled = aravailable;
-                source.AddItem(tabletop);
+            ListControlItemData tabletop = new ListControlItemData();
+            tabletop.id = Mode.AR_Tabletop.ToString();
+            tabletop.title = "Tabletop AR";
+            tabletop.description = $"Walk around a small-scale model in augmented reality\n{GetARStateMessage()}";
+            tabletop.image = m_TableTopImage;
+            tabletop.options = ListControlItemData.Option.Open;
+            tabletop.enabled = currentMode.ToString() != tabletop.id && 
+                ARSession.state != ARSessionState.Unsupported;
+            source.AddItem(tabletop);
 
-                #if IMMERSIVE_AR
+            #if IMMERSIVE_AR
                     
                 ListControlItemData immersive = new ListControlItemData();
-                immersive.id = "immersive";
+                immersive.id = Mode.AR_Immersive.ToString();
                 immersive.title = "Immersive AR";
                 immersive.description = "Walk inside a large-scale model in augmented reality";
-                immersive.image = Resources.Load<Sprite>("Textures/immersive-ar");
+                immersive.image = m_ImmersiveImage;
                 immersive.options = ListControlItemData.Option.Open;
                 immersive.enabled = false;
                 source.AddItem(immersive);
                 
-                #endif
-            }
+            #endif
+
+            ListControlItemData vr = new ListControlItemData();
+            vr.id = Mode.VR.ToString();
+            vr.title = "Headset VR";
+            vr.description = $"Explore a model in virtual reality\n{GetVRStateMessage()}";
+            vr.image = m_ImmersiveImage;
+            vr.options = ListControlItemData.Option.Open;
+            vr.enabled = currentMode.ToString() != vr.id && 
+                XRDevice.userPresence == UserPresenceState.Present && 
+                vrSetup.AreAllVRDevicesValid();
+            source.AddItem(vr);
         }
         
         public void OnModeChanged(ListControlItemData data)
@@ -85,15 +136,23 @@ namespace UnityEngine.Reflect
             button.image.sprite = data.image;
             Deactivate();
 
-            if (data.id == "onscreen")
+            currentMode = (Mode)System.Enum.Parse(typeof(Mode), data.id);
+
+            if (data.id == Mode.On_Screen.ToString())
             {
+                vrSetup.EnableVR(false);
                 ShowButtons();
-                tableTopMenu.Deactivate();
-                tableTopMenu.LeaveAR();
+                m_TableTopMenu.Deactivate();
+                m_TableTopMenu.LeaveAR();
             }
-            else if (data.id == "tabletop")
+            else if (data.id == Mode.AR_Tabletop.ToString())
             {
-                tableTopMenu.Activate();
+                m_TableTopMenu.Activate();
+                HideButtons();
+            }
+            else if (data.id == Mode.VR.ToString())
+            {
+                vrSetup.EnableVR(true);
                 HideButtons();
             }
             else
@@ -105,6 +164,62 @@ namespace UnityEngine.Reflect
         public void OnCancel()
         {
             Deactivate();
+        }
+
+        string GetXRStateMessage(Color color, string message)
+        {
+            return string.Format(STATUS_FORMAT, ColorUtility.ToHtmlStringRGB(color), message);
+        }
+
+        string GetARStateMessage()
+        {
+            Color textColor;
+            switch (ARSession.state)
+            {
+                case ARSessionState.Unsupported:
+                case ARSessionState.NeedsInstall:
+                    textColor = failColor;
+                    break;
+                case ARSessionState.CheckingAvailability:
+                case ARSessionState.Installing:
+                case ARSessionState.SessionInitializing:
+                    textColor = partialColor;
+                    break;
+                case ARSessionState.Ready:
+                case ARSessionState.SessionTracking:
+                    textColor = successColor;
+                    break;
+                default:
+                    textColor = defaultColor;
+                    break;
+            }
+            return GetXRStateMessage(textColor, ARSession.state.ToString());
+        }
+
+        string GetVRStateMessage()
+        {
+            if (!XRSettings.enabled)
+            {
+                return GetXRStateMessage(failColor, VRState.Disabled.ToString());
+            }
+            else if (!XRSettings.isDeviceActive || !vrSetup.AreAllVRDevicesValid())
+            {
+                return GetXRStateMessage(partialColor, VRState.Inactive.ToString());
+            }
+            else
+            {
+                switch (XRDevice.userPresence)
+                {
+                    case UserPresenceState.NotPresent:
+                        return GetXRStateMessage(partialColor, VRState.UserNotPresent.ToString());
+                    case UserPresenceState.Present:
+                        return GetXRStateMessage(successColor, VRState.Ready.ToString());
+                    case UserPresenceState.Unsupported:
+                        return GetXRStateMessage(failColor, VRState.Unsupported.ToString());
+                    default:
+                        return GetXRStateMessage(failColor, VRState.Unknown.ToString());
+                }
+            }
         }
     }
 }

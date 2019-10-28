@@ -9,10 +9,10 @@ namespace UnityEngine.Reflect
         event Action onSyncDisabled;
         
         event Action onSyncUpdateBegin;
-        event Action onSyncUpdateEnd;
+        event Action<bool> onSyncUpdateEnd;
         
-        void OnSyncStart();        
-        void OnSyncStop();
+        void StartSync();        
+        void StopSync();
     }
     
     public class SyncTopMenu : TopMenu
@@ -44,8 +44,8 @@ namespace UnityEngine.Reflect
             syncTask.onSyncUpdateBegin += OnSyncUpdateBegin;
             syncTask.onSyncUpdateEnd += OnSyncUpdateEnd;
 
-            onSyncStart += syncTask.OnSyncStart;
-            onSyncStop += syncTask.OnSyncStop;
+            onSyncStart += syncTask.StartSync;
+            onSyncStop += syncTask.StopSync;
         }
         
         public void UnRegister(ISyncTask syncTask)
@@ -56,8 +56,8 @@ namespace UnityEngine.Reflect
             syncTask.onSyncUpdateBegin -= OnSyncUpdateBegin;
             syncTask.onSyncUpdateEnd -= OnSyncUpdateEnd;
 
-            onSyncStart -= syncTask.OnSyncStart;
-            onSyncStop -= syncTask.OnSyncStop;
+            onSyncStart -= syncTask.StartSync;
+            onSyncStop -= syncTask.StopSync;
         }
 
         void OnSyncDisabled()
@@ -102,7 +102,7 @@ namespace UnityEngine.Reflect
             }
         }
         
-        void OnSyncUpdateEnd()
+        void OnSyncUpdateEnd(bool hasChanged)
         {
             if (m_Started)
             {

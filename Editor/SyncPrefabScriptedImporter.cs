@@ -55,10 +55,11 @@ namespace UnityEditor.Reflect
             }
         }
 
-        public GameObject CreateInstance(string key)
+        public SyncObjectBinding CreateInstance(string key)
         {
             var prefab = GetReferencedAsset<GameObject>(key);
-            return (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            var gameObject = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            return gameObject.AddComponent<SyncObjectBinding>();
         }
                 
         void RemapMaterials(Transform root)
@@ -118,7 +119,7 @@ namespace UnityEditor.Reflect
             
             for (var i = 0; i < syncPrefab.Instances.Count; ++i)
             {
-                paths[i] = GetReferencedAssetPath(assetName, assetPath, syncPrefab.Instances[i].Object);
+                paths[i] = GetReferencedAssetPath(assetName, assetPath, syncPrefab.Instances[i].ObjectId.Value);
             }
 
             return paths;

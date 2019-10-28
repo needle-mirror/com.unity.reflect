@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
 public class Splash : MonoBehaviour
@@ -13,6 +14,7 @@ public class Splash : MonoBehaviour
     
     private float m_Start;
     private AudioSource m_AudioSource;
+    public UnityEvent OnSplashScreenComplete;
 
     void Start()
     {
@@ -45,6 +47,10 @@ public class Splash : MonoBehaviour
         {
             //    release resources
             m_AudioSource.clip = null;
+            if (m_Background.activeSelf)
+            {
+                OnSplashScreenComplete?.Invoke();
+            }
             gameObject.SetActive(false);
         }
         else if (delta > m_HideSplashTime || Input.touchCount > 0 || Input.anyKey)
@@ -55,6 +61,7 @@ public class Splash : MonoBehaviour
                 m_Background.SetActive(false);
                 m_UnityLogo.gameObject.SetActive(false);
                 m_ReflectLogo.SetActive(false);
+                OnSplashScreenComplete?.Invoke();
             }
         }
         else if (!m_ReflectLogo.activeSelf && delta > m_ShowReflectTime)

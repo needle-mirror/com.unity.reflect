@@ -1,0 +1,20 @@
+{
+    "name": "Unity.Labs.EditorXR",
+    "references": [
+        "input-prototype",
+        "VRLR",
+        "Unity.TextMeshPro",
+        "PolyToolkit",
+        "Unity.Labs.Utils",
+        "Unity.Labs.Utils.Editor",
+        "Unity.Labs.ListViewFramework",
+        "Unity.Labs.ModuleLoader.Interfaces",
+        "Unity.Labs.ModuleLoader",
+        "Unity.Labs.EditorXR.Interfaces",
+        "UnityEngine.SpatialTracking"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false
+}

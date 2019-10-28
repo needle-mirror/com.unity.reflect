@@ -1,4 +1,36 @@
-## [0.3.0-preview.8] - 2019-09-26
+## [1.0.0-preview.11] - 2019-10-29
+
+## [1.0.0-preview.10] - 2019-10-29
+
+## [1.0.0-preview.9] - 2019-10-29
+
+## [1.0.0-preview.8] - 2019-10-29
+
+
+## [1.0.0-preview.7] - 2019-10-28
+
+## [1.0.0-preview.6] - 2019-10-28
+
+## [1.0.0-preview.5] - 2019-10-23
+
+Release Candidate 1
+
+## [1.0.0-preview.4] - 2019-10-17
+
+
+## [1.0.0-preview.3] - 2019-10-09
+
+Weekly Build
+
+## [1.0.0-preview.2] - 2019-09-26
+
+Weekly Build
+
+## [1.0.0-preview.1] - 2019-09-26
+
+Weekly Build
+
+## [0.3.0-preview.8] - 2019-09-19
 Features
 Project discovery server
 A new cloud-hosted server that allows for more reliable project discovery and enables user & project management. 

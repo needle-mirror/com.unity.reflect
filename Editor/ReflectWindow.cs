@@ -11,7 +11,7 @@ class ReflectWindow : EditorWindow
     [SerializeField]
     string m_ImportFolder = "Reflect";
 
-    ProjectManagerInternal m_ProjectManagerInternal;
+    ProjectManagerWithProjectServerInternal m_ProjectManagerInternal;
 
     Vector2 m_ScrollPosition;
 
@@ -38,8 +38,6 @@ class ReflectWindow : EditorWindow
 
     void OnEnable()
     {
-        StartProjectDiscovery();
-
         EditorApplication.update += OnEditorUpdate;
     }
 
@@ -55,7 +53,7 @@ class ReflectWindow : EditorWindow
         if (m_ProjectManagerInternal == null)
         {
             m_FullImportFolder = Path.Combine(Application.dataPath, m_ImportFolder);
-            m_ProjectManagerInternal = new ProjectManagerWithProjectServerInternal(m_FullImportFolder, true);
+            m_ProjectManagerInternal = new ProjectManagerWithProjectServerInternal(m_FullImportFolder, false, true);
 
             m_ProjectManagerInternal.progressChanged += (f, s) =>
             {
@@ -72,21 +70,12 @@ class ReflectWindow : EditorWindow
             m_TaskProgress = 0.0f;
         }
 
-        m_ProjectManagerInternal.OnEnable();
-
-        m_ProjectManagerInternal.StartDiscovery();
-
-        if (m_ProjectManagerInternal is ProjectManagerWithProjectServerInternal projectServerManager)
+        if (m_RefreshProjectsCoroutine != null)
         {
-            if (m_RefreshProjectsCoroutine != null)
-            {
-                EditorCoroutineUtility.StopCoroutine(m_RefreshProjectsCoroutine);
-            }
-
-            // NOTE: Set `projectServerAddress` to `127.0.0.1:55555` to test against a local project server
-            m_RefreshProjectsCoroutine = EditorCoroutineUtility.StartCoroutine(
-                projectServerManager.RefreshProjectListCoroutine(accessToken: string.Empty), this);
+            EditorCoroutineUtility.StopCoroutine(m_RefreshProjectsCoroutine);
         }
+        m_RefreshProjectsCoroutine = EditorCoroutineUtility.StartCoroutine(
+            m_ProjectManagerInternal.RefreshProjectListCoroutine(), this);
     }
 
     void StopProjectDiscovery()
@@ -111,7 +100,7 @@ class ReflectWindow : EditorWindow
         if ((now - m_LastUpdate).TotalMilliseconds >= k_UpdateIntervalMs)
         {
             m_LastUpdate = now;
-            m_ProjectManagerInternal.Update();
+            m_ProjectManagerInternal?.Update();
             Repaint();
         }
     }
@@ -128,6 +117,12 @@ class ReflectWindow : EditorWindow
             StopProjectDiscovery();
 
             EditorGUILayout.HelpBox("Reflect import features are unavailable during play mode.", MessageType.Info);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(CloudProjectSettings.accessToken))
+        {
+            EditorGUILayout.HelpBox("A valid Unity User session is required to access Reflect services. Please Signin with the Unity Hub.", MessageType.Info);
             return;
         }
 

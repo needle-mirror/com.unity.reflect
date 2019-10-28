@@ -47,7 +47,7 @@ namespace UnityEngine.Reflect
             {
                 items.Remove(inData.id);
                 item.transform.SetParent(null);
-                Destroy(item);
+                Destroy(item.gameObject);
             }
         }
 

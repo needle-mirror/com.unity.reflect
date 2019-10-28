@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,7 +9,7 @@ namespace UnityEngine.Reflect
         protected override void Start()
         {
             base.Start();
-            Activate();
+            StartCoroutine(DelayedStart());
         }
         
         public void OnOpen()
@@ -19,6 +20,12 @@ namespace UnityEngine.Reflect
         public void OnCancel()
         {
             Deactivate();
+        }
+
+        IEnumerator DelayedStart()
+        {
+            yield return null;
+            Activate();
         }
     }
 }

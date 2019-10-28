@@ -1,0 +1,21 @@
+{
+    "name": "Unity.Labs.EditorXR.Editor",
+    "references": [
+        "Unity.Labs.EditorXR",
+        "Unity.TextMeshPro",
+        "Unity.Labs.Utils",
+        "Unity.Labs.EditorXR.Interfaces",
+        "Unity.Labs.ModuleLoader.Interfaces",
+        "Unity.Labs.ModuleLoader"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": []
+}

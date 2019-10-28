@@ -48,8 +48,8 @@ namespace UnityEngine.Reflect
             m_SyncInstanceRoot = null;
 
             m_ElementInstances = new Dictionary<SyncObjectBinding.Identifier, SyncObjectBinding>();
-            
-            m_Storage = new LocalStorage(m_SyncPath);
+
+            m_Storage = new LocalStorage(m_SyncPath, true, false);
             m_Manifest = m_Storage.OpenOrCreateManifest();
         }
 
@@ -91,8 +91,10 @@ namespace UnityEngine.Reflect
             }
         }
 
-        public void ApplyModifications(SyncManifest manifest)
+        public bool ApplyModifications(SyncManifest manifest)
         {
+            bool hasChanged = false;
+            
             // Otherwise, create a new instance of it.
             if (m_SyncInstanceRoot == null)
             {
@@ -112,10 +114,7 @@ namespace UnityEngine.Reflect
                 }
             }
 
-            if (m_SyncInstanceRoot == null) // Nothing to Sync with yet.
-                return;
-
-            if (m_Manifest != null)
+            if (m_Manifest != null && m_SyncInstanceRoot != null)
             {
                 // Try to find what has changed...
                 var newEntries = manifest.Content;
@@ -132,6 +131,7 @@ namespace UnityEngine.Reflect
 
                         if (exportData.DstHash != newExportData.DstHash)
                         {
+                            hasChanged = true;
                             Debug.Log("Modified : " + key + " (" + exportData.DstPath + ")");
 
                             if (exportData.DstPath.EndsWith(SyncMaterial.Extension))
@@ -165,6 +165,8 @@ namespace UnityEngine.Reflect
             }
 
             m_Manifest = manifest;
+
+            return hasChanged;
         }
 
         public IEnumerator ApplyPrefabChanges()

@@ -18,10 +18,7 @@ namespace UnityEditor.Reflect
             var textureImporter = new SyncTextureImporter();
             var texture = textureImporter.Import(syncTexture, null);
 
-            if (syncTexture.Name != null)
-            {
-                texture.name = Path.GetFileNameWithoutExtension(syncTexture.Name);
-            }
+            texture.name = Path.GetFileNameWithoutExtension(syncTexture.Name);
             
             ctx.AddObjectToAsset("texture", texture);
             

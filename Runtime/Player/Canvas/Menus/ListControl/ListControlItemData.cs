@@ -22,6 +22,7 @@ namespace UnityEngine.Reflect
         public Option options;
         public Sprite image;
         public bool enabled;
+        public bool selected;
         public object payload;
     }
 }

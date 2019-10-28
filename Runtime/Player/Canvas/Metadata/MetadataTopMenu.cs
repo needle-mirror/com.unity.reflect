@@ -12,11 +12,11 @@ namespace UnityEngine.Reflect
             "Category", "Category/Family", "Document", "System Classification", "Type", "Manufacturer", "Phase Created",
             "Phase Demolished"
         };
-        public static Material sTransparentMaterial;
-        public SyncManager syncManager;
+        public Material m_TransparentMaterial;
+        public SyncManager m_SyncManager;
 
-        List<Menu> menus = new List<Menu>();
-        protected static MaterialSwapper sMaterialSwapper = new MaterialSwapper();
+        List<Menu> m_Menus = new List<Menu>();
+        protected MaterialSwapper m_MaterialSwapper = new MaterialSwapper();
         bool m_MenuOpen = false;
 
         public GameObject menuTemplate;
@@ -25,10 +25,6 @@ namespace UnityEngine.Reflect
         {
             base.Awake();
 
-            if (sTransparentMaterial == null)
-            {
-                sTransparentMaterial = Resources.Load<Material>("Shaders/Transparent");
-            }
             menuTemplate.SetActive(false);
         }
 
@@ -36,32 +32,32 @@ namespace UnityEngine.Reflect
         {
             base.Start();
 
-            syncManager.onProjectOpened += OnProjectOpened;
-            syncManager.onProjectClosed += OnProjectClosed;
+            m_SyncManager.onProjectOpened += OnProjectOpened;
+            m_SyncManager.onProjectClosed += OnProjectClosed;
 
-            foreach (var instance in syncManager.syncInstances)
+            foreach (var instance in m_SyncManager.syncInstances)
             {
                 OnInstanceAdded(instance.Value);
             }
 
-            syncManager.onInstanceAdded += OnInstanceAdded;
+            m_SyncManager.onInstanceAdded += OnInstanceAdded;
             
             CreateMenu();
         }
 
-        public static void HideAllRenderers(HashSet<Renderer> excludedRenderers)
+        public void HideAllRenderers(HashSet<Renderer> excludedRenderers)
         {
-            sMaterialSwapper.SetMaterial(sTransparentMaterial, excludedRenderers);
+            m_MaterialSwapper.SetMaterial(m_TransparentMaterial, excludedRenderers);
         }
         
-        public static void ShowAllRenderers()
+        public void ShowAllRenderers()
         {
-            sMaterialSwapper.Restore();
+            m_MaterialSwapper.Restore();
         }
 
         void OnProjectOpened()
         {
-            ParseScene();
+            ParseRoot();
             button.interactable = true;
         }
 
@@ -82,18 +78,18 @@ namespace UnityEngine.Reflect
             if (m_MenuOpen)
             {
                 m_MenuOpen = false;
-                foreach (var menu in menus)
+                foreach (var menu in m_Menus)
                 {
                     menu.gameObject.SetActive(false);
                 }
             }
             else
             {
-                ParseScene();
+                ParseRoot();
                 m_MenuOpen = true;
 
                 int index = 0;
-                foreach (var menu in menus)
+                foreach (var menu in m_Menus)
                 {
                     if (menu.GetItemCount() > 1)
                     {
@@ -109,14 +105,14 @@ namespace UnityEngine.Reflect
                 //  open parameter automatically if there is only one
                 if (index == 1)
                 {
-                    menus[0].Expand();
+                    m_Menus[0].Expand();
                 }
             }
         }
 
         void CreateMenu()
         {
-            if (menus.Count == 0)
+            if (m_Menus.Count == 0)
             {
                 foreach (var key in keys)
                 {
@@ -134,26 +130,54 @@ namespace UnityEngine.Reflect
                             p.Initialize(path[1], path[0]);
                         }
 
-                        menus.Add(p);
+                        m_Menus.Add(p);
                     }
                 }
             }
         }
 
-        void ParseScene()
+        void ParseRoot()
         {
+            string key = null;
+            string value = null;
+            var item = MenuItem.GetActiveMenuItem();
+            if (item != null)
+            {
+                key = item.GetMenu().GetKey();
+                value = item.GetValue();
+            }
+            
             Clear();
             CreateMenu();
-            
-            //  parse root nodes
-            var roots = SceneManager.GetActiveScene().GetRootGameObjects();
-            foreach (var root in roots)
+
+            if (m_SyncManager.syncRoot != null)
             {
-                AddChildren(root.transform);
+                AddChildren(m_SyncManager.syncRoot);
+            }
+
+            if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(value))
+            {
+                ActivateMenuItem(key, value);
             }
         }
 
-         void OnObjectCreated(SyncObjectBinding obj)
+        void ActivateMenuItem(string key, string value)
+        {
+            foreach (var m in m_Menus)
+            {
+                if (m.GetKey() == key)
+                {
+                    var item = m.GetMenuItem(value);
+                    if (item != null)
+                    {
+                        item.Activate();
+                        break;
+                    }
+                }
+            }
+        }
+        
+        void OnObjectCreated(SyncObjectBinding obj)
         {
             AddChildren(obj.transform);
         }
@@ -168,12 +192,12 @@ namespace UnityEngine.Reflect
             var rend = node.GetComponent<Renderer>();
             if (rend != null)
             {
-                sMaterialSwapper.AddRenderer(rend);
+                m_MaterialSwapper.AddRenderer(rend);
                 
                 bool selected = AddNode(node);
-                if (!selected && MetadataMenuItem.GetActiveMenuItem() != null)
+                if (!selected && MenuItem.GetActiveMenuItem() != null)
                 {
-                    sMaterialSwapper.SwapRenderer(rend, sTransparentMaterial);
+                    m_MaterialSwapper.SwapRenderer(rend, m_TransparentMaterial);
                 }
             }
 
@@ -187,7 +211,7 @@ namespace UnityEngine.Reflect
         bool AddNode(Transform node)
         {
             var ret = false;
-            foreach (var m in menus)
+            foreach (var m in m_Menus)
             {
                 if (m.AddNode(node))
                 {
@@ -205,7 +229,7 @@ namespace UnityEngine.Reflect
             var rend = node.GetComponent<Renderer>();
             if (rend != null)
             {
-                sMaterialSwapper.RemoveRenderer(rend);
+                m_MaterialSwapper.RemoveRenderer(rend);
             }
 
             //  parse children recursively
@@ -217,7 +241,7 @@ namespace UnityEngine.Reflect
 
         void RemoveNode(Transform node)
         {
-            foreach (Menu m in menus)
+            foreach (Menu m in m_Menus)
             {
                 m.RemoveNode(node);
             }
@@ -227,7 +251,7 @@ namespace UnityEngine.Reflect
         {
             base.Activate();
 
-            foreach (var m in menus)
+            foreach (var m in m_Menus)
             {
                 m.gameObject.SetActive(true);
             }
@@ -237,7 +261,7 @@ namespace UnityEngine.Reflect
         {
             base.Deactivate();
 
-            foreach (var m in menus)
+            foreach (var m in m_Menus)
             {
                 m.gameObject.SetActive(false);
             }
@@ -245,12 +269,12 @@ namespace UnityEngine.Reflect
 
         void Clear()
         {
-            foreach (var m in menus)
+            foreach (var m in m_Menus)
             {
                 Destroy(m.gameObject);
             }
-            menus.Clear();
-            sMaterialSwapper.Clear();
+            m_Menus.Clear();
+            m_MaterialSwapper.Clear();
         }
     }
 }

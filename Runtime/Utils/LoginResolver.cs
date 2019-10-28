@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections;
 using System.IO;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Networking;
 using Debug = UnityEngine.Debug;
 
 [Serializable]
@@ -19,12 +21,13 @@ public class LoginResolver : MonoBehaviour
     const string k_RegistryUrlProtocol = "URL Protocol";
     const string k_RegistryShellKey = @"shell\open\command";
     const string k_LoginUrl = "https://api.unity.com/v1/oauth2/authorize?client_id=industrial_reflect&response_type=rsa_jwt&state=hello&redirect_uri=reflect://implicit/callback/login/";
+    const string k_LogoutUrl = "https://api.unity.com/v1/oauth2/end-session";
 
     const string k_UriScheme = "reflect";
     const string k_JwtTokenFileName = "jwttoken.data";
     const string k_jwtParamName = "?jwt=";
     bool IsMainViewer = false;
-    string reflectLoginUrl = string.Empty;
+    string m_ReflectLoginUrl = string.Empty;
 
     public static readonly bool k_IsWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
     public static readonly bool k_IsOSX = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
@@ -32,6 +35,7 @@ public class LoginResolver : MonoBehaviour
     public static readonly bool k_IsAndroid = Application.platform == RuntimePlatform.Android;
 
     public StringUnityEvent OnGetToken;
+
     string k_JwtTokenPersistentPath = string.Empty;
 
 #if UNITY_IOS && !UNITY_EDITOR
@@ -54,32 +58,25 @@ public class LoginResolver : MonoBehaviour
     void Start()
     {
         k_JwtTokenPersistentPath = Path.Combine(Application.persistentDataPath, k_JwtTokenFileName);
-        reflectLoginUrl = k_LoginUrl;
+        m_ReflectLoginUrl = k_LoginUrl;
 
+#if NET_STANDARD_2_0 && UNITY_EDITOR
+        Debug.LogWarning(
+            "The Unity Reflect package requires .NET 4.x API Compatibility Level on Windows."
+            + "Please select this option in your Project Settings to avoid any build errors "
+            + "related to framework compatibility (Edit -> Project Settings... -> Player -> "
+            + "Other Settings -> Api Compatibility Level)."
+        );
+#endif
 #if UNITY_IOS && !UNITY_EDITOR
         UnityDeeplinks_init(gameObject.name);
 #endif
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
         AddRegistryKeys();
-#endif
 
-#if UNITY_EDITOR
-        if (!string.IsNullOrEmpty(UnityEditor.CloudProjectSettings.accessToken))
-        {
-            // WARNING accessToken is not a jwtToken, so it will not be decodable with the jwtDecoder
-            LoginCredential.jwtToken = UnityEditor.CloudProjectSettings.accessToken;
-        }
-#else
-        if (!string.IsNullOrEmpty(k_JwtTokenPersistentPath) && File.Exists(k_JwtTokenPersistentPath))
-        {
-            LoginCredential.jwtToken = File.ReadAllText(k_JwtTokenPersistentPath);
-        }
-#endif
-
-#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
         string[] args = Environment.GetCommandLineArgs();
         var myHandle = GetWindowHandle();
-        reflectLoginUrl = $"{k_LoginUrl}{myHandle}";
+        m_ReflectLoginUrl = $"{k_LoginUrl}{myHandle}";
         // Unity usual start command have the path to application as single argument
         if (args.Length == 1)
         {
@@ -93,19 +90,6 @@ public class LoginResolver : MonoBehaviour
             }
         }
 #endif
-
-        // If token was not recovered at start, get it !
-        if (string.IsNullOrEmpty(LoginCredential.jwtToken))
-        {
-#if !UNITY_EDITOR
-            // TODO bring ui to ask for connection
-            LoginRequest();
-#endif
-        }
-        else
-        {
-            ProcessJwtToken();
-        }
     }
 
     void FixedUpdate()
@@ -114,12 +98,7 @@ public class LoginResolver : MonoBehaviour
         if (k_IsOSX)
         {
             if (DeepLink_GetURL() == "") return;
-            var deepLink = DeepLink_GetURL();
-            if (TryCreateUriAndValidate(deepLink, UriKind.Absolute, out var uri))
-            {
-                LoginCredential.jwtToken = uri.Query.Substring(k_jwtParamName.Length);
-                ProcessJwtToken();
-            }
+            onDeeplink(DeepLink_GetURL());
             DeepLink_Reset();
         }
 #endif
@@ -161,7 +140,7 @@ public class LoginResolver : MonoBehaviour
     // Android/iOS entry point
     public void onDeeplink(string deeplink)
     {
-        Debug.Log($"onDeeplink {deeplink}");
+        // Debug.Log($"onDeeplink {deeplink}");
         if (TryCreateUriAndValidate(deeplink, UriKind.Absolute, out var uri))
         {
             LoginCredential.jwtToken = uri.Query.Substring(k_jwtParamName.Length);
@@ -204,13 +183,40 @@ public class LoginResolver : MonoBehaviour
         Application.Quit();
     }
 
+    public void OnSplashScreenComplete()
+    {
+#if UNITY_EDITOR
+        LoginCredential.jwtToken = UnityEditor.CloudProjectSettings.accessToken;
+        ProcessJwtToken(false);
+#else
+        ReadPersistentToken();
+#endif
+    }
+
     public void OnAuthenticationFailure()
     {
 #if UNITY_EDITOR
-        Debug.Log("A valid AccessToken is required to list project. Please Signin.");
+        Debug.Log("Authentication Failure. A valid Unity User session is required to access Reflect services. Please Signin with the Unity Hub.");
 #else
+        Debug.Log("Authentication Failure. A valid Unity User session is required to access Reflect services.");
         RemovePersistentToken();
-        LoginRequest();
+        LoginCredential.jwtToken = string.Empty;
+        OnGetToken.Invoke(string.Empty);
+#endif
+    }
+
+    void ReadPersistentToken()
+    {
+#if !UNITY_EDITOR
+        if (!string.IsNullOrEmpty(k_JwtTokenPersistentPath) && File.Exists(k_JwtTokenPersistentPath))
+        {
+            LoginCredential.jwtToken = File.ReadAllText(k_JwtTokenPersistentPath);
+            ProcessJwtToken();
+        } 
+        else
+        {
+            OnGetToken.Invoke(string.Empty);
+        }
 #endif
     }
 
@@ -221,18 +227,26 @@ public class LoginResolver : MonoBehaviour
             File.Delete(k_JwtTokenPersistentPath);
         }
     }
-
-    public void LoginRequest()
+    public void DisplayLoginBrowserWindow()
     {
-        Application.OpenURL(reflectLoginUrl);
+        Application.OpenURL(m_ReflectLoginUrl);
+    }
+
+    public void LogoutRequest()
+    {
+        RemovePersistentToken();
+        LoginCredential.jwtToken = string.Empty;
+        OnGetToken.Invoke(string.Empty);
+
+        Application.OpenURL(k_LogoutUrl);
     }
 
     void ProcessJwtToken(bool saveIfNewer = true)
     {
         if (!string.IsNullOrEmpty(LoginCredential.jwtToken))
         {
-            Debug.Log($"Using jwt token credential: '{LoginCredential.jwtToken}'");
-            if(saveIfNewer)
+            Debug.Log($"Processing jwt token.");
+            if (saveIfNewer)
             {
                 RemovePersistentToken();
                 File.WriteAllText(k_JwtTokenPersistentPath, LoginCredential.jwtToken);

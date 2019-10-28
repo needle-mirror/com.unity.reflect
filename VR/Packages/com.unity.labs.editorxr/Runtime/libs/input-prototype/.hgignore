@@ -1,0 +1,13 @@
+syntax: glob
+
+Builds
+Library
+Temp
+obj
+*.csproj
+*.sln
+*.suo
+*.userprefs
+Assets/UnityVS
+Assets/UnityVS.meta
+ProjectSettings/ProjectVersion.txt

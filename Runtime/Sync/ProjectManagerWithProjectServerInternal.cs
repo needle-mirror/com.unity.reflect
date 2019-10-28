@@ -1,48 +1,19 @@
+using Grpc.Core;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
-using Grpc.Core;
-using Unity.Reflect.Services.Client.ProjectServer;
-using UnityEditor;
+using Unity.Reflect;
 
 namespace UnityEngine.Reflect
 {
     class ProjectManagerWithProjectServerInternal : ProjectManagerInternal
     {
-        private static CloudConfiguration.Environment m_ProjectServerEnvironment = CloudConfiguration.Environment.Production;
-
-        private static readonly Dictionary<string, CloudConfiguration.Environment> k_ProjectServerEnvironmentMap = new Dictionary<string, CloudConfiguration.Environment>()
-        {
-            { "dev", CloudConfiguration.Environment.Test },
-            { "staging", CloudConfiguration.Environment.Staging },
-            { "production", CloudConfiguration.Environment.Production },
-        };
-
         public event Action onAuthenticationFailure;
 
-        static ProjectManagerWithProjectServerInternal()
-        {
-#if UNITY_EDITOR
-            var asm = Assembly.GetAssembly(typeof(CloudProjectSettings));
-            var unityConnect = asm.GetType("UnityEditor.Connect.UnityConnect");
-            var instanceProperty = unityConnect.GetProperty("instance");
-            var configurationProperty = unityConnect.GetProperty("configuration");
-
-            var instance = instanceProperty.GetValue(null, null);
-            var envValue = (string)configurationProperty.GetValue(instance, null);
-
-            if (!k_ProjectServerEnvironmentMap.TryGetValue(envValue?.ToLower() ?? string.Empty, out m_ProjectServerEnvironment))
-            {
-                Debug.LogWarning($"Could not find cloud config environment, using production environment.");
-            }
-#endif
-        }
-
-        public ProjectManagerWithProjectServerInternal(string storageRoot, bool useProjectNameAsRootFolder)
-            : base(storageRoot, useProjectNameAsRootFolder)
+        public ProjectManagerWithProjectServerInternal(string storageRoot, bool useServerFolder, bool useProjectNameAsRootFolder)
+            : base(storageRoot, useServerFolder, useProjectNameAsRootFolder)
         {
         }
 
@@ -52,7 +23,7 @@ namespace UnityEngine.Reflect
         }
 
         public override void StartDiscovery()
-        {            
+        {
         }
 
         public override void StopDiscovery()
@@ -67,21 +38,16 @@ namespace UnityEngine.Reflect
         {
         }
 
-        public IEnumerator RefreshProjectListCoroutine(string accessToken)
+        public IEnumerator RefreshProjectListCoroutine()
         {
-#if UNITY_EDITOR            
-            accessToken = CloudProjectSettings.accessToken;
-#endif
-            if (string.IsNullOrEmpty(accessToken))
+            var user = ProjectServerEnvironment.UnityUser;
+            if (user == null)
             {
-                onAuthenticationFailure?.Invoke();
                 yield break;
             }
 
-            var client = new ProjectServerClient(accessToken, m_ProjectServerEnvironment);
-    
-            // Use ContinueWith to make sure the task doesn't throw        
-            var task = Task.Run(() => client.ListProjects()).ContinueWith(t => t);
+            // Use ContinueWith to make sure the task doesn't throw
+            var task = Task.Run(() => ProjectServerEnvironment.Client.ListProjects(user.AccessToken)).ContinueWith(t => t);
             while (!task.IsCompleted)
             {
                 yield return null;
@@ -91,37 +57,33 @@ namespace UnityEngine.Reflect
             if (listTask.IsFaulted)
             {
                 Debug.LogError($"Project list refresh failed: {listTask.Exception}");
-
-                var rpcException = listTask.Exception.InnerExceptions.OfType<RpcException>().FirstOrDefault();
-                if (rpcException != null)
+                if (listTask.Exception.InnerExceptions.OfType<RpcException>().Where(x => x.StatusCode.Equals(StatusCode.Unauthenticated) || x.StatusCode.Equals(StatusCode.PermissionDenied)).FirstOrDefault() != null)
                 {
-                    if (rpcException.StatusCode.Equals(StatusCode.Unauthenticated) || rpcException.StatusCode.Equals(StatusCode.PermissionDenied))
-                    {
-                        onAuthenticationFailure?.Invoke();
-                    }
+                    onAuthenticationFailure?.Invoke();
                 }
                 yield break;
             }
 
-            var onlineProjectIds = new HashSet<string>(listTask.Result.Select(p => p.Id));
+            var onlineProjects = listTask.Result.Select(p => new Project(p)).ToList();
+            var onlineProjectIds = onlineProjects.Select(p => p.serverProjectId).ToArray();
+
+            m_UserProjects[user.UserId] = onlineProjectIds;
+            SaveUserProjectList();
+
             foreach (var entry in Projects)
             {
                 if (!onlineProjectIds.Contains(entry.serverProjectId))
                 {
-                    entry.channel = null;
+                    entry.isAvailableOnline = false;
                     UpdateProjectInternal(entry, false);
                 }
             }
 
-            foreach (var unityProject in listTask.Result)
-            {
-                var project = new Project(unityProject.Id, unityProject.ProjectId, unityProject.Name, unityProject.TargetChannel.Name, unityProject.TargetChannel);
-                UpdateProjectInternal(project, true);
-            }
+            onlineProjects.ForEach(p => UpdateProjectInternal(p, true));
         }
 
         public override void Update()
-        {     
+        {
         }
     }
 }

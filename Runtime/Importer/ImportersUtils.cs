@@ -5,23 +5,23 @@ namespace UnityEngine.Reflect
 {   
     public static class ImportersUtils
     {
-        public static float GetCandelasIntensity(float lightIntensity, SyncLight.Types.IntensityUnit intensityUnit, SyncLight.Types.Type lightType, float apexConeAngle = 0.0f)
+        public static float GetCandelasIntensity(float lightIntensity, SyncLightIntensityUnit intensityUnit, SyncLightType lightType, float apexConeAngle = 0.0f)
         {
             switch(intensityUnit)
             {
-                case SyncLight.Types.IntensityUnit.Candela:
+                case SyncLightIntensityUnit.Candela:
                     return lightIntensity;
-                case SyncLight.Types.IntensityUnit.Lumen:
+                case SyncLightIntensityUnit.Lumen:
                     if(apexConeAngle.Equals(0.0f))
                     {
-                        if (lightType == SyncLight.Types.Type.PointType) apexConeAngle = 360.0f;
+                        if (lightType == SyncLightType.Point) apexConeAngle = 360.0f;
                     }
                     return LumenToCandelas(lightIntensity, apexConeAngle);
                 // TODO other conversions
-                case SyncLight.Types.IntensityUnit.Lux:
-                case SyncLight.Types.IntensityUnit.Watt:
-                case SyncLight.Types.IntensityUnit.CandelaPerSquareMeter:
-                case SyncLight.Types.IntensityUnit.Unknown:
+                case SyncLightIntensityUnit.Lux:
+                case SyncLightIntensityUnit.Watt:
+                case SyncLightIntensityUnit.CandelaPerSquareMeter:
+                case SyncLightIntensityUnit.Unknown:
                 default:
                     break;
             }
@@ -53,16 +53,9 @@ namespace UnityEngine.Reflect
         
         public static void SetTransform(Transform transform, SyncTransform uTransform)
         {
-            //  caching the members of the sync transform locally doubles the speed
-            //  by reducing the numbed of times we call the protobuf accessors
-            SyncFloat3 pos = uTransform.Position;
-            transform.localPosition = new Vector3(pos.X, pos.Y, pos.Z);
-
-            SyncQuaternion rot = uTransform.Rotation;
-            transform.localRotation = new Quaternion(rot.X, rot.Y, rot.Z, rot.W);
-
-            SyncFloat3 scale = uTransform.Scale;
-            transform.localScale = new Vector3(scale.X, scale.Y, scale.Z);
+            transform.localPosition = uTransform.Position;
+            transform.localRotation = uTransform.Rotation;
+            transform.localScale = uTransform.Scale;
         }
     }
 }

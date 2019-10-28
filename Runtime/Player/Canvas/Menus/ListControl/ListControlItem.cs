@@ -1,4 +1,3 @@
-using Google.Protobuf.WellKnownTypes;
 using UnityEngine.UI;
 
 namespace UnityEngine.Reflect
@@ -80,6 +79,13 @@ namespace UnityEngine.Reflect
             {
                 disconnectedImage.gameObject.SetActive(!connected);
             }
+            
+            var background = GetComponent<Image>();
+            if (background != null)
+            {
+                background.color = inData.selected ? new Color(0.5f, 0.5f, 0.5f, 1f) :  new Color(0f, 0f, 0f, 0.5f);
+            }
+
         }
 
         bool HasOption(ListControlItemData.Option flag)

@@ -18,10 +18,7 @@ namespace UnityEditor.Reflect
             var meshImporter = new SyncMeshImporter();
             var mesh = meshImporter.Import(syncMesh, null);
             
-            if (syncMesh.Name != null)
-            {
-                mesh.name = Path.GetFileNameWithoutExtension(syncMesh.Name);
-            }
+            mesh.name = Path.GetFileNameWithoutExtension(syncMesh.Name);
             
             ctx.AddObjectToAsset("mesh", mesh);
             

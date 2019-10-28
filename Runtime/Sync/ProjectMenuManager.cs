@@ -152,11 +152,16 @@ namespace UnityEngine.Reflect
             
             var options = ListControlItemData.Option.None;
 
+            if (!m_ProjectManager.IsProjectVisibleToUser(project))
+            {
+                return options;
+            }
+
             if (availableOffline)
             {
                 options |= ListControlItemData.Option.LocalFiles;
             }
-            
+
             if ((availableOnline || availableOffline) && !m_SyncManager.IsProjectOpened(project))
             {
                 options |= ListControlItemData.Option.Open;

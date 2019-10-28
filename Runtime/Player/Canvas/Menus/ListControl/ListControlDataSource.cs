@@ -63,10 +63,11 @@ namespace UnityEngine.Reflect
 
         public void Clear()
         {
-            while (m_Items.Count > 0)
+            foreach (var item in m_Items)
             {
-                RemoveItem(m_Items.GetEnumerator().Current.Value.id);
+                itemDataRemoved?.Invoke(item.Value);
             }
+            m_Items.Clear();
         }
     }
 }

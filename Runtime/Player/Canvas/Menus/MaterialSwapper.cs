@@ -13,7 +13,7 @@ namespace UnityEngine.Reflect
 
         public void AddRenderer(Renderer inRenderer)
         {
-            renderers[inRenderer] = inRenderer.materials;
+            renderers[inRenderer] = inRenderer.sharedMaterials;
         }
 
         public void RemoveRenderer(Renderer inRenderer)
@@ -23,6 +23,7 @@ namespace UnityEngine.Reflect
 
         public void Clear()
         {
+            Restore();
             renderers.Clear();
         }
 
@@ -39,7 +40,7 @@ namespace UnityEngine.Reflect
 
         public void SwapRenderer(Renderer renderer, Material material)
         {
-            Material[] mats = renderer.sharedMaterials;
+            var mats = renderer.sharedMaterials;
             for (int m = 0; m < mats.Length; ++m)
             {
                 mats[m] = material;
@@ -52,8 +53,7 @@ namespace UnityEngine.Reflect
         {
             foreach (var r in renderers)
             {
-                Material[] mats = r.Value;
-                r.Key.sharedMaterials = mats;
+                r.Key.sharedMaterials = r.Value;
             }
         }
     }

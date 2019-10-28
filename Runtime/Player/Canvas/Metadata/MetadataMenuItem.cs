@@ -6,18 +6,18 @@ namespace UnityEngine.Reflect
 {
     public class MetadataMenuItem : MenuItem
     {
-        public Button visibleButton;
-        public Button invisibleButton;
-        public Camera freeCamera;
+        public Button m_VisibleButton;
+        public Button m_InvisibleButton;
+        public Camera m_FreeCamera;
 
-        bool visible;
+        bool m_Visible;
 
-        MaterialSwapper materialSwapper = new MaterialSwapper();
+        MaterialSwapper m_MaterialSwapper = new MaterialSwapper();
 
         private void Start()
         {
-            text.text = value;
-            visible = true;
+            m_Text.text = m_Value;
+            m_Visible = true;
             UpdateButton();
         }
 
@@ -25,24 +25,35 @@ namespace UnityEngine.Reflect
         {
             base.AddNode(node);
 
-            Renderer rend = node.GetComponent<Renderer>();
+            var rend = node.GetComponent<Renderer>();
             if (rend != null)
             {
-                materialSwapper.AddRenderer(rend);
-            }
+                m_MaterialSwapper.AddRenderer(rend);
 
-            if (GetActiveMenuItem() == this)
-            {
-                materialSwapper.SwapRenderer(rend, selectedMaterial);
-                return true;
+                if (GetActiveMenuItem() == this)
+                {
+                    m_MaterialSwapper.SwapRenderer(rend, m_SelectedMaterial);
+                    return true;
+                }
             }
 
             return false;
         }
 
+        public override void RemoveNode(Transform node)
+        {
+            base.RemoveNode(node);
+            
+            var rend = node.GetComponent<Renderer>();
+            if (rend != null)
+            {
+                m_MaterialSwapper.RemoveRenderer(rend);
+            }
+        }
+
         public void OnMakeVisible()
         {
-            visible = true;
+            m_Visible = true;
 
             UpdateSceneVisibility();
             UpdateButton();
@@ -50,7 +61,7 @@ namespace UnityEngine.Reflect
 
         public void OnMakeInvisible()
         {
-            visible = false;
+            m_Visible = false;
 
             UpdateSceneVisibility();
             UpdateButton();
@@ -64,31 +75,36 @@ namespace UnityEngine.Reflect
             }
             else
             {
-                Vector3 pos;
-                Quaternion rot;
-                MenuItem menuitem = GetActiveMenuItem();
-                if (menuitem != null)
-                {
-                    pos = menuitem.GetFilterView().GetCameraOriginalPosition();
-                    rot = menuitem.GetFilterView().GetCameraOriginalRotation();
-                    menuitem.Deactivate();
-                    menuitem.GetFilterView().SetCamera(null, Vector3.zero, Quaternion.identity);
-                }
-                else
-                {
-                    pos = freeCamera.transform.position;
-                    rot = freeCamera.transform.rotation;
-                }
-
-                Activate(freeCamera, pos, rot);
+                Activate();
             }
+        }
+
+        public override void Activate(bool hide = true)
+        {
+            Vector3 pos;
+            Quaternion rot;
+            var menuitem = GetActiveMenuItem();
+            if (menuitem != null)
+            {
+                pos = menuitem.GetFilterView().GetCameraOriginalPosition();
+                rot = menuitem.GetFilterView().GetCameraOriginalRotation();
+                menuitem.Deactivate();
+                menuitem.GetFilterView().SetCamera(null, Vector3.zero, Quaternion.identity);
+            }
+            else
+            {
+                pos = m_FreeCamera.transform.position;
+                rot = m_FreeCamera.transform.rotation;
+            }
+
+            Activate(m_FreeCamera, pos, rot);
         }
 
         void Activate(Camera inCamera, Vector3 inOriginalPosition, Quaternion inOriginalRotation)
         {
             GetFilterView().SetCamera(inCamera, inOriginalPosition, inOriginalRotation);
 
-            materialSwapper.SetMaterial(selectedMaterial);
+            m_MaterialSwapper.SetMaterial(m_SelectedMaterial);
 
             base.Activate();
         }
@@ -97,20 +113,20 @@ namespace UnityEngine.Reflect
         {
             base.Deactivate(show);
 
-            materialSwapper.Restore();
+            m_MaterialSwapper.Restore();
         }
 
         void UpdateButton()
         {
-            visibleButton.gameObject.SetActive(visible);
-            invisibleButton.gameObject.SetActive(!visible);
+            m_VisibleButton.gameObject.SetActive(m_Visible);
+            m_InvisibleButton.gameObject.SetActive(!m_Visible);
         }
 
         void UpdateSceneVisibility()
         {
-            foreach (Renderer node in nodes)
+            foreach (var node in m_Nodes)
             {
-                node.gameObject.SetActive(visible);
+                node.gameObject.SetActive(m_Visible);
             }
         }
 

@@ -134,27 +134,24 @@ namespace UnityEngine.Reflect
                 root.transform.parent = parent;
             
             var prefabComponent = root.AddComponent<SyncPrefabBinding>();
-            prefabComponent.key = syncPrefab.Key;
+            prefabComponent.key = syncPrefab.Id.Value;
 
             return root.transform;
         }
 
         static SyncObjectBinding CreateInstance(Transform root, SyncObjectInstance instance, IObjectCache objectCache)
         {
-            var gameObject = objectCache.CreateInstance(instance.Object);
+            var syncObject = objectCache.CreateInstance(instance.ObjectId.Value);
 
-            if (gameObject == null)
+            if (syncObject == null)
             {
-                Debug.LogWarning("Unable to instantiate SyncObject '" + instance.Object + "'");
+                Debug.LogWarning("Unable to instantiate SyncObject '" + instance.ObjectId + "'");
                 return null;
             }
 
-            var syncObject = gameObject.GetComponent<SyncObjectBinding>();
-            
-            if (syncObject == null)
-                syncObject = gameObject.AddComponent<SyncObjectBinding>();
-            
             syncObject.identifier = new SyncObjectBinding.Identifier(instance);
+
+            var gameObject = syncObject.gameObject;
             
             gameObject.name = instance.Name;
             gameObject.transform.parent = root;

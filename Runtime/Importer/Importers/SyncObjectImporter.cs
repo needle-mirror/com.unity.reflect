@@ -15,7 +15,7 @@ namespace UnityEngine.Reflect
     {
         public override GameObject CreateNew(SyncObject syncElement)
         {
-            return new GameObject(syncElement.Name); 
+            return new GameObject(syncElement.Name);
         }
 
         protected override void Clear(GameObject gameObject)
@@ -55,9 +55,9 @@ namespace UnityEngine.Reflect
                 }
             }
 
-            if (!string.IsNullOrEmpty(syncObject.Mesh))
+            if (syncObject.MeshId != SyncId.None)
             {
-                var mesh = settings.meshCache.GetMesh(syncObject.Mesh);
+                var mesh = settings.meshCache.GetMesh(syncObject.MeshId.Value);
 
                 if (mesh != null)
                 {
@@ -73,8 +73,18 @@ namespace UnityEngine.Reflect
                     var materials = new Material[meshFilter.sharedMesh.subMeshCount];
                     for (int i = 0; i < materials.Length; ++i)
                     {
-                        var materialName = i < syncObject.Materials.Count ? syncObject.Materials[i] : null;
-                        materials[i] = settings.materialCache.GetMaterial(materialName) ?? settings.defaultMaterial;
+                        Material material = null;
+                        if (i < syncObject.MaterialIds.Count)
+                        {
+                            var materialId = syncObject.MaterialIds[i];
+
+                            if (materialId != SyncId.None)
+                            {
+                                material = settings.materialCache.GetMaterial(materialId.Value);
+                            }
+                        }
+                        
+                        materials[i] = material ? material : settings.defaultMaterial;
                     }
 
                     renderer.sharedMaterials = materials;
@@ -118,7 +128,7 @@ namespace UnityEngine.Reflect
             if (syncObject.Children != null && syncObject.Children.Count > 0)
                 return false;
 
-            if (!string.IsNullOrEmpty(syncObject.Mesh))
+            if (syncObject.MeshId != SyncId.None)
                 return false;
 
             if (settings.importLights && syncObject.Light != null)
@@ -153,7 +163,7 @@ namespace UnityEngine.Reflect
             
             switch (syncLight.Type)
             {
-                case SyncLight.Types.Type.Spot:
+                case SyncLightType.Spot:
                 {
                     light.spotAngle = syncLight.SpotAngle;
                     light.shadows = LightShadows.Hard;
@@ -163,15 +173,15 @@ namespace UnityEngine.Reflect
                 }
                 break;
 
-                case SyncLight.Types.Type.PointType:
+                case SyncLightType.Point:
                 {
                     light.type = LightType.Point;
-                    light.range = syncLight.Range.Equals(0.0f) ? 1.0f : (syncLight.Range * rangeMultiplier);
+                    light.range = syncLight.Range.Equals(0.0f) ? 1.0f : syncLight.Range * rangeMultiplier;
                     light.intensity = intensity * 0.0001f;
                 }
                 break;
 
-                case SyncLight.Types.Type.Directional:
+                case SyncLightType.Directional:
                 {
                     light.type = LightType.Directional;
                     light.intensity = intensity * 0.0001f;
