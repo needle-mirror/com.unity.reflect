@@ -20,7 +20,7 @@ namespace UnityEditor.Reflect
             EditorGUILayout.PropertyField(m_ImportLightsProperty, new GUIContent("Import Lights"));
 
             EditorGUILayout.Space();
-            base.OnApplyRevertGUI();
+            ApplyRevertGUI();
         }
     }
 }

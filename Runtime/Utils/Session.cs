@@ -20,7 +20,7 @@ namespace UnityEngine.Reflect
         public Text UserDisplayName;
 
         UnityUser unityUser;
-        const string k_AnomymousUser = "Anonymous";
+        const string k_AnomymousUser = "Please sign in";
         bool m_IsLoggedIn = false;
         string m_SessionToken = string.Empty;
         bool m_SplashScreenComplete = false;

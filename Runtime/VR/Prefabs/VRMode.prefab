@@ -525,6 +525,7 @@ GameObject:
   m_Component:
   - component: {fileID: 868336340255420553}
   - component: {fileID: 502858434994729953}
+  - component: {fileID: 8992232980517143370}
   m_Layer: 0
   m_Name: VRMode
   m_TagString: Untagged
@@ -571,6 +572,7 @@ MonoBehaviour:
   m_InitialPlayerTransform: {fileID: 3794037732063155321}
   m_FreeCamController: {fileID: 0}
   m_MultipleRayInputModule: {fileID: 0}
+  m_SettingsMenu: {fileID: 0}
   m_AutoEnable: 0
   m_GameObjectsToEnable:
   - {fileID: 6291082244031477156}
@@ -585,3 +587,15 @@ MonoBehaviour:
     m_TypeName: UnityEngine.Events.UnityEvent, UnityEngine.CoreModule, Version=0.0.0.0,
       Culture=neutral, PublicKeyToken=null
   m_MenuActions: []
+--- !u!114 &8992232980517143370
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7213916366085370914}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 88fa28580e54b6841a19e96f4fb02d69, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 

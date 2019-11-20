@@ -29,7 +29,7 @@ namespace UnityEditor.Experimental.EditorVR
     {
         const string k_TemplateName = "HierarchyListItem";
 
-        readonly int m_Index;
+        readonly int m_Index = 0;
 
         public string name { get; set; }
         public HashSet<string> types { get; set; }

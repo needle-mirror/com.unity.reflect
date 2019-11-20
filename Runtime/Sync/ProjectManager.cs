@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using Unity.Reflect;
 using Unity.Reflect.Data;
 using Unity.Reflect.IO;
-using UnityEditor;
 using UnityEngine.Events;
 
 [assembly: InternalsVisibleTo("Unity.Reflect.Editor")]
@@ -14,10 +13,16 @@ namespace UnityEngine.Reflect
 {
     public class ProjectManager : MonoBehaviour, IProgressTask
     {
-        ProjectManagerWithProjectServerInternal m_ProjectManagerInternal;
+        ProjectManagerInternal m_ProjectManagerInternal;
+
+        public event Action onProjectsRefreshBegin;
+        public event Action onProjectsRefreshEnd;
 
         public event Action<Project> onProjectAdded;
         public event Action<Project> onProjectChanged;
+        public event Action<Project> onProjectRemoved;
+
+        public event Action<Exception> onError;
 
         public UnityEvent onAuthenticationFailure;
 
@@ -43,11 +48,6 @@ namespace UnityEngine.Reflect
             return m_ProjectManagerInternal.IsProjectAvailableOnline(project);
         }
 
-        public bool IsProjectVisibleToUser(Project project)
-        {
-            return m_ProjectManagerInternal.IsProjectVisibleToUser(project);
-        }
-
         public string GetSourceProjectFolder(Project project, string sessionId)
         {
             return m_ProjectManagerInternal.GetSourceProjectFolder(project, sessionId);
@@ -58,24 +58,19 @@ namespace UnityEngine.Reflect
             return m_ProjectManagerInternal.LoadProjectManifests(project);
         }
 
-        public IEnumerator DownloadProjectLocally(string serverProjectId, bool incremental)
+        public IEnumerator DownloadProjectLocally(Project project, bool incremental, Action<Exception> errorHandler)
         {
-            yield return m_ProjectManagerInternal.DownloadProjectLocally(serverProjectId, incremental);
+            yield return m_ProjectManagerInternal.DownloadProjectLocally(project, incremental, errorHandler);
         }
 
         public IEnumerator DownloadSourceProjectLocally(Project project, string sessionId, SyncManifest oldManifest, SyncManifest newManifest, IPlayerClient client, Action<float> onProgress)
         {
-            yield return m_ProjectManagerInternal.DownloadSourceProjectLocally(project, sessionId, oldManifest, newManifest, client, onProgress);
+            yield return m_ProjectManagerInternal.DownloadSourceProjectLocally(project, sessionId, oldManifest, newManifest, client, onProgress, null);
         }
 
         public IEnumerator DeleteProjectLocally(Project project)
         {
-            yield return m_ProjectManagerInternal.DeleteProjectLocally(project);
-        }
-
-        public void RegisterToProject(string serverProjectId, Action<Project> callback)
-        {
-            m_ProjectManagerInternal.RegisterToProject(serverProjectId, callback);
+            yield return m_ProjectManagerInternal.DeleteProjectLocally(project); // TODO Pass the onException
         }
 
         public void StartDiscovery()
@@ -85,11 +80,6 @@ namespace UnityEngine.Reflect
                 StopCoroutine(m_RefreshProjectsCoroutine);
             }
             m_RefreshProjectsCoroutine = StartCoroutine(m_ProjectManagerInternal.RefreshProjectListCoroutine());
-        }
-
-        public void StopDiscovery()
-        {
-            m_ProjectManagerInternal.StopDiscovery();
         }
 
         void Awake()
@@ -102,40 +92,26 @@ namespace UnityEngine.Reflect
             if (m_ProjectManagerInternal != null)
                 return;
 
-            m_ProjectManagerInternal = new ProjectManagerWithProjectServerInternal();
+            m_ProjectManagerInternal = new ProjectManagerInternal();
             m_ProjectManagerInternal.onAuthenticationFailure += () => onAuthenticationFailure?.Invoke();
+
+            m_ProjectManagerInternal.onProjectsRefreshBegin += () => onProjectsRefreshBegin?.Invoke();
+            m_ProjectManagerInternal.onProjectsRefreshEnd += () => onProjectsRefreshEnd?.Invoke();
 
             m_ProjectManagerInternal.onProjectAdded += project => onProjectAdded?.Invoke(project);
             m_ProjectManagerInternal.onProjectChanged += project => onProjectChanged?.Invoke(project);
+            m_ProjectManagerInternal.onProjectRemoved += project => onProjectRemoved?.Invoke(project);
+            m_ProjectManagerInternal.onError += error => onError?.Invoke(error); // TODO Stop coroutines?
 
             m_ProjectManagerInternal.progressChanged += (f, s) => progressChanged?.Invoke(f, s);
             m_ProjectManagerInternal.taskCompleted += () => taskCompleted?.Invoke();
-        }
-
-        void OnEnable()
-        {
-            m_ProjectManagerInternal.OnEnable();
-        }
-
-        void OnDisable()
-        {
-            m_ProjectManagerInternal.OnDisable();
-        }
-
-        void Update()
-        {
-            m_ProjectManagerInternal.Update();
         }
 
         public void SetUnityUser(UnityUser unityUser = null)
         {
             Debug.Log($"ProjectManager.SetUnityUser: {unityUser != null}");
             ProjectServerEnvironment.UnityUser = unityUser;
-
-            foreach (var project in Projects)
-            {
-                onProjectChanged?.Invoke(project);
-            }
+            StartDiscovery();
         }
     }
 }

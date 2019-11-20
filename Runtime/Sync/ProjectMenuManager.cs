@@ -1,14 +1,15 @@
-﻿// Prevent warnings for field not assigned to
-#pragma warning disable 0649
-
-using System;
+﻿using System;
 using System.Collections;
+using Grpc.Core;
 using UnityEngine;
 
 namespace UnityEngine.Reflect
-{    
+{
     public class ProjectMenuManager : MonoBehaviour
-    {     
+    {
+        public const string ReflectLandingPageUrl = "https://unity.com/aec/reflect";
+
+#pragma warning disable 0649
         [SerializeField]
         ListControl m_ListControl;
 
@@ -20,13 +21,17 @@ namespace UnityEngine.Reflect
 
         [SerializeField]
         SyncManager m_SyncManager;
-        
+
         [SerializeField]
         ProgressBar m_ProgressBar;
 
         [SerializeField]
         Dialog m_Dialog;
-        
+
+        [SerializeField]
+        AlertDialog m_AlertDialog;
+#pragma warning restore 0649
+
         ListControlDataSource m_Source = new ListControlDataSource();
 
         ListControlItemData ProjectToListItem(Project project)
@@ -48,19 +53,26 @@ namespace UnityEngine.Reflect
 
         void OnEnable()
         {
+            m_ProjectManager.onProjectsRefreshBegin += OnProjectsRefreshBegin;
+            m_ProjectManager.onProjectsRefreshEnd += OnProjectsRefreshEnd;
+
             m_ProjectManager.onProjectAdded += OnProjectChanged;
             m_ProjectManager.onProjectChanged += OnProjectChanged;
+            m_ProjectManager.onProjectRemoved += OnProjectRemoved;
 
-            m_ProgressBar.Register(m_ProjectManager);
+            m_ProjectManager.onError += OnError;
+            m_SyncManager.onError += OnError;
             
+            m_ProgressBar.Register(m_ProjectManager);
+
             if (m_ListControl != null)
             {
                 m_ListControl.SetDataSource(m_Source);
-                m_ListControl.onOpen += OnProjectOpen;
-                m_ListControl.onDownload += OnProjectDownload;
-                m_ListControl.onDelete += OnProjectDelete;
+                m_ListControl.onOpen += OpenProject;
+                m_ListControl.onDownload += DownloadProject;
+                m_ListControl.onDelete += DeleteProject;
             }
-            
+
             if(m_Menu != null)
             {
                 m_Menu.OnVisiblityChanged += OnProjectMenuVisibilityChanged;
@@ -94,54 +106,115 @@ namespace UnityEngine.Reflect
             m_Source.AddOrUpdateItem(item);
         }
 
+        void OnProjectRemoved(Project project)
+        {
+            m_Source.RemoveItem(project.serverProjectId);
+        }
+
         void OnDisable()
         {
+            m_ProjectManager.onProjectsRefreshBegin -= OnProjectsRefreshBegin;
+            m_ProjectManager.onProjectsRefreshEnd -= OnProjectsRefreshEnd;
+
             m_ProjectManager.onProjectAdded -= OnProjectChanged;
             m_ProjectManager.onProjectChanged -= OnProjectChanged;
-            
+            m_ProjectManager.onProjectRemoved -= OnProjectRemoved;
+
             m_ProgressBar.UnRegister(m_ProjectManager);
-            
+
             if (m_ListControl != null)
             {
-                m_ListControl.onOpen -= OnProjectOpen;
-                m_ListControl.onDownload -= OnProjectDownload;
+                m_ListControl.onOpen -= OpenProject;
+                m_ListControl.onDownload -= DownloadProject;
             }
         }
 
-        void OnProjectOpen(ListControlItemData itemData)
-        {           
-            Debug.Log($"Opening : {itemData.id}");
-            m_SyncManager.Close();
-            m_Menu.OnCancel();
-            StartCoroutine(DownloadAndOpen((Project)itemData.payload));
-        }
 
-        IEnumerator DownloadAndOpen(Project project)
+        void OnProjectsRefreshBegin()
         {
-            if(!m_SyncManager.IsProjectOpened(project))
+            m_Menu.RefreshButtonEnabled = false;
+        }
+
+        void OnProjectsRefreshEnd()
+        {
+            m_Menu.RefreshButtonEnabled = true;
+        }
+
+        void OpenProject(ListControlItemData itemData)
+        {
+            Debug.Log($"Opening : {itemData.id}");
+            StartCoroutine(OpenProject((Project)itemData.payload, true));
+        }
+
+        void OnError(Exception exception)
+        {
+            var rpcException = exception as RpcException;
+            var msg = rpcException != null ? rpcException.Status.Detail : exception.Message;
+            var isComplianceError = false;
+
+            #if UNITY_EDITOR            
+            isComplianceError = (exception is ProjectListRefreshException projectException &&
+                projectException.Status == Unity.Reflect.UnityProjectCollection.StatusOption.ComplianceError);
+            #endif
+
+            if (isComplianceError)
             {
-                yield return m_ProjectManager.DownloadProjectLocally(project.serverProjectId, true);
-                yield return m_SyncManager.Open(project);
+                var buttonOptions = new AlertDialog.ButtonOptions()
+                {
+                    onClick = () => Application.OpenURL(ReflectLandingPageUrl),
+                    text = "Learn More"
+                };
+                m_AlertDialog.Show(exception.Message, buttonOptions);
+            }
+            else
+            {
+                m_AlertDialog.Close();
+                m_Dialog.ShowError("Error", msg);
             }
         }
 
-        void OnProjectDownload(ListControlItemData itemData)
+        IEnumerator OpenProject(Project project, bool tryDownloadProject)
+        {
+            if (m_SyncManager.IsProjectOpened(project))
+            {
+                yield break;
+            }
+
+            if (m_ProjectManager.IsProjectAvailableOnline(project) && tryDownloadProject)
+            {                
+                yield return m_ProjectManager.DownloadProjectLocally(project, true, _ =>
+                {
+                    // We want to catch download errors but still open the project if it is available offline
+                    if (m_ProjectManager.IsProjectAvailableOffline(project))
+                    {
+                        StartCoroutine(OpenProject(project, false));
+                    }
+                });                    
+            }
+
+            m_Menu.OnCancel();
+            yield return m_SyncManager.Open(project);
+        }
+
+        void DownloadProject(ListControlItemData itemData)
         {
             Debug.Log($"Downloading : {itemData.id}");
-            if(itemData.payload is Project)
-            {
-                StartCoroutine(m_ProjectManager.DownloadProjectLocally(((Project)itemData.payload).serverProjectId, true));
-            }
+            var project = (Project)itemData.payload;
+            StartCoroutine(m_ProjectManager.DownloadProjectLocally(project, true, null));
         }
-        
-        void OnProjectDelete(ListControlItemData itemData)
+
+        void DeleteProject(ListControlItemData itemData)
         {
             const string kDeleteTitle = "Delete Project";
             var confirmDeleteMessage = $"Delete local data associated with {itemData.title} from this device?";
             m_Dialog.Show(kDeleteTitle, confirmDeleteMessage, () =>
             {
-                m_SyncManager.Close();
-                StartCoroutine(m_ProjectManager.DeleteProjectLocally((Project)itemData.payload));
+                var project = (Project)itemData.payload;
+                if (m_SyncManager.IsProjectOpened(project))
+                {
+                    m_SyncManager.Close();
+                }
+                StartCoroutine(m_ProjectManager.DeleteProjectLocally(project));
             });
         }
 
@@ -149,13 +222,8 @@ namespace UnityEngine.Reflect
         {
             var availableOffline = m_ProjectManager.IsProjectAvailableOffline(project);
             var availableOnline = m_ProjectManager.IsProjectAvailableOnline(project);
-            
-            var options = ListControlItemData.Option.None;
 
-            if (!m_ProjectManager.IsProjectVisibleToUser(project))
-            {
-                return options;
-            }
+            var options = ListControlItemData.Option.None;
 
             if (availableOffline)
             {
@@ -166,7 +234,7 @@ namespace UnityEngine.Reflect
             {
                 options |= ListControlItemData.Option.Open;
             }
-            
+
             if (availableOnline && availableOffline)
             {
                 options |= ListControlItemData.Option.UpToDate;

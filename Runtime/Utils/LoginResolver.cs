@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Networking;
+using UnityEngine.Reflect;
 using Debug = UnityEngine.Debug;
 
 [Serializable]
@@ -35,14 +36,19 @@ public class LoginResolver : MonoBehaviour
     public static readonly bool k_IsAndroid = Application.platform == RuntimePlatform.Android;
 
     public StringUnityEvent OnGetToken;
+    Coroutine m_SilentLogoutCoroutine;
 
     string k_JwtTokenPersistentPath = string.Empty;
 
 #if UNITY_IOS && !UNITY_EDITOR
     [DllImport("__Internal")]
     private static extern void UnityDeeplinks_init(string gameObject = null, string deeplinkMethod = null);
+    [DllImport("__Internal")]
+    extern static void LaunchSafariWebViewUrl(string url);
+    [DllImport("__Internal")]
+    extern static void DismissSafariWebView();
 #endif
-
+ 
 #if UNITY_STANDALONE_OSX && !UNITY_EDITOR
 
     [DllImport("__Internal")]
@@ -145,6 +151,9 @@ public class LoginResolver : MonoBehaviour
         {
             LoginCredential.jwtToken = uri.Query.Substring(k_jwtParamName.Length);
             ProcessJwtToken();
+#if UNITY_IOS && !UNITY_EDITOR
+            DismissSafariWebView();
+#endif
         }
     }
 
@@ -229,16 +238,69 @@ public class LoginResolver : MonoBehaviour
     }
     public void DisplayLoginBrowserWindow()
     {
+#if UNITY_IOS && !UNITY_EDITOR
+        LaunchSafariWebViewUrl(m_ReflectLoginUrl);
+#else
         Application.OpenURL(m_ReflectLoginUrl);
+#endif
     }
 
     public void LogoutRequest()
     {
+        var unityUserLogoutUrl = ProjectServerEnvironment.UnityUser?.LogoutUrl?.AbsoluteUri;
+        if (!string.IsNullOrEmpty(unityUserLogoutUrl))
+        {
+            Debug.Log($"Sign out using: {unityUserLogoutUrl}");
+#if UNITY_IOS && !UNITY_EDITOR
+            InvalidateToken();
+            LaunchSafariWebViewUrl(unityUserLogoutUrl);
+#else
+            SilentInvalidateTokenLogout(unityUserLogoutUrl);
+#endif
+        }
+        else
+        {
+            Debug.Log($"Sign out using: {k_LogoutUrl}");
+            InvalidateToken();
+#if UNITY_IOS && !UNITY_EDITOR
+            LaunchSafariWebViewUrl(k_LogoutUrl);
+#else
+            Application.OpenURL(k_LogoutUrl);
+#endif
+        }
+    }
+
+    void InvalidateToken()
+    {
         RemovePersistentToken();
         LoginCredential.jwtToken = string.Empty;
         OnGetToken.Invoke(string.Empty);
+    }
 
-        Application.OpenURL(k_LogoutUrl);
+    public void SilentInvalidateTokenLogout(string logoutUrl)
+    {
+        if (m_SilentLogoutCoroutine != null)
+        {
+            StopCoroutine(m_SilentLogoutCoroutine);
+        }
+        m_SilentLogoutCoroutine = StartCoroutine(SilentLogoutCoroutine(logoutUrl));
+    }
+
+    IEnumerator SilentLogoutCoroutine(string logoutUrl)
+    {
+        using (UnityWebRequest webRequest = UnityWebRequest.Get(logoutUrl))
+        {
+            yield return webRequest.SendWebRequest();
+            if (webRequest.isNetworkError)
+            {
+                Debug.Log($"LogoutUrl Error: " + webRequest.error);
+            }
+            else
+            {
+                Debug.Log("LogoutUrl success");
+                InvalidateToken();
+            }
+        }
     }
 
     void ProcessJwtToken(bool saveIfNewer = true)

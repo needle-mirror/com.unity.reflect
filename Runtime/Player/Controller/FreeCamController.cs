@@ -6,37 +6,37 @@ namespace UnityEngine.Reflect.Controller
 {
     public class FreeCamController : Controller
     {
-
-        static readonly float k_ElasticThreshold = .05f;
-        static readonly float k_ElasticTime = .5f;
-        static readonly float k_PanMagnitude = .1f;
+        static readonly float k_ElasticThreshold = 0.05f;
+        static readonly float k_ElasticTime = 0.5f;
+        static readonly float k_PanMagnitude = 0.1f;
 
         [Header("Input parameters")]
         public float DesktopScrollSensitivity = 5;
         public float DesktopAltZoomSensitivity = 1;
         public float DesktopPanSensitivity = 1;
-        public float DesktopRotateAroundPivotSensitivity = 5;
-        public float DesktopRotateCameraSensitivity = 5;
+        public float DesktopRotateAroundPivotSensitivity = 1;
+        public float DesktopRotateCameraSensitivity = 1;
         public Vector2 DesktopMoveSensitivity = Vector2.one;
-        public float TouchZoomSensitivity = 500;
-        public float TouchZoomThreshold = .03f;
+        public float TouchZoomSensitivity = 100;
+        public float TouchZoomThreshold = .01f;
         public float TouchPanSensitivity = 200;
         public float TouchPanThreshold = .03f;
-        public float TouchRotateSensitivity = 1500;
+        public float TouchRotateSensitivity = 500;
 
-        float distanceToPivot = 10;
-        Vector3 cameraRotationEuler;
-        Vector3 pivotRotationEuler;
+        float m_DistanceToPivot = 50;
+        Vector3 m_CameraRotationEuler;
+        Vector3 m_PivotRotationEuler;
 
-        bool elasticReturn = false;
-        Vector3 elasticPanPoint;
-        Vector3 elasticVelocity;
+        bool m_ElasticReturn = false;
+        Vector3 m_ElasticPanPoint;
+        Vector3 m_ElasticVelocity;
 
         public Vector3 Target
         {
             get
             {
-                return transform.position + transform.forward * distanceToPivot;
+                var t = transform;
+                return t.position + t.forward * m_DistanceToPivot;
             }
             set
             {
@@ -44,28 +44,17 @@ namespace UnityEngine.Reflect.Controller
             }
         }
 
-        public float DistanceToPivot
-        {
-            get
-            {
-                return distanceToPivot;
-            }
-            set
-            {
-                distanceToPivot = value;
-                UpdatePosition(Target);
-            }
-        }
-
         void UpdatePosition(Vector3 target)
         {
-            transform.position = target - transform.forward * distanceToPivot;
+            var t = transform;
+            t.position = target - t.forward * m_DistanceToPivot;
         }
 
         void OnDrawGizmos()
         {
+            var t = transform;
             Gizmos.color = Color.red;
-            Gizmos.DrawSphere(transform.position + transform.forward * distanceToPivot, .1f);
+            Gizmos.DrawSphere(t.position + t.forward * m_DistanceToPivot, .1f);
         }
 
         protected override void StartController(GestureListener listener)
@@ -138,49 +127,49 @@ namespace UnityEngine.Reflect.Controller
 
         void Zoom(float amount)
         {
-            distanceToPivot = Mathf.Max(distanceToPivot - amount, 0);
+            m_DistanceToPivot = Mathf.Max(m_DistanceToPivot - amount, 0);
             transform.position += transform.forward * amount;
         }
 
         void ZoomMobile(float amount)
         {
-            var delta = Mathf.Min(distanceToPivot, amount);
-            distanceToPivot -= delta;
+            var delta = Mathf.Min(m_DistanceToPivot, amount);
+            m_DistanceToPivot -= delta;
             transform.position += transform.forward * delta;
         }
 
         void StartElasticPan()
         {
-            if (!elasticReturn)
+            if (!m_ElasticReturn)
             {
-                elasticPanPoint = Target;
-                elasticReturn = false;
+                m_ElasticPanPoint = Target;
+                m_ElasticReturn = false;
             }
         }
 
         void StopElasticPan()
         {
-            elasticVelocity = Vector3.zero;
-            elasticReturn = true;
+            m_ElasticVelocity = Vector3.zero;
+            m_ElasticReturn = true;
         }
 
         void Pan(Vector2 delta)
         {
-            var magnitude = (distanceToPivot + 1) * k_PanMagnitude;
+            var magnitude = (m_DistanceToPivot + 1) * k_PanMagnitude;
             transform.position += magnitude * (transform.right * delta.x + transform.up * delta.y);
         }
 
         void StartRotateAroundPivot()
         {
             var rotation = Quaternion.FromToRotation(Vector3.forward, - transform.forward);
-            pivotRotationEuler = NormalizeEulerAngles(rotation.eulerAngles);
+            m_PivotRotationEuler = NormalizeEulerAngles(rotation.eulerAngles);
         }
 
         void RotateAroundPivot(Vector2 delta)
         {
             var target = Target;
-            pivotRotationEuler = ComputeNewEulerAngles(delta.x, delta.y, pivotRotationEuler);
-            var rotation = Quaternion.Euler(pivotRotationEuler);
+            m_PivotRotationEuler = ComputeNewEulerAngles(delta.x, delta.y, m_PivotRotationEuler);
+            var rotation = Quaternion.Euler(m_PivotRotationEuler);
             var rotationDirection = rotation * Vector3.forward;
 
             // Handle rotation
@@ -188,19 +177,19 @@ namespace UnityEngine.Reflect.Controller
             transform.LookAt(target);
 
             // Handle position
-            transform.position = target + rotationDirection * distanceToPivot;
+            transform.position = target + rotationDirection * m_DistanceToPivot;
         }
 
         void StartRotateCamera()
         {
             var rotation = Quaternion.FromToRotation(Vector3.forward, transform.forward);
-            cameraRotationEuler = NormalizeEulerAngles(rotation.eulerAngles);
+            m_CameraRotationEuler = NormalizeEulerAngles(rotation.eulerAngles);
         }
 
         void RotateCamera(Vector2 delta)
         {
-            cameraRotationEuler = ComputeNewEulerAngles(delta.x, -delta.y, cameraRotationEuler);
-            var rotation = Quaternion.Euler(cameraRotationEuler);
+            m_CameraRotationEuler = ComputeNewEulerAngles(delta.x, -delta.y, m_CameraRotationEuler);
+            var rotation = Quaternion.Euler(m_CameraRotationEuler);
             transform.forward = rotation * Vector3.forward;
         }
 
@@ -211,16 +200,16 @@ namespace UnityEngine.Reflect.Controller
 
         protected override void UpdateController()
         {
-            if (elasticReturn)
+            if (m_ElasticReturn)
             {
-                if ((Target - elasticPanPoint).magnitude > k_ElasticThreshold)
+                if ((Target - m_ElasticPanPoint).magnitude > k_ElasticThreshold)
                 {
-                    Target = Vector3.SmoothDamp(Target, elasticPanPoint, ref elasticVelocity, k_ElasticTime);
+                    Target = Vector3.SmoothDamp(Target, m_ElasticPanPoint, ref m_ElasticVelocity, k_ElasticTime);
                 }
                 else
                 {
-                    elasticReturn = false;
-                    Target = elasticPanPoint;
+                    m_ElasticReturn = false;
+                    Target = m_ElasticPanPoint;
                 }
             }
         }

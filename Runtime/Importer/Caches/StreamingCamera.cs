@@ -6,7 +6,6 @@ namespace UnityEngine.Reflect
     public class StreamingCamera : MonoBehaviour
     {
         public int m_MaximumObjects = 0;
-        private const int k_AverageObjectSize = 512;
         public SyncManager m_SyncManager;
 
         List<StreamingReference> m_References = new List<StreamingReference>();
@@ -21,6 +20,17 @@ namespace UnityEngine.Reflect
         float m_LastUpdate;
         const double k_UpdateElapse = 0.25;
 
+        const int k_MemoryWarningOxygen = 10 * 1024 * 1024;
+        static char[] s_MemoryWarningOxygen;
+        static int s_MaximumObjects;
+
+        static StreamingCamera()
+        {
+            //    keep oxygen for later
+            s_MemoryWarningOxygen = new char[k_MemoryWarningOxygen];
+            s_MaximumObjects = 0;
+        }
+        
         void Start()
         {
             m_LastPosition = Vector3.zero;
@@ -30,40 +40,36 @@ namespace UnityEngine.Reflect
             {
                 m_SyncManager.onInstanceAdded += OnInstanceAdded;
                 m_SyncManager.onSyncUpdateEnd += OnSyncUpdateEnd;
+                m_SyncManager.onProjectOpened += OnProjectOpened;
+                m_SyncManager.onProjectClosed += OnProjectClosed;
             }
-
-            //    dynamically set the maximum size
-            var memory = SystemInfo.systemMemorySize;
-            Debug.Log(memory + " bytes of available memory.");
-            if (m_MaximumObjects == 0)
+             
+            Application.lowMemory += OnLowMemory;
+            if (s_MaximumObjects == 0)
             {
-                m_MaximumObjects = (memory == 0) ? 10000 : memory / k_AverageObjectSize * 1024 * 1024;
-                Debug.Log("Setting maximum to " + m_MaximumObjects + " objects");
+                s_MaximumObjects = m_MaximumObjects;
             }
         }
 
-        private void OnInstanceAdded(SyncInstance instance)
+        void OnInstanceAdded(SyncInstance instance)
         {
             instance.onPrefabLoaded += OnPrefabLoaded;
             instance.SetVisibilityFilter(m_VisibilityFilter);
         }
 
-        private void UpdateCapacity()
+        void UpdateCapacity()
         {
             var capacity = 0;
             foreach (var instance in m_Instances)
             {
                 capacity += instance.Key.GetPrefab().Instances.Count;
             }
-            m_References.Capacity = capacity;
+
+            if (m_References.Count < capacity)
+                m_References.Capacity = capacity;
         }
 
-        private void OnSyncRootChanged()
-        {
-            m_References.Clear();            
-        }
-        
-        private void OnPrefabLoaded(SyncInstance instance, SyncPrefab prefab)
+        void OnPrefabLoaded(SyncInstance instance, SyncPrefab prefab)
         {
             for (var r = m_References.Count - 1; r >= 0; --r)
             {
@@ -92,9 +98,37 @@ namespace UnityEngine.Reflect
             }
         }
 
-        private void Update()
+        void OnLowMemory()
         {
-            if ((transform.position != m_LastPosition) || (transform.rotation != m_LastRotation))
+            //    use oxygen reserve now
+            s_MemoryWarningOxygen = null;
+            System.GC.Collect();
+            
+            int count = 0;
+            foreach (var instance in m_Instances)
+            {
+                count += instance.Key.GetInstanceCount();
+            }
+
+            s_MaximumObjects = (int)(count * 0.8f);
+            Debug.Log("Setting maximum object count to " + s_MaximumObjects + " due to memory warning.");
+            UpdateScores();
+        }
+
+        void OnProjectOpened()
+        {
+            UpdateScores();
+        }
+
+        void OnProjectClosed()
+        {
+            Clear();
+        }
+
+        void Update()
+        {
+            var t = transform;
+            if (t.position != m_LastPosition || t.rotation != m_LastRotation)
             {
                 var now = Time.time;
                 if (now - m_LastUpdate > k_UpdateElapse)
@@ -102,37 +136,43 @@ namespace UnityEngine.Reflect
                     m_LastUpdate = now;
 
                     //  update the camera position and rotation
-                    m_LastPosition = transform.position;
-                    m_LastRotation = transform.rotation;
+                    m_LastPosition = t.position;
+                    m_LastRotation = t.rotation;
 
                     UpdateScores();
                 }
             }
         }
 
-        private void UpdateScores()
+        void UpdateScores()
         {
-                    
-            //  update score of all streaming references
-            var root = m_SyncManager.syncRoot;
-            foreach (var reference in m_References)
+            if (s_MaximumObjects == 0)
             {
-                reference.UpdateScore(transform, root);
+                Clear();
             }
-
-            m_References.Sort();
-
-            m_VisibilityFilter.Clear();
-            var start = (m_References.Count > m_MaximumObjects) ? m_References.Count - m_MaximumObjects : 0;
-            for (var r = start; r < m_References.Count; ++r)
+            else
             {
-                m_VisibilityFilter.Add(m_References[r].GetIdentifier());
-            }
+                //  update score of all streaming references
+                var root = m_SyncManager.syncRoot;
+                foreach (var reference in m_References)
+                {
+                    reference.UpdateScore(transform, root);
+                }
 
-            m_SyncManager.ApplyPrefabChanges();
+                m_References.Sort();
+
+                m_VisibilityFilter.Clear();
+                var start = m_References.Count > s_MaximumObjects ? m_References.Count - s_MaximumObjects : 0;
+                for (var r = start; r < m_References.Count; ++r)
+                {
+                    m_VisibilityFilter.Add(m_References[r].GetIdentifier());
+                }
+
+                m_SyncManager.ApplyPrefabChanges();
+            }
         }
 
-        private void LoadReferences()
+        void LoadReferences()
         {
             m_Instances.Clear();
             foreach (var instance in m_SyncManager.syncInstances)
@@ -141,24 +181,29 @@ namespace UnityEngine.Reflect
                 OnPrefabLoaded(instance.Value, instance.Value.GetPrefab());
             }
         }
-        
-        private void Clear()
+
+        void Clear()
         {
-            foreach (var instance in m_Instances)
+            if (m_Instances.Count > 0)
             {
-                instance.Key.RemoveVisibilityFilter(m_VisibilityFilter);
+                foreach (var instance in m_Instances)
+                {
+                    instance.Key.RemoveVisibilityFilter(m_VisibilityFilter);
+                }
+
+                m_SyncManager.ApplyPrefabChanges();
+                m_Instances.Clear();
+                m_References.Clear();
             }
-            m_SyncManager.ApplyPrefabChanges();
-            m_Instances.Clear();
         }
-        
-        private void OnEnable()
+
+        void OnEnable()
         {
             LoadReferences();
             UpdateScores();
         }
 
-        private void OnDisable()
+        void OnDisable()
         {
             Clear();
         }

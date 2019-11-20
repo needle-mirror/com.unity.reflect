@@ -1,7 +1,8 @@
 using System;
 using System.IO;
-using System.Linq;
+using Grpc.Core;
 using Unity.EditorCoroutines.Editor;
+using Unity.Reflect;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Reflect;
@@ -11,23 +12,25 @@ class ReflectWindow : EditorWindow
     [SerializeField]
     string m_ImportFolder = "Reflect";
 
-    ProjectManagerWithProjectServerInternal m_ProjectManagerInternal;
+    ProjectManagerInternal m_ProjectManagerInternal;
 
     Vector2 m_ScrollPosition;
 
     string m_TaskInProgressName;
     float m_TaskProgress;
 
-    bool m_ShowAllProjects;
-
     DateTime m_LastUpdate;
     const double k_UpdateIntervalMs = 1000.0;
 
-    string m_FullImportFolder;
+    static readonly string k_DownloadFolder = ".downloads";
 
     static GUIStyle s_HeaderStyle;
 
     EditorCoroutine m_RefreshProjectsCoroutine;
+
+    bool m_IsFetchingProjects;
+
+    Exception m_RefreshProjectsException;
 
     [UnityEditor.MenuItem("Window/Reflect")]
     static void OpenWindow()
@@ -43,17 +46,22 @@ class ReflectWindow : EditorWindow
 
     void OnDisable()
     {
-        StopProjectDiscovery();
-
         EditorApplication.update -= OnEditorUpdate;
+
+        StopProjectDiscovery();
     }
 
     void StartProjectDiscovery()
     {
+        if (m_RefreshProjectsCoroutine != null)
+        {
+            EditorCoroutineUtility.StopCoroutine(m_RefreshProjectsCoroutine);
+        }
+
         if (m_ProjectManagerInternal == null)
         {
-            m_FullImportFolder = Path.Combine(Application.dataPath, m_ImportFolder);
-            m_ProjectManagerInternal = new ProjectManagerWithProjectServerInternal(m_FullImportFolder, false, true);
+            var fullImportFolder = Path.Combine(Application.dataPath, m_ImportFolder);
+            m_ProjectManagerInternal = new ProjectManagerInternal(fullImportFolder, false, true);
 
             m_ProjectManagerInternal.progressChanged += (f, s) =>
             {
@@ -61,30 +69,50 @@ class ReflectWindow : EditorWindow
                 m_TaskInProgressName = s;
             };
 
-            m_ProjectManagerInternal.taskCompleted += () => {
+            m_ProjectManagerInternal.onError += exception =>
+            {
+                if (m_IsFetchingProjects)
+                {
+                    m_RefreshProjectsException = exception;
+                }
+
+                var msg = exception is RpcException rpcException ? rpcException.Status.Detail : exception.Message;
+                Debug.LogError(msg);
+            };
+
+            m_ProjectManagerInternal.taskCompleted += () =>
+            {
                 m_TaskInProgressName = null;
                 m_TaskProgress = 0.0f;
                 AssetDatabase.Refresh(); };
 
             m_TaskInProgressName = null;
             m_TaskProgress = 0.0f;
+
+            m_ProjectManagerInternal.onProjectsRefreshBegin += OnProjectRefreshBegin;
+            m_ProjectManagerInternal.onProjectsRefreshEnd += OnProjectRefreshEnd;
         }
 
-        if (m_RefreshProjectsCoroutine != null)
-        {
-            EditorCoroutineUtility.StopCoroutine(m_RefreshProjectsCoroutine);
-        }
-        m_RefreshProjectsCoroutine = EditorCoroutineUtility.StartCoroutine(
-            m_ProjectManagerInternal.RefreshProjectListCoroutine(), this);
+        m_RefreshProjectsCoroutine = EditorCoroutineUtility.StartCoroutine(m_ProjectManagerInternal.RefreshProjectListCoroutine(), this);
+    }
+
+    void OnProjectRefreshBegin()
+    {
+        m_RefreshProjectsException = null;
+        m_IsFetchingProjects = true;
+    }
+
+    void OnProjectRefreshEnd()
+    {
+        m_IsFetchingProjects = false;
     }
 
     void StopProjectDiscovery()
     {
         if (m_ProjectManagerInternal != null)
         {
-            m_ProjectManagerInternal.StopDiscovery();
-
-            m_ProjectManagerInternal.OnDisable();
+            m_ProjectManagerInternal.onProjectsRefreshBegin -= OnProjectRefreshBegin;
+            m_ProjectManagerInternal.onProjectsRefreshEnd -= OnProjectRefreshEnd;
 
             m_ProjectManagerInternal = null;
         }
@@ -100,7 +128,6 @@ class ReflectWindow : EditorWindow
         if ((now - m_LastUpdate).TotalMilliseconds >= k_UpdateIntervalMs)
         {
             m_LastUpdate = now;
-            m_ProjectManagerInternal?.Update();
             Repaint();
         }
     }
@@ -126,48 +153,62 @@ class ReflectWindow : EditorWindow
             return;
         }
 
+        EditorGUILayout.Space();
+
+        EditorGUILayout.BeginHorizontal();
+
+        EditorGUILayout.LabelField("Projects", s_HeaderStyle);
+
+        using (new EditorGUI.DisabledScope(m_IsFetchingProjects))
+        {
+            if (GUILayout.Button("Refresh", GUILayout.Width(100)))
+            {
+                StopProjectDiscovery();
+                StartProjectDiscovery();
+            }
+        }
+
+        EditorGUILayout.EndHorizontal();
+
         if (m_ProjectManagerInternal == null)
         {
             StartProjectDiscovery();
         }
 
-        m_ShowAllProjects = EditorGUILayout.Toggle("Show All Projects", m_ShowAllProjects);
+        if (m_RefreshProjectsException != null)
+        {
+            EditorGUILayout.HelpBox($"Error: {m_RefreshProjectsException.Message}", MessageType.Error);
+            if (m_RefreshProjectsException is ProjectListRefreshException ex && ex.Status == UnityProjectCollection.StatusOption.ComplianceError)
+            {
+                if (GUILayout.Button("Learn more", GUILayout.Width(100)))
+                {
+                    Application.OpenURL(ProjectMenuManager.ReflectLandingPageUrl);
+                }
+            }
 
-        EditorGUILayout.Space();
-        EditorGUILayout.LabelField("Projects", s_HeaderStyle);
-
-        var projects = m_ProjectManagerInternal.Projects;
+            GUIUtility.ExitGUI();
+        }
 
         m_ScrollPosition = EditorGUILayout.BeginScrollView(m_ScrollPosition);
 
         EditorGUILayout.BeginVertical();
 
-        var projectFound = false;
+        if (m_IsFetchingProjects)
+        {
+            EditorGUILayout.LabelField("Fetching....");
+        }
 
         var taskInProgress = !string.IsNullOrEmpty(m_TaskInProgressName);
 
-        if (projects.Any())
+        foreach (var project in m_ProjectManagerInternal.Projects)
         {
-            foreach (var project in projects)
+            using (new EditorGUI.DisabledScope(taskInProgress))
             {
-                if (!m_ShowAllProjects && !IsCurrentProject(project))
-                    continue;
-
-                projectFound = true;
-
-                using (new EditorGUI.DisabledScope(taskInProgress))
+                if (ProjectGUI(project))
                 {
-                    if (ProjectGUI(project))
-                    {
-                        EditorCoroutineUtility.StartCoroutine(m_ProjectManagerInternal.DownloadProjectLocally(project.serverProjectId, true), this);
-                    }
+                    EditorCoroutineUtility.StartCoroutine(m_ProjectManagerInternal.DownloadProjectLocally(project, true, null, k_DownloadFolder), this);
                 }
             }
-        }
-
-        if (!projectFound)
-        {
-            EditorGUILayout.LabelField("Gathering available projects...");
         }
 
         EditorGUILayout.EndVertical();
@@ -213,7 +254,7 @@ class ReflectWindow : EditorWindow
             {
                 path = "Assets" + path.Replace(Application.dataPath, "");
 
-                var id = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>( path ).GetInstanceID();
+                var id = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path).GetInstanceID();
 
                 EditorGUIUtility.PingObject(id);
             }
@@ -228,10 +269,5 @@ class ReflectWindow : EditorWindow
         EditorGUILayout.EndVertical();
 
         return pressed;
-    }
-
-    static bool IsCurrentProject(Project project)
-    {
-        return Application.dataPath.Contains(project.name); // Hack. Instead, get the project id from the Hub and compare or add a ProjectManager.GetProject(id) API.
     }
 }

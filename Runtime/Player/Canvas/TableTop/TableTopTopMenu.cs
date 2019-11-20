@@ -15,7 +15,6 @@ namespace UnityEngine.Reflect
         public GameObject target;
         public Transform syncRoot;
         public SyncManager syncManager;
-        public float m_DefaultDistanceToPivot = 50;
 
         ARPlaneManager planeManager;
         ARRaycastManager m_RayCastManager;
@@ -55,7 +54,6 @@ namespace UnityEngine.Reflect
             if (freeCameraController != null)
             {
                 freeCameraController.Target = syncRoot.position;
-                freeCameraController.DistanceToPivot = m_DefaultDistanceToPivot;
             }
         }
 
@@ -174,7 +172,7 @@ namespace UnityEngine.Reflect
                 ARController controller = arCamera.GetComponent<ARController>();
                 if (controller != null)
                 {
-                    controller.syncRoot = syncRoot;
+                    controller.SetRoot(syncRoot);
                 }
             }
         }

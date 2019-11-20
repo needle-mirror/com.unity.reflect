@@ -42,7 +42,7 @@ namespace UnityEditor.Experimental.EditorVR.Workspaces
             get { return m_LockToggle; }
         }
 
-        GameObject m_TargetGameObject;
+        GameObject m_TargetGameObject = null;
 
         public Action<bool> setLocked;
 

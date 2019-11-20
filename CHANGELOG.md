@@ -1,37 +1,25 @@
-## [1.0.0-preview.11] - 2019-10-29
+## [1.0.0-preview.19] - 2019-11-21
 
-## [1.0.0-preview.10] - 2019-10-29
+## [1.0.0-preview.18] - 2019-11-19
 
-## [1.0.0-preview.9] - 2019-10-29
+## [1.0.0-preview.17] - 2019-11-19
 
-## [1.0.0-preview.8] - 2019-10-29
+## [1.0.0-preview.16] - 2019-11-15
 
+## [1.0.0-preview.15] - 2019-11-15
 
-## [1.0.0-preview.7] - 2019-10-28
-
-## [1.0.0-preview.6] - 2019-10-28
-
-## [1.0.0-preview.5] - 2019-10-23
-
-Release Candidate 1
-
-## [1.0.0-preview.4] - 2019-10-17
-
-
-## [1.0.0-preview.3] - 2019-10-09
-
-Weekly Build
-
-## [1.0.0-preview.2] - 2019-09-26
-
-Weekly Build
-
-## [1.0.0-preview.1] - 2019-09-26
-
-Weekly Build
+# Features
+- Better out-of-the-box visual quality
+- VR support, for HTC Vive!
+- Revit 2020 support
+- The ability to set a project server to Private/Public
+# Bug Fixes:
+- Fixed an issue where Revit would spin forever on certian machines with IT restrictions
+- Fixed an issue where the Viewer was unable to login
+- Better error emssaging and feedback overall
 
 ## [0.3.0-preview.8] - 2019-09-19
-Features
+# Features
 Project discovery server
 A new cloud-hosted server that allows for more reliable project discovery and enables user & project management. 
 In 0.2, several people experienced discoverability issues, meaning that some viewers would not find projects on their local networks. Despite us releasing a hotfix, we thought a better solution was in order.
@@ -39,10 +27,10 @@ This new server will help make this process more stable and  allow for users to 
 By default, all projects are shared only with the current user (yourself), but you can invite people to projects by managing projects here. After selecting a project, go to Settings->Users in the left-hand panel to manage permissions.
 	Important Note: This new feature means that you now need to sign in into the Viewer to access you project. To do this, the Viewer will now open a web browser page, leading you to a sign in page. 
 
-Common UI
+# Common UI
 The User interface in the different plugin is now shared, offering a more consistent experience between different 3rd party applications, and allowing users to create new projects from the plugins, without needing the Hub. This also allows us to re-use parts of the plugins and accelerate future developments
 
-Bug Fixes
+# Bug Fixes
 Fixed an issue where the Unity Hub would not discover Revit & Sketchup applications
 Fixed an issue resulting in plugin installation hanging forever when a user doesn’t have permissions to write to a specific location
 Fixed an issue where project list would randomly fail to populate
@@ -75,4 +63,8 @@ Project Server
 
 ## [0.3.0-preview.3] - 2019-09-12
 
-Changelog TODO
+# Changelog
+All notable changes to this package will be documented in this file.
+
+The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
+and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html)

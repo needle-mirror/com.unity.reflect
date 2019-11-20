@@ -18,6 +18,7 @@ namespace UnityEngine.Reflect
         enum VRState
         {
             Disabled, 
+            Invalid, 
             Inactive, 
             Ready, 
             Unknown, 
@@ -96,17 +97,19 @@ namespace UnityEngine.Reflect
             onscreen.enabled = currentMode.ToString() != onscreen.id;
             source.AddItem(onscreen);
 
-            ListControlItemData tabletop = new ListControlItemData();
-            tabletop.id = Mode.AR_Tabletop.ToString();
-            tabletop.title = "Tabletop AR";
-            tabletop.description = $"Walk around a small-scale model in augmented reality\n{GetARStateMessage()}";
-            tabletop.image = m_TableTopImage;
-            tabletop.options = ListControlItemData.Option.Open;
-            tabletop.enabled = currentMode.ToString() != tabletop.id && 
-                ARSession.state != ARSessionState.Unsupported;
-            source.AddItem(tabletop);
+            if (ARSession.state != ARSessionState.Unsupported)
+            {
+                ListControlItemData tabletop = new ListControlItemData();
+                tabletop.id = Mode.AR_Tabletop.ToString();
+                tabletop.title = "Tabletop AR";
+                tabletop.description = $"Walk around a small-scale model in augmented reality\n{GetARStateMessage()}";
+                tabletop.image = m_TableTopImage;
+                tabletop.options = ListControlItemData.Option.Open;
+                tabletop.enabled = currentMode.ToString() != tabletop.id;
+                source.AddItem(tabletop);
+            }
 
-            #if IMMERSIVE_AR
+#if IMMERSIVE_AR
                     
                 ListControlItemData immersive = new ListControlItemData();
                 immersive.id = Mode.AR_Immersive.ToString();
@@ -117,8 +120,9 @@ namespace UnityEngine.Reflect
                 immersive.enabled = false;
                 source.AddItem(immersive);
                 
-            #endif
+#endif
 
+#if !(UNITY_IPHONE || UNITY_ANDROID)
             ListControlItemData vr = new ListControlItemData();
             vr.id = Mode.VR.ToString();
             vr.title = "Headset VR";
@@ -129,6 +133,7 @@ namespace UnityEngine.Reflect
                 XRDevice.userPresence == UserPresenceState.Present && 
                 vrSetup.AreAllVRDevicesValid();
             source.AddItem(vr);
+#endif
         }
         
         public void OnModeChanged(ListControlItemData data)
@@ -202,7 +207,12 @@ namespace UnityEngine.Reflect
             {
                 return GetXRStateMessage(failColor, VRState.Disabled.ToString());
             }
-            else if (!XRSettings.isDeviceActive || !vrSetup.AreAllVRDevicesValid())
+            else if (!vrSetup.AreAllVRDevicesValid())
+            {
+                XRNode node = vrSetup.GetFirstInvalidNode().Value;
+                return GetXRStateMessage(failColor, $"{node.ToString()} {VRState.Invalid.ToString()}");
+            }
+            else if (!XRSettings.isDeviceActive)
             {
                 return GetXRStateMessage(partialColor, VRState.Inactive.ToString());
             }

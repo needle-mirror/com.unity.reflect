@@ -1,5 +1,6 @@
 ﻿#if UNITY_IOS
 
+using System.IO;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -19,6 +20,7 @@ class XCodePostProcessBuild : IPostprocessBuildWithReport
 		{
 			Debug.Log("XCodePostProcessBuild.OnPostprocessBuild for target " + target + " at path " + path);
 
+			//	edit project file
 			var projectPath = path + "/Unity-iPhone.xcodeproj/project.pbxproj";
 			PBXProject pbxProject = new PBXProject();
 			pbxProject.ReadFromFile(projectPath);
@@ -32,6 +34,22 @@ class XCodePostProcessBuild : IPostprocessBuildWithReport
 			pbxProject.AddFrameworkToProject(targetGuid, "libz.tbd", false);
 
 			pbxProject.WriteToFile(projectPath);
+			
+			
+			//	edit plist file
+			string plistPath = path + "/Info.plist";
+			PlistDocument plist = new PlistDocument();
+			plist.ReadFromString(File.ReadAllText(plistPath));
+			PlistElementDict rootDict = plist.root;
+
+			// 	remove exit on suspend if it exists
+			string exitsOnSuspendKey = "UIApplicationExitsOnSuspend";
+			if (rootDict.values.ContainsKey(exitsOnSuspendKey))
+			{
+				rootDict.values.Remove(exitsOnSuspendKey);
+			}
+
+			File.WriteAllText(plistPath, plist.WriteToString());
 		}
 	}
 

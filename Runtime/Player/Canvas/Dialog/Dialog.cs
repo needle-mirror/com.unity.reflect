@@ -4,38 +4,87 @@ using UnityEngine.UI;
 
 public class Dialog : MonoBehaviour
 {
-    public Text m_title;
-    public Text m_message;
-    public GameObject m_ui;
+#pragma warning disable 0649
+    
+    [SerializeField]
+    Text m_Title;
+    
+    [SerializeField]
+    Text m_Message;
+    
+    [SerializeField]
+    GameObject m_Ui;
 
-    Action m_confirmed;
-    Action m_cancelled;
+    [Space]
+    
+    [SerializeField]
+    GameObject m_DoubleButton;
+    
+    [SerializeField]
+    GameObject m_SingleButton;
+
+    [Space]
+
+    [SerializeField]
+    Image m_Background;
+    
+    [Space]
+
+    [SerializeField]
+    Color m_ErrorBackgroundColor;
+
+#pragma warning restore 0649
+    
+    Action m_Confirmed;
+    Action m_Cancelled;
+
+    Color m_NormalColor;
+
+    void OnEnable()
+    {
+        m_NormalColor = m_Background.color;
+    }
 
     public void Show(string title, string message, Action confirmed = null, Action cancelled = null)
     {
-        m_title.text = title;
-        m_message.text = message;
-        m_confirmed = confirmed;
-        m_cancelled = cancelled;
-        m_ui.SetActive(true);
+        m_Title.text = title;
+        m_Message.text = message;
+        m_Confirmed = confirmed;
+        m_Cancelled = cancelled;
+
+        m_Background.color = m_NormalColor;
+        m_DoubleButton.SetActive(true);
+        m_SingleButton.SetActive(false);
+        m_Ui.SetActive(true);
+    }
+    
+    public void ShowError(string title, string message)
+    {
+        m_Title.text = title;
+        m_Message.text = message;
+
+        m_Background.color = m_ErrorBackgroundColor;
+        m_DoubleButton.SetActive(false);
+        m_SingleButton.SetActive(true);
+        m_Ui.SetActive(true);
     }
 
     public void Confirm()
     {
-        m_confirmed?.Invoke();
+        m_Confirmed?.Invoke();
         Close();
     }
 
     public void Cancel()
     {
-        m_cancelled?.Invoke();
+        m_Cancelled?.Invoke();
         Close();
     }
 
     void Close()
     {
-        m_ui.SetActive(false);
-        m_confirmed = null;
-        m_cancelled = null;
+        m_Ui.SetActive(false);
+        m_Confirmed = null;
+        m_Cancelled = null;
     }
 }

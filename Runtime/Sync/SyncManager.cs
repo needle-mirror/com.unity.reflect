@@ -6,6 +6,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.Reflect;
 using Unity.Reflect.Data;
+using Unity.Reflect.IO;
 using Unity.Reflect.Model;
 using Unity.Reflect.Utils;
 
@@ -27,11 +28,13 @@ namespace UnityEngine.Reflect
 
         [SerializeField]
         Shader[] m_Shaders;
-        
+
         public Transform syncRoot => m_SyncRoot;
 
         public delegate void EventHandler(SyncInstance instance);
         public event EventHandler onInstanceAdded;
+
+        public event Action<Exception> onError;
 
         Transform m_SyncInstancesRoot;
 
@@ -89,11 +92,10 @@ namespace UnityEngine.Reflect
                 yield break;
             }
 
-            m_Observer.Disconnect();
+            Close();
+            yield return null;
 
             m_SelectedProject = project;
-
-            m_ProjectManager.RegisterToProject(project.serverProjectId, OnProjectUpdated);
 
             m_ProgressBar.Register(this);
 
@@ -103,22 +105,35 @@ namespace UnityEngine.Reflect
 
             progressChanged?.Invoke(0.0f, kOpening);
 
-            var sessions = m_ProjectManager.LoadProjectManifests(project);
-
-            foreach (var session in sessions)
+            try
             {
-                m_SyncInstances.TryGetValue(session.sourceId, out var syncInstance);
+                var sessions = m_ProjectManager.LoadProjectManifests(project);
 
-                if (syncInstance == null)
+                foreach (var session in sessions)
                 {
-                    var folder = m_ProjectManager.GetSourceProjectFolder(project, session.sourceId);
+                    m_SyncInstances.TryGetValue(session.sourceId, out var syncInstance);
 
-                    m_SyncInstances[session.sourceId] = syncInstance = new SyncInstance(m_SyncInstancesRoot, folder);
-                    syncInstance.onPrefabChanged += OnPrefabChanged;
-                    onInstanceAdded?.Invoke(syncInstance);
+                    if (syncInstance == null)
+                    {
+                        var folder = m_ProjectManager.GetSourceProjectFolder(project, session.sourceId);
 
-                    syncInstance.ApplyModifications(session.manifest);
+                        m_SyncInstances[session.sourceId] = syncInstance = new SyncInstance(m_SyncInstancesRoot, folder);
+                        syncInstance.onPrefabChanged += OnPrefabChanged;
+                        onInstanceAdded?.Invoke(syncInstance);
+
+                        syncInstance.ApplyModifications(session.manifest);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                taskCompleted?.Invoke();
+                m_ProgressBar.UnRegister(this);
+                m_SelectedProject = Project.Empty;
+                m_SyncInstances.Clear();
+
+                onError?.Invoke(ex);
+                throw;
             }
 
             m_SyncMenu.Register(this);
@@ -137,7 +152,7 @@ namespace UnityEngine.Reflect
 
             onProjectOpened?.Invoke();
 
-            ApplyPrefabChanges();
+            yield return DoApplyPrefabChanges();
         }
 
         void OnPrefabChanged(SyncInstance instance, SyncPrefab prefab)
@@ -148,12 +163,12 @@ namespace UnityEngine.Reflect
         void RecenterSyncRoot()
         {
             var renderers = m_SyncInstancesRoot.GetComponentsInChildren<Renderer>();
-    
+
             var bounds = new Bounds();
             for (var i = 0; i < renderers.Length; ++i)
             {
                 var b = renderers[i].bounds;
-    
+
                 if (i == 0)
                 {
                     bounds = b;
@@ -163,11 +178,11 @@ namespace UnityEngine.Reflect
                     bounds.Encapsulate(b);
                 }
             }
-    
+
             var center = bounds.center - bounds.size.y * 0.5f * Vector3.up; // Middle-Bottom
-    
+
             var offset = m_SyncInstancesRoot.position - center;
-    
+
             m_SyncInstancesRoot.position = offset;
             m_SyncRoot.position = -offset;
         }
@@ -178,10 +193,10 @@ namespace UnityEngine.Reflect
             {
                 Destroy(child.gameObject);
             }
-            
+
             m_SyncRoot.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
             m_SyncRoot.localScale = Vector3.one;
-            
+
             m_SyncInstancesRoot = new GameObject("Instances").transform;
             m_SyncInstancesRoot.parent = m_SyncRoot;
         }
@@ -191,15 +206,14 @@ namespace UnityEngine.Reflect
         public void Close()
         {
             if (m_SelectedProject != Project.Empty)
-            {            
-                ResetSyncRoot();
-                
-                StopSync();
-                m_SyncInstances.Clear();
-            
-                m_SelectedProject = Project.Empty;
-
+            {
                 DisableSync();
+
+                ResetSyncRoot();
+
+                m_SyncInstances.Clear();
+
+                m_SelectedProject = Project.Empty;
 
                 m_SyncMenu.UnRegister(this);
 
@@ -211,7 +225,7 @@ namespace UnityEngine.Reflect
         {
             m_Observer.StartSync();
         }
-        
+
         public void StopSync()
         {
             m_Observer.StopSync();
@@ -223,6 +237,7 @@ namespace UnityEngine.Reflect
             {
                 StopCoroutine(m_ApplyChangesCoroutine);
             }
+
             m_ApplyChangesCoroutine = StartCoroutine(DoApplyPrefabChanges());
         }
 
@@ -252,12 +267,12 @@ namespace UnityEngine.Reflect
 
         void OnProjectUpdated(Project project)
         {
-            Debug.Log($"OnProjectUpdated '{project.serverProjectId}', Channel exists: {m_ProjectManager.IsProjectAvailableOnline(project)}");
-
             if (!IsProjectOpened(project))
             {
                 return;
             }
+
+            Debug.Log($"OnProjectUpdated '{project.serverProjectId}', Channel exists: {m_ProjectManager.IsProjectAvailableOnline(project)}");
 
             m_SelectedProject = project;
             if (m_ProjectManager.IsProjectAvailableOnline(project))
@@ -283,7 +298,7 @@ namespace UnityEngine.Reflect
             catch (ConnectionException)
             {
                 DisableSync();
-            }            
+            }
         }
 
         void DisableSync()
@@ -300,7 +315,7 @@ namespace UnityEngine.Reflect
             }
 
             onSyncUpdateBegin?.Invoke();
-            
+
             if (!m_SyncInstances.TryGetValue(sessionId, out var syncInstance))
             {
                 var folder = m_ProjectManager.GetSourceProjectFolder(m_SelectedProject, sessionId);
@@ -308,15 +323,23 @@ namespace UnityEngine.Reflect
             }
 
             yield return m_ProjectManager.DownloadSourceProjectLocally(m_SelectedProject, sessionId, syncInstance.Manifest, manifest, m_Observer.Client, null);
-            
-            var hasChanged = syncInstance.ApplyModifications(manifest);
-            
-            onSyncUpdateEnd?.Invoke(hasChanged);
+
+            try
+            {
+                var hasChanged = syncInstance.ApplyModifications(manifest);
+                onSyncUpdateEnd?.Invoke(hasChanged);
+            }
+            catch (Exception ex)
+            {
+                onError?.Invoke(ex);
+                throw;
+            }
         }
 
 		void Awake()
         {
             Unity.Reflect.Utils.Logger.AddReceiver(this);
+            m_ProjectManager.onProjectChanged += OnProjectUpdated;
 
             if (m_SyncRoot == null)
             {
@@ -324,7 +347,7 @@ namespace UnityEngine.Reflect
             }
         }
 
-        // iOS/Android specific MonoBehaviour callback 
+        // iOS/Android specific MonoBehaviour callback
         // when app is either sent to background or revived from background
         void OnApplicationPause(bool isPaused)
         {

@@ -90,11 +90,11 @@ MonoBehaviour:
   DesktopScrollSensitivity: 5
   DesktopAltZoomSensitivity: 1
   DesktopPanSensitivity: 1
-  DesktopRotateAroundPivotSensitivity: 5
-  DesktopRotateCameraSensitivity: 5
+  DesktopRotateAroundPivotSensitivity: 1
+  DesktopRotateCameraSensitivity: 1
   DesktopMoveSensitivity: {x: 1, y: 1}
-  TouchZoomSensitivity: 500
-  TouchZoomThreshold: 0.03
+  TouchZoomSensitivity: 100
+  TouchZoomThreshold: 0.01
   TouchPanSensitivity: 200
   TouchPanThreshold: 0.03
-  TouchRotateSensitivity: 1500
+  TouchRotateSensitivity: 500

@@ -14,13 +14,15 @@ namespace UnityEngine.Reflect.Controller
         [Header("Input Parameters")]
         public float DesktopScrollSensitivity = 1;
         public float DesktopRotateAroundPivotSensitivity = 10;
-        public float TouchPinchSensitivity = 2f;
+        public float TouchPinchSensitivity = 0.2f;
         public float TouchRotateAroundPivotSensitivity = 2000;
 
         Vector3 m_RotationPivot;
 
         protected override void StartController(GestureListener listener)
         {
+            m_RotationPivot = ComputePivot();
+            
             // Subscribe to desktop events
             var mouseZoom = new MouseScrollGesture(Scale) {
                 Multiplier = DesktopScrollSensitivity
@@ -46,10 +48,19 @@ namespace UnityEngine.Reflect.Controller
 
         void Scale(float amount)
         {
-            //    move the camera origin so the sync root appears at the same place regardless of scale
-            m_ARSessionOrigin.transform.position += transform.forward * amount * TouchPinchSensitivity;
+            var newScale = syncRoot.localScale + Vector3.one * amount;
+            newScale = NegativeFilter(newScale);
+            syncRoot.localScale = newScale;
+
+            m_RotationPivot = ComputePivot();
         }
 
+        public void SetRoot(Transform root)
+        {
+            syncRoot = root;
+            m_RotationPivot = ComputePivot();
+        }
+        
         Vector3 NegativeFilter(Vector3 value)
         {
             value.x = value.x < 0 ? 0 : value.x;
@@ -60,7 +71,24 @@ namespace UnityEngine.Reflect.Controller
 
         void RotateAroundPivot(Vector2 delta)
         {
-            syncRoot.Rotate(Vector3.up, delta.x, Space.World);
+            syncRoot.RotateAround(m_RotationPivot, Vector3.up, delta.x);
+        }
+
+        Vector3 ComputePivot()
+        {
+            var pivot = Vector3.zero;
+
+            var renderers = syncRoot.GetComponentsInChildren<Renderer>();
+            if (renderers.Length == 0)
+                return pivot;
+
+            var bounds = renderers[0].bounds;
+            for (var i = 1; i < renderers.Length; i++)
+            {
+                bounds.Encapsulate(renderers[i].bounds);
+            }
+
+            return bounds.center;
         }
     }
 }

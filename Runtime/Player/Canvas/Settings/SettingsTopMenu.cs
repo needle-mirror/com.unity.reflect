@@ -26,8 +26,19 @@ namespace UnityEngine.Reflect
 
             m_ListControl.SetDataSource(m_Source);
             m_ListControl.onOpen += OnSettingsChanged;
+            
+            Application.lowMemory += OnLowMemory;
         }
 
+        void OnLowMemory()
+        {
+            if (m_Quality == Quality.BetterLooking)
+            {
+                Debug.Log("Reducing visual quality due to memory warning.");
+                SetQuality(Quality.MoreResponsive);
+            }
+        }
+        
         public override void OnClick()
         {
             FillMenu();

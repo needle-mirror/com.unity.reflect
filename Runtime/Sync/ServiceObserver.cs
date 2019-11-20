@@ -25,7 +25,7 @@ namespace UnityEngine.Reflect
 
             // Create new client from channel and start observation
             Debug.Log($"Connect to new channel");
-            Client = Player.CreateClient(project, ProjectServerEnvironment.UnityUser);            
+            Client = Player.CreateClient(project, ProjectServerEnvironment.UnityUser, ProjectServerEnvironment.Client);            
             Client.ConnectionStatusChanged += ConnectionStatusChanged;
         }
 

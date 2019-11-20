@@ -11,7 +11,8 @@
         "Unity.Labs.ModuleLoader.Interfaces",
         "Unity.Labs.Utils",
         "input-prototype",
-        "UnityEngine.SpatialTracking"
+        "UnityEngine.SpatialTracking",
+        "Unity.TextMeshPro"
     ],
     "optionalUnityReferences": [],
     "includePlatforms": [],

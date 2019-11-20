@@ -145,6 +145,7 @@ namespace UnityEngine.Reflect
                 InitCameraTransform();
 
                 // force all menus to close when entering VR
+                TopMenu.s_CanShowButtons = false;
                 m_MenuCancelAction.Invoke();
             }
             else
@@ -181,6 +182,9 @@ namespace UnityEngine.Reflect
                 {
                     Destroy(trackedPoseDriver);
                 }
+
+                TopMenu.s_CanShowButtons = true;
+                m_SettingsMenu.ShowButtons();
             }
             
             for (int i = 0; i < m_GameObjectsToEnable.Count; ++i)
@@ -191,8 +195,6 @@ namespace UnityEngine.Reflect
             {
                 m_GameObjectsToDisable[i].SetActive(!isEnabled);
             }
-
-            TopMenu.s_CanShowButtons = !isEnabled;
 
             Debug.Log(string.Format("VR {0}abled!", isEnabled ? "en" : "dis"));
         }
@@ -259,20 +261,37 @@ namespace UnityEngine.Reflect
 
         public bool AreAllVRDevicesValid()
         {
+            return !GetFirstInvalidNode().HasValue;
+        }
+
+        public XRNode? GetFirstInvalidNode()
+        {
             if (hmdInput == null || !hmdInput.isValid)
             {
                 hmdInput = InputDevices.GetDeviceAtXRNode(XRNode.Head);
+                if (!hmdInput.isValid)
+                {
+                    return XRNode.Head;
+                }
             }
             if (leftInput == null || !leftInput.isValid)
             {
                 leftInput = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+                if (!leftInput.isValid)
+                {
+                    return XRNode.LeftHand;
+                }
             }
             if (rightInput == null || !rightInput.isValid)
             {
                 rightInput = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+                if (!rightInput.isValid)
+                {
+                    return XRNode.RightHand;
+                }
             }
 
-            return hmdInput.isValid && leftInput.isValid && rightInput.isValid;
+            return null;
         }
 
         protected void ShowModulesAndCameraRig(bool show)
