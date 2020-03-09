@@ -1,4 +1,4 @@
-﻿using System;
+﻿using System.Collections.Generic;
 using Unity.Reflect.Model;
 
 namespace UnityEngine.Reflect
@@ -109,9 +109,9 @@ namespace UnityEngine.Reflect
             m_MaterialCache.Reimport(key);
         }
         
-        public void ReimportElement(string key)
+        public List<GameObject> ReimportElement(string key)
         {
-            m_ObjectCache.Reimport(key);
+            return m_ObjectCache.Reimport(key);
         }
 
         public static Transform Import(SyncPrefab syncPrefab, IObjectCache objectCache)

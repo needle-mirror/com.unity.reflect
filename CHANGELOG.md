@@ -1,3 +1,33 @@
+## [1.1.0-preview.6] - 2020-03-10
+# Features
+- Now supports larger meshes, and sending these in chunks to improve streaming performance.
+- Now compatible with Unity 2019.3
+- Using an updated version of the SyncServer's storage model (StorageModel v2)
+
+# CommonUI
+- use chromium webview in own process
+- Fix web view signing issues (#951)
+
+
+# Bug Fixes and Improvements
+- Materials react as intended when using BIM filters.
+- Alternative flow for when there are too many add-ins in Revit.
+- Improved culling on objects
+
+## [1.1.0-preview.5] - 2020-03-10
+
+## [1.1.0-preview.4] - 2020-02-26
+
+## [1.1.0-preview.3] - 2020-02-26
+
+## [1.1.0-preview.2] - 2020-02-17
+
+## [1.1.0-preview.1] - 2020-02-10
+
+## [1.0.1-preview.2] - 2020-02-03
+
+## [1.0.1-preview.1] - 2019-12-17
+
 ## [1.0.0-preview.19] - 2019-11-21
 
 ## [1.0.0-preview.18] - 2019-11-19
@@ -21,11 +51,11 @@
 ## [0.3.0-preview.8] - 2019-09-19
 # Features
 Project discovery server
-A new cloud-hosted server that allows for more reliable project discovery and enables user & project management. 
+A new cloud-hosted server that allows for more reliable project discovery and enables user & project management.
 In 0.2, several people experienced discoverability issues, meaning that some viewers would not find projects on their local networks. Despite us releasing a hotfix, we thought a better solution was in order.
-This new server will help make this process more stable and  allow for users to discover which projects are available to them. 
+This new server will help make this process more stable and  allow for users to discover which projects are available to them.
 By default, all projects are shared only with the current user (yourself), but you can invite people to projects by managing projects here. After selecting a project, go to Settings->Users in the left-hand panel to manage permissions.
-	Important Note: This new feature means that you now need to sign in into the Viewer to access you project. To do this, the Viewer will now open a web browser page, leading you to a sign in page. 
+	Important Note: This new feature means that you now need to sign in into the Viewer to access you project. To do this, the Viewer will now open a web browser page, leading you to a sign in page.
 
 # Common UI
 The User interface in the different plugin is now shared, offering a more consistent experience between different 3rd party applications, and allowing users to create new projects from the plugins, without needing the Hub. This also allows us to re-use parts of the plugins and accelerate future developments
@@ -41,20 +71,20 @@ The Common UI does not have a progress bar for export progress yet. We rely on R
 To install the Unity Reflect package in the editor, you will need to enable “Show Preview Packages” under the advanced options in the Package Manager.
 The Viewer will automatically login to your account when launching. This allows it to know which projects you have access to, but it is a very un-polished experience as-is.
 Reflect materials are only compatible with the Standard rendering pipeline. If you want to use LWRP or HDRP, you will need to replace all materials.
-Changing a Clipping plane in Revit won’t update the model in Reflect. The model needs to be re-exported 
+Changing a Clipping plane in Revit won’t update the model in Reflect. The model needs to be re-exported
 Sketchup plugin is not working with the new Common UI. We are fixing it ASAP.
 The Hub sometimes needs to be restarted twice after first launch
 The Reflect Viewer does not automatically launch after exporting a project
 The Viewer will ask for administrator rights the first time you run it
 
 ## [0.3.0-preview.5] - 2019-09-17
-Viewer login 
-Reduce elevated permission prompts to 1 
+Viewer login
+Reduce elevated permission prompts to 1
 Displaying list of servers in common UI
-Remove server check box and address fields in Editor 
+Remove server check box and address fields in Editor
 Change protocol to support multiple IP addresses when registering server
-Never remove local projects from the project list in Viewer and Reflect Windows 
-Fix invalid package dependencies (SM) 
+Never remove local projects from the project list in Viewer and Reflect Windows
+Fix invalid package dependencies (SM)
 
 ## [0.3.0-preview.4] - 2019-09-15
 

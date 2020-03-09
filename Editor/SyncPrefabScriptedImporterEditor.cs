@@ -37,7 +37,7 @@ namespace UnityEditor.Reflect
             }
 
             EditorGUILayout.Space();
-            base.OnApplyRevertGUI();
+            ApplyRevertGUI();
         }
     }
 }

@@ -5,7 +5,7 @@ using Unity.Reflect.Model;
 using UnityEditor.Experimental.AssetImporters;
 using UnityEngine;
 using UnityEngine.Reflect;
-using File = Unity.Reflect.IO.File;
+using Unity.Reflect.IO;
 
 namespace UnityEditor.Reflect
 {   
@@ -30,7 +30,7 @@ namespace UnityEditor.Reflect
         
         public override void OnImportAsset(AssetImportContext ctx)
         {
-            var syncPrefab = File.Load<SyncPrefab>(ctx.assetPath);
+            var syncPrefab = PlayerFile.Load<SyncPrefab>(ctx.assetPath);
             
             Init(syncPrefab.Name);
 
@@ -112,7 +112,7 @@ namespace UnityEditor.Reflect
         // Undocumented magic method to support nested prefab dependencies. Temporary solution until we get Asset Database V2
         static string[] GatherDependenciesFromSourceFile( string assetPath )
         {
-            var syncPrefab = File.Load<SyncPrefab>(assetPath);
+            var syncPrefab = PlayerFile.Load<SyncPrefab>(assetPath);
             var paths = new string[syncPrefab.Instances.Count];
 
             var assetName = SanitizeName(syncPrefab.Name);

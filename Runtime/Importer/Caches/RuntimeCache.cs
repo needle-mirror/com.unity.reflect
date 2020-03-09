@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Unity.Reflect.Model;
-using File = Unity.Reflect.IO.File;
+using Unity.Reflect.IO;
 
 namespace UnityEngine.Reflect
 {
@@ -24,7 +24,7 @@ namespace UnityEngine.Reflect
                 return default;
             }
             
-            return File.Load<T>(expectedPath);
+            return PlayerFile.Load<T>(expectedPath);
         }
         
         string ExpectedPath(string relativePath)

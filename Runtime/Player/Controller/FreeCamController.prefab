@@ -89,8 +89,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   DesktopScrollSensitivity: 5
   DesktopAltZoomSensitivity: 1
-  DesktopPanSensitivity: 1
-  DesktopRotateAroundPivotSensitivity: 1
+  DesktopPanSensitivity: 0.003
+  DesktopRotateAroundPivotSensitivity: 0.05
   DesktopRotateCameraSensitivity: 1
   DesktopMoveSensitivity: {x: 1, y: 1}
   TouchZoomSensitivity: 100

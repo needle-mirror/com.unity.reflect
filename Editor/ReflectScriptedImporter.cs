@@ -12,19 +12,19 @@ namespace UnityEditor.Reflect
         string m_AssetName;
         Dictionary<SourceAssetIdentifier, Object> m_Remaps;
 
-        protected T GetReferencedAsset<T>(string relativePath) where T : Object
+        protected T GetReferencedAsset<T>(string path) where T : Object
         {
-            if (string.IsNullOrEmpty(relativePath))
+            if (string.IsNullOrEmpty(path))
                 return null;
 
-            var k = new SourceAssetIdentifier(typeof(T), relativePath);
+            var k = new SourceAssetIdentifier(typeof(T), path);
 
             if (m_Remaps.TryGetValue(k, out var obj))
             {
                 return (T) obj;
             }
 
-            var refAssetPath = GetReferencedAssetPath(m_AssetName, assetPath, relativePath);
+            var refAssetPath = GetReferencedAssetPath(m_AssetName, assetPath, path);
 
             return AssetDatabase.LoadAssetAtPath<T>(refAssetPath);
         }

@@ -140,10 +140,8 @@ namespace UnityEditor.Experimental.EditorVR.Core
         [MenuItem("Window/EditorXR %e", true)]
         static bool ShouldShowEditorVR()
         {
-            if (EditorApplication.isPlayingOrWillChangePlaymode || Application.isPlaying)
-                return false;
-
-            return PlayerSettings.GetVirtualRealitySupported(BuildTargetGroup.Standalone);
+            // editor mode is disabled in Reflect
+            return false;
         }
 
 #if UNITY_2018_3_OR_NEWER

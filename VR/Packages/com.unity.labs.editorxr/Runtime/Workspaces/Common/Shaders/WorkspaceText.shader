@@ -45,7 +45,7 @@
 				CGPROGRAM
 				#pragma vertex vert
 				#pragma fragment frag
-				#pragma multi_compile __ UNITY_UI_ALPHACLIP
+				#pragma multi_compile_local __ UNITY_UI_ALPHACLIP
 
 				#include "UnityCG.cginc"
 				#include "UnityUI.cginc"

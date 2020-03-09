@@ -4,7 +4,7 @@ using Unity.Reflect.Model;
 using UnityEditor.Experimental.AssetImporters;
 using UnityEngine;
 using UnityEngine.Reflect;
-using File = Unity.Reflect.IO.File;
+using Unity.Reflect.IO;
 
 namespace UnityEditor.Reflect
 {
@@ -13,7 +13,7 @@ namespace UnityEditor.Reflect
     {        
         public override void OnImportAsset(AssetImportContext ctx)
         {           
-            var syncTexture = File.Load<SyncTexture>(ctx.assetPath);
+            var syncTexture = PlayerFile.Load<SyncTexture>(ctx.assetPath);
      
             var textureImporter = new SyncTextureImporter();
             var texture = textureImporter.Import(syncTexture, null);

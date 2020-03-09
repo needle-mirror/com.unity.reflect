@@ -26,11 +26,8 @@ namespace UnityEditor.Experimental.EditorVR
         /// <returns>The device type</returns>
         public static DeviceType GetDeviceType(this IUsesDeviceType @this)
         {
-            if (string.IsNullOrEmpty(s_XRDeviceModel))
-                s_XRDeviceModel = XRDevice.model;
-
-            return s_XRDeviceModel.IndexOf("oculus", StringComparison.OrdinalIgnoreCase) >= 0
-                ? DeviceType.Oculus : DeviceType.Vive;
+            // currently only Vive supported in Reflect
+            return DeviceType.Vive;
         }
     }
 }

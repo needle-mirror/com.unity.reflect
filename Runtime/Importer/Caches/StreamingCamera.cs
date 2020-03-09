@@ -83,7 +83,8 @@ namespace UnityEngine.Reflect
 
             foreach (var entity in prefab.Instances)
             {
-                var reference = new StreamingReference(instance, new SyncObjectBinding.Identifier(entity), entity.Transform.Position);
+                var pos = entity.Transform.Position;
+                var reference = new StreamingReference(instance, new SyncObjectBinding.Identifier(entity), new Vector3(pos.X, pos.Y, pos.Z));
                 m_References.Add(reference);
             }
 

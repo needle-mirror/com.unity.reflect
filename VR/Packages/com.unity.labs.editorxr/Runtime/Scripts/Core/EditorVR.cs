@@ -66,11 +66,6 @@ namespace UnityEditor.Experimental.EditorVR.Core
             if (!s_IsInitialized)
             {
                 s_IsInitialized = true;
-
-#if UNITY_EDITOR
-                if (!PlayerSettings.GetVirtualRealitySupported(BuildTargetGroup.Standalone))
-                    Debug.Log("<color=orange>EditorXR requires VR support. Please check Virtual Reality Supported in Edit->Project Settings->Player->XR Settings</color>");
-#endif
             }
 
             // Add EVR tags and layers if they don't exist

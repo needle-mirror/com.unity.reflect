@@ -1,3 +1,4 @@
+#pragma warning disable 618
 
 using System.Collections;
 using UnityEngine.XR;

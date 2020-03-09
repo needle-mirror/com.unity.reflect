@@ -6,7 +6,6 @@ using System.Linq;
 using Unity.Reflect.Data;
 using Unity.Reflect.Model;
 using UnityEngine;
-using File = Unity.Reflect.IO.File;
 using Unity.Reflect.IO;
 
 namespace UnityEngine.Reflect
@@ -20,8 +19,9 @@ namespace UnityEngine.Reflect
         public delegate void ObjectEventHandler(SyncObjectBinding obj);
         public event ObjectEventHandler onObjectCreated;
         public event ObjectEventHandler onObjectDestroyed;
-        
-        readonly string m_SyncPath;
+        public event ObjectEventHandler onObjectChanged;
+
+		readonly string m_SyncPath;
         Transform m_SyncRoot;
         
         Transform m_SyncInstanceRoot;
@@ -34,7 +34,7 @@ namespace UnityEngine.Reflect
 
         SyncPrefabImporter m_SyncPrefabImporter;
 
-        LocalStorage m_Storage;
+        PlayerStorage m_Storage;
 
         ISet<SyncObjectBinding.Identifier> m_VisibilityFilter;
 
@@ -49,7 +49,7 @@ namespace UnityEngine.Reflect
 
             m_ElementInstances = new Dictionary<SyncObjectBinding.Identifier, SyncObjectBinding>();
 
-            m_Storage = new LocalStorage(m_SyncPath, true, false);
+            m_Storage = new PlayerStorage(m_SyncPath, true, false);
             m_Manifest = m_Storage.OpenOrCreateManifest();
         }
 
@@ -132,27 +132,38 @@ namespace UnityEngine.Reflect
                         var exportData = currentEntries[key];
                         var newExportData = entry.Value;
 
-                        if (exportData.DstHash != newExportData.DstHash)
+                        if (exportData.Hash != newExportData.Hash)
                         {
                             hasChanged = true;
-                            Debug.Log("Modified : " + key + " (" + exportData.DstPath + ")");
+                            Debug.Log("Modified : " + key + " (" + exportData.ModelPath + ")");
 
-                            if (exportData.DstPath.EndsWith(SyncMaterial.Extension))
+                            if (exportData.ModelPath.EndsWith(SyncMaterial.Extension))
                             {
-                                m_SyncPrefabImporter.ReimportMaterial(exportData.DstPath);
+                                m_SyncPrefabImporter.ReimportMaterial(exportData.ModelPath);
                             }
 
-                            if (exportData.DstPath.EndsWith(SyncMesh.Extension))
+                            if (exportData.ModelPath.EndsWith(SyncMesh.Extension))
                             {
-                                m_SyncPrefabImporter.ReimportMesh(exportData.DstPath);
+                                m_SyncPrefabImporter.ReimportMesh(exportData.ModelPath);
                             }
 
-                            if (exportData.DstPath.EndsWith(SyncObject.Extension))
+                            if (exportData.ModelPath.EndsWith(SyncObject.Extension))
                             {
-                                m_SyncPrefabImporter.ReimportElement(exportData.DstPath);
-                            }
+                                var objects = m_SyncPrefabImporter.ReimportElement(exportData.ModelPath);
+                                if (objects != null)
+                                {
+                                    foreach (var obj in objects)
+                                    {
+                                        var binding = obj.GetComponent<SyncObjectBinding>();
+                                        if (binding != null)
+                                        {
+                                            onObjectChanged?.Invoke(binding);
+                                        }
+                                    }
+                                }
+							}
 
-                            if (exportData.DstPath.EndsWith(SyncPrefab.Extension))
+                            if (exportData.ModelPath.EndsWith(SyncPrefab.Extension))
                             {
                                 // If Prefab changed that means that:
                                 // - An element has been moved
@@ -230,7 +241,7 @@ namespace UnityEngine.Reflect
 
         SyncPrefab OpenSyncPrefab(string path)
         {
-            var syncPrefab = File.Load<SyncPrefab>(path);
+            var syncPrefab = PlayerFile.Load<SyncPrefab>(path);
             onPrefabLoaded?.Invoke(this, syncPrefab);
             return syncPrefab;
         }

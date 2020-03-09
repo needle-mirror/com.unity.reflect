@@ -13,8 +13,8 @@ namespace UnityEngine.Reflect.Controller
         [Header("Input parameters")]
         public float DesktopScrollSensitivity = 5;
         public float DesktopAltZoomSensitivity = 1;
-        public float DesktopPanSensitivity = 1;
-        public float DesktopRotateAroundPivotSensitivity = 1;
+        public float DesktopPanSensitivity = 0.003f;
+        public float DesktopRotateAroundPivotSensitivity = 0.05f;
         public float DesktopRotateCameraSensitivity = 1;
         public Vector2 DesktopMoveSensitivity = Vector2.one;
         public float TouchZoomSensitivity = 100;

@@ -482,12 +482,18 @@ namespace UnityEditor.Experimental.EditorVR.Workspaces
             const string kShaderVerticalOffset = "_VerticalOffset";
             const float kTargetDuration = 1.25f;
 
-            m_TopFaceMaterial = MaterialUtils.GetMaterialClone(m_TopFaceContainer.GetComponentInChildren<MeshRenderer>());
+            if (m_FrameFrontFaceTransform != null)
+            {
+                m_FrontFaceMaterial = MaterialUtils.GetMaterialClone(m_FrameFrontFaceTransform.GetComponentInChildren<MeshRenderer>(true));
+                m_FrontFaceMaterial.SetInt(k_MaterialStencilRef, stencilRef);
+            }
+
+            if (m_TopFaceContainer == null)
+                yield break;
+            
+            m_TopFaceMaterial = MaterialUtils.GetMaterialClone(m_TopFaceContainer.GetComponentInChildren<MeshRenderer>(true));
             m_TopFaceMaterial.SetFloat("_Alpha", 1f);
             m_TopFaceMaterial.SetInt(k_MaterialStencilRef, stencilRef);
-
-            m_FrontFaceMaterial = MaterialUtils.GetMaterialClone(m_FrameFrontFaceTransform.GetComponentInChildren<MeshRenderer>());
-            m_FrontFaceMaterial.SetInt(k_MaterialStencilRef, stencilRef);
 
             var originalBlurAmount = m_TopFaceMaterial.GetFloat("_Blur");
             var currentBlurAmount = 10f; // also the maximum blur amount

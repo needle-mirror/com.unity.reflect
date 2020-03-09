@@ -4,7 +4,7 @@ using Unity.Reflect.Model;
 using UnityEditor.Experimental.AssetImporters;
 using UnityEngine;
 using UnityEngine.Reflect;
-using File = Unity.Reflect.IO.File;
+using Unity.Reflect.IO;
 
 namespace UnityEditor.Reflect
 {
@@ -18,7 +18,7 @@ namespace UnityEditor.Reflect
         
         public override void OnImportAsset(AssetImportContext ctx)
         {           
-            var syncMaterial = File.Load<SyncMaterial>(ctx.assetPath);
+            var syncMaterial = PlayerFile.Load<SyncMaterial>(ctx.assetPath);
             
             Init(syncMaterial.Name);
 

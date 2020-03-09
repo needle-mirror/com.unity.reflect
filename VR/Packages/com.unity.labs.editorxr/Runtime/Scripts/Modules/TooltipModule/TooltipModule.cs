@@ -197,6 +197,8 @@ namespace UnityEditor.Experimental.EditorVR.Modules
         void UpdateVisuals(ITooltip tooltip, TooltipData tooltipData, float lerp)
         {
             var target = tooltipData.GetTooltipTarget(tooltip);
+            if (target == null)
+                return;
             var tooltipUI = tooltipData.tooltipUI;
             var placement = tooltipData.placement;
             var orientationWeight = tooltipData.orientationWeight;
@@ -214,6 +216,8 @@ namespace UnityEditor.Experimental.EditorVR.Modules
             // The rectTransform expansion is handled in the Tooltip dynamically, based on alignment & text length
             var rotationOffset = Quaternion.identity;
             var camTransform = CameraUtils.GetMainCamera().transform;
+            if (camTransform == null)
+                return;
             if (Vector3.Dot(camTransform.forward, target.forward) < 0)
                 rotationOffset *= k_FlipYRotation;
 

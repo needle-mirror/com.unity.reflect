@@ -19,7 +19,7 @@ namespace UnityEditor.Experimental.EditorVR.Core
         : EditorWindow
 #endif
     {
-        public const float HeadHeight = 1.7f;
+        public const float HeadHeight = 0f;
         const string k_ShowDeviceView = "VRView.ShowDeviceView";
         const string k_UseCustomPreviewCamera = "VRView.UseCustomPreviewCamera";
         const string k_CameraName = "VRCamera";
@@ -118,7 +118,7 @@ namespace UnityEditor.Experimental.EditorVR.Core
         {
             get
             {
-                return XRDevice.GetTrackingSpaceType() == TrackingSpaceType.Stationary ? Vector3.up * HeadHeight : Vector3.zero;
+                return Vector3.up * HeadHeight;
             }
         }
 
@@ -517,7 +517,8 @@ namespace UnityEditor.Experimental.EditorVR.Core
 
         internal static bool GetIsUserPresent()
         {
-            return XRDevice.userPresence == UserPresenceState.Present;
+            // return XRDevice.userPresence == UserPresenceState.Present;
+            return true;
         }
 
         void SetGameViewsAutoRepaint(bool enabled)

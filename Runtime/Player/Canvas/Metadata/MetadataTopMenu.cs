@@ -10,7 +10,7 @@ namespace UnityEngine.Reflect
         public string[] keys =
         {
             "Category", "Category/Family", "Document", "System Classification", "Type", "Manufacturer", "Phase Created",
-            "Phase Demolished"
+            "Phase Demolished", "Layer"
         };
         public Material m_TransparentMaterial;
         public SyncManager m_SyncManager;
@@ -71,9 +71,10 @@ namespace UnityEngine.Reflect
         {
             instance.onObjectCreated += OnObjectCreated;
             instance.onObjectDestroyed += OnObjectDestroyed;
-        }
-        
-        public override void OnClick()
+            instance.onObjectChanged += OnObjectCreated;
+		}
+
+		public override void OnClick()
         {
             if (m_MenuOpen)
             {

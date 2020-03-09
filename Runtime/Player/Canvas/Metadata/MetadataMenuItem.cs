@@ -14,10 +14,14 @@ namespace UnityEngine.Reflect
 
         MaterialSwapper m_MaterialSwapper = new MaterialSwapper();
 
+        public MetadataMenuItem()
+        {
+            m_Visible = true;
+        }
+        
         private void Start()
         {
             m_Text.text = m_Value;
-            m_Visible = true;
             UpdateButton();
         }
 
@@ -29,6 +33,11 @@ namespace UnityEngine.Reflect
             if (rend != null)
             {
                 m_MaterialSwapper.AddRenderer(rend);
+                
+                if (!m_Visible)
+                {
+                    node.gameObject.SetActive(false);
+                }
 
                 if (GetActiveMenuItem() == this)
                 {

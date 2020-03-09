@@ -7,7 +7,7 @@ using UnityEditor;
 namespace UnityEngine.Reflect
 {
     static class ProjectServerEnvironment
-    {        
+    {
         public static string ProjectDataPath { get; }
 
         public static ProjectServerClient Client { get; }

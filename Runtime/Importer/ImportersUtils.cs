@@ -19,7 +19,9 @@ namespace UnityEngine.Reflect
                     return LumenToCandelas(lightIntensity, apexConeAngle);
                 // TODO other conversions
                 case SyncLightIntensityUnit.Lux:
+                    // would need the distance at which the lux illuminance was measured
                 case SyncLightIntensityUnit.Watt:
+                    // would need the light efficiency, in lumen par watt
                 case SyncLightIntensityUnit.CandelaPerSquareMeter:
                 case SyncLightIntensityUnit.Unknown:
                 default:
@@ -53,9 +55,14 @@ namespace UnityEngine.Reflect
         
         public static void SetTransform(Transform transform, SyncTransform uTransform)
         {
-            transform.localPosition = uTransform.Position;
-            transform.localRotation = uTransform.Rotation;
-            transform.localScale = uTransform.Scale;
+            var pos = uTransform.Position;
+            transform.localPosition = new Vector3(pos.X, pos.Y, pos.Z);
+
+            var rot = uTransform.Rotation;
+            transform.localRotation = new Quaternion(rot.X, rot.Y, rot.Z, rot.W);
+
+            var scl = uTransform.Scale;
+            transform.localScale = new Vector3(scl.X, scl.Y, scl.Z);
         }
     }
 }

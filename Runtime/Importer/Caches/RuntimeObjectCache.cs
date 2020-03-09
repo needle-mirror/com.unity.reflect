@@ -25,9 +25,10 @@ namespace UnityEngine.Reflect
             m_Instances = new Dictionary<string, List<GameObject>>();
         }
 
-        public void Reimport(string key)
+        public List<GameObject> Reimport(string key)
         {
-            m_Instances.TryGetValue(key, out List<GameObject> list);
+			List<GameObject> list;
+			m_Instances.TryGetValue(key, out list);
 
             if (list?.Count > 0)
             {
@@ -37,6 +38,7 @@ namespace UnityEngine.Reflect
                     m_SyncObjectImporter.Reimport(model, gameObject, m_Settings);    
                 }
             }
+			return list;
         }
 
         public SyncObjectBinding CreateInstance(string key)

@@ -175,8 +175,13 @@ namespace UnityEngine.Reflect
             var texture2D = map.TextureId != SyncId.None ? textureCache.GetTexture(map.TextureId.Value) : null;
 
             material.SetTexture(name, texture2D);
-            material.SetTextureOffset(name, map.Offset);
-            material.SetTextureScale(name, map.Tiling);
+
+            var offset = map.Offset;
+            material.SetTextureOffset(name, new Vector2(offset.X, offset.Y));
+
+            var tiling = map.Tiling;
+            material.SetTextureScale(name, new Vector2(tiling.X, tiling.Y));
+            
             material.SetFloat(name + "_B", map.Brightness);
             material.SetFloat(name + "_I", map.Invert ? 1.0f : 0.0f);
             material.SetFloat(name + "_R", map.RotationDegrees);

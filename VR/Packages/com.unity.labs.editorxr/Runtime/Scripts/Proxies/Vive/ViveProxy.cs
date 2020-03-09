@@ -24,7 +24,8 @@ namespace UnityEditor.Experimental.EditorVR.Proxies
 
         protected override void Awake()
         {
-            m_IsOculus = XRDevice.model.IndexOf("oculus", StringComparison.OrdinalIgnoreCase) >= 0;
+            // currently only Vive supported in Reflect
+            m_IsOculus = false;
 
             if (m_IsOculus)
             {

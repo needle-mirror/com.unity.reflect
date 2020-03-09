@@ -84,13 +84,35 @@ public class LoginResolver : MonoBehaviour
         var myHandle = GetWindowHandle();
         m_ReflectLoginUrl = $"{k_LoginUrl}{myHandle}";
         // Unity usual start command have the path to application as single argument
-        if (args.Length == 1)
+        // Some Build will mishandle spaces and artificially creates more than 1 argument
+        var appPathFound = false;
+        var appPath = string.Empty;
+        var trailingTokenArg = string.Empty;
+        for (var i=0;i<args.Length;i++)
+        {
+            if (!appPathFound) {
+                if (i > 0) 
+                {
+                    appPath += " ";
+                }
+                appPath += args[i];
+                appPathFound = File.Exists(appPath);
+                Debug.Log($"appPathFound {appPathFound} : {appPath}");
+            }
+            else 
+            {
+                trailingTokenArg += args[i];
+                Debug.Log($"trailingTokenArg {trailingTokenArg}");
+            }
+        }
+
+        if (string.IsNullOrEmpty(trailingTokenArg))
         {
             IsMainViewer = true;
         }
         else
         {
-            if (args.Length > 1 && TryCreateUriAndValidate(args[1], UriKind.Absolute, out var uri))
+            if (TryCreateUriAndValidate(trailingTokenArg, UriKind.Absolute, out var uri))
             {
                 ReadUrlCallback(uri);
             }
@@ -177,19 +199,37 @@ public class LoginResolver : MonoBehaviour
         int.TryParse(idString, out processOrHandleId);
         IntPtr processIdIntPtr = new IntPtr(processOrHandleId);
         
+		var canExit = true;
         try
         {
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
-                // TODO if processId not found, keep current instance
-                ShowWindow(processIdIntPtr, ShowWindowEnum.Restore);
-                SetForegroundWindow(processIdIntPtr);
+                // If processId not found, keep current instance
+                if (IsIconic(processIdIntPtr))
+                {
+                    ShowWindow(processIdIntPtr, ShowWindowEnum.Restore);
+                }
+                canExit = SetForegroundWindow(processIdIntPtr) != 0;
 #endif
         }
         catch (Exception)
         {
-            // Logging Exception here
+            canExit = false;
         }
-        Application.Quit();
+        finally
+        {
+            if (canExit)
+            {
+                Application.Quit();
+            }
+            else
+            {
+                ProcessJwtToken();
+                if (File.Exists(viewerTokenFilePath))
+                {
+                    File.Delete(viewerTokenFilePath);
+                }
+            }
+        }
     }
 
     public void OnSplashScreenComplete()
@@ -326,6 +366,9 @@ public class LoginResolver : MonoBehaviour
 
     [DllImport("user32.dll")]
     static extern IntPtr GetActiveWindow();
+
+    [DllImport("User32.dll")]
+    private static extern bool IsIconic(IntPtr handle);
 
     static IntPtr GetWindowHandle()
     {

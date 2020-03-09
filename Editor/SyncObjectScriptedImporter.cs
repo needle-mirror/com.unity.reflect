@@ -16,7 +16,7 @@ namespace UnityEditor.Reflect
         
         public override void OnImportAsset(AssetImportContext ctx)
         {
-            var sceneElement = File.Load<SyncObject>(ctx.assetPath);
+            var sceneElement = PlayerFile.Load<SyncObject>(ctx.assetPath);
             
             Init(sceneElement.Name);
             

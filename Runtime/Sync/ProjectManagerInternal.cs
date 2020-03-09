@@ -8,7 +8,6 @@ using Unity.Reflect;
 using Unity.Reflect.Data;
 using Unity.Reflect.IO;
 using Unity.Reflect.Model;
-using File = Unity.Reflect.IO.File;
 
 namespace UnityEngine.Reflect
 {
@@ -62,7 +61,7 @@ namespace UnityEngine.Reflect
         public event Action<float, string> progressChanged;
         public event Action taskCompleted;
 
-        readonly LocalStorage m_LocalStorage;
+        readonly PlayerStorage m_LocalStorage;
 
         public IEnumerable<Project> Projects => m_Projects.Values;
 
@@ -74,7 +73,7 @@ namespace UnityEngine.Reflect
 
         public ProjectManagerInternal(string storageRoot, bool useServerFolder, bool useProjectNameAsRootFolder)
         {
-            m_LocalStorage = new LocalStorage(storageRoot, useServerFolder, useProjectNameAsRootFolder);
+            m_LocalStorage = new PlayerStorage(storageRoot, useServerFolder, useProjectNameAsRootFolder);
         }
 
         public ProjectManagerInternal() : this(ProjectServerEnvironment.ProjectDataPath, true, false)
@@ -223,17 +222,17 @@ namespace UnityEngine.Reflect
         public IEnumerator DownloadSourceProjectLocally(Project project, string sourceId, SyncManifest oldManifest, SyncManifest newManifest, IPlayerClient client,
             Action<float> onProgress, string temporaryDownloadFolder = null, Action<Exception> errorHandler = null)
         {
-            List<string> dstPaths;
+            List<ManifestEntry> entries;
 
             if (oldManifest == null)
             {
                 var content = newManifest.Content;
-                dstPaths = content.Values.Select(e => e.DstPath).ToList();
+                entries = content.Values.ToList();
             }
             else
             {
                 oldManifest.ComputeDiff(newManifest, out var modified, out var deleted);
-                dstPaths = modified.Select(e => e.DstPath).ToList();
+                entries = modified.ToList();
 
                 // TODO Handle deleted models
             }
@@ -245,19 +244,17 @@ namespace UnityEngine.Reflect
             var destinationFolder = m_LocalStorage.GetSourceProjectFolder(project, sourceId);
             var downloadFolder = useDownloadFolder ? Path.Combine(destinationFolder, temporaryDownloadFolder) : destinationFolder;
 
-            var total = dstPaths.Count;
-
-            for (int i = 0; i < total; ++i)
+            int i = 0,
+                total = entries.Count;
+            foreach (ManifestEntry entry in entries)
             {
-                var dstPath = dstPaths[i];
-
-                Action<Exception> downloadErrorHandler = e => Debug.LogError($"Unable to download '{dstPath}' : {e.Message}");
+                Action<Exception> downloadErrorHandler = e => Debug.LogError($"Unable to download '{entry}' : {e.Message}");
                 ISyncModel syncModel = null;
                 try
                 {
                     // TODO No need to deserialize then serialize back the SyncModel when all we need is to download the file locally
                     // TODO: Use async service call and yield until completion
-                    syncModel = client.GetSyncModel(sourceId, dstPath); // TODO var bitArray = client.GetSyncModelRaw(...) or client.Download(...)
+                    syncModel = client.GetSyncModel(sourceId, entry.ModelPath, entry.Hash); // TODO var bitArray = client.GetSyncModelRaw(...) or client.Download(...)
                 }
                 catch (Exception ex)
                 {
@@ -267,26 +264,26 @@ namespace UnityEngine.Reflect
                 if (syncModel != null)
                 {
                     // Replace model name with local model paths
-                    syncModel.Name = dstPath;
+                    syncModel.Name = entry.ModelPath;
                     SetReferencedSyncModelPath(syncModel, newManifest);
 
-                    var fullPath = Path.Combine(downloadFolder, dstPath);
+                    var fullPath = Path.Combine(downloadFolder, entry.ModelPath);
                     var directory = Path.GetDirectoryName(fullPath);
                     yield return RunFileIOOperation(() =>
                     {
                         Directory.CreateDirectory(directory);
-                        File.Save(syncModel, fullPath);
+                        PlayerFile.Save(syncModel, fullPath);
                     }, downloadErrorHandler);
                 }
 
-                onProgress?.Invoke((i + 1.0f) / total);
+                onProgress?.Invoke(((float) ++i) / total);
 
                 yield return null;
             }
 
             // Don't forget the manifest itself
             yield return RunFileIOOperation(
-                () => newManifest.Save(downloadFolder),
+                () => newManifest.EditorSave(downloadFolder),
                 (e) =>
                 {
                     onError?.Invoke(e);
@@ -401,7 +398,7 @@ namespace UnityEngine.Reflect
             var key = PersistentKey.GetKey<T>(modelName);
             if (manifest.Content.TryGetValue(key, out var entry))
             {
-                path = entry.DstPath;
+                path = entry.ModelPath;
             }
             else
             {

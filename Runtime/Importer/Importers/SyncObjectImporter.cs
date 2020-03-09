@@ -145,14 +145,29 @@ namespace UnityEngine.Reflect
 
         static void ImportLight(SyncLight syncLight, GameObject parent)
         {
-            // TODO adjust based on the intensityUnit
-            // This fit the Candelas unit
-            const float rangeMultiplier = 0.5f;
+            // Conversion parameters
+            const float defaultIntensity = 1.0f;
+            const double intensityExponent = 0.25;
+            const double intensityMultiplier = 0.2;
+            const float intensityAtRange = 0.02f;
 
-            var intensity = ImportersUtils.GetCandelasIntensity(syncLight.Intensity, syncLight.IntensityUnit, syncLight.Type, syncLight.SpotAngle);
+            // Convert syncLight intensity to unity light intensity
+            var intensity = defaultIntensity;
+            if (syncLight.Intensity > 0)
+            {
+                intensity = ImportersUtils.GetCandelasIntensity(syncLight.Intensity, syncLight.IntensityUnit, syncLight.Type, syncLight.SpotAngle);
+                intensity = (float)(intensityMultiplier * Math.Pow(intensity, intensityExponent));
+            }
 
-            // TODO Investigate why Light.UseColorTemperature is not exposed to C# and let the light do this calculation
-            var cct = ImportersUtils.ColorFromTemperature(syncLight.Temperature);
+            // Compute the range if not provided
+            var range = syncLight.Range;
+            if (range <= 0)
+            {
+                range = (float)Math.Sqrt(intensity / intensityAtRange);
+            }
+
+           // TODO Investigate why Light.UseColorTemperature is not exposed to C# and let the light do this calculation
+           var cct = ImportersUtils.ColorFromTemperature(syncLight.Temperature);
 
             var filter = new Color(syncLight.Color.R, syncLight.Color.G, syncLight.Color.B);
             
@@ -167,24 +182,24 @@ namespace UnityEngine.Reflect
                 {
                     light.spotAngle = syncLight.SpotAngle;
                     light.shadows = LightShadows.Hard;
-                    light.range = (syncLight.Range * rangeMultiplier);
+                    light.range = range;
                     light.type = LightType.Spot;
-                    light.intensity = intensity * 0.1f;
+                    light.intensity = intensity;
                 }
                 break;
 
                 case SyncLightType.Point:
                 {
                     light.type = LightType.Point;
-                    light.range = syncLight.Range.Equals(0.0f) ? 1.0f : syncLight.Range * rangeMultiplier;
-                    light.intensity = intensity * 0.0001f;
+                    light.range = range;
+                    light.intensity = intensity;
                 }
                 break;
 
                 case SyncLightType.Directional:
                 {
                     light.type = LightType.Directional;
-                    light.intensity = intensity * 0.0001f;
+                    light.intensity = intensity;
                 }
                 break;
             }

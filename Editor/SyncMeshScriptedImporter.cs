@@ -4,7 +4,7 @@ using Unity.Reflect.Model;
 using UnityEditor.Experimental.AssetImporters;
 using UnityEngine;
 using UnityEngine.Reflect;
-using File = Unity.Reflect.IO.File;
+using Unity.Reflect.IO;
 
 namespace UnityEditor.Reflect
 {   
@@ -13,7 +13,7 @@ namespace UnityEditor.Reflect
     {        
         public override void OnImportAsset(AssetImportContext ctx)
         {
-            var syncMesh = File.Load<SyncMesh>(ctx.assetPath);
+            var syncMesh = PlayerFile.Load<SyncMesh>(ctx.assetPath);
             
             var meshImporter = new SyncMeshImporter();
             var mesh = meshImporter.Import(syncMesh, null);

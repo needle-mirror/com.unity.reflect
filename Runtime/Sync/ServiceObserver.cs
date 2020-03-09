@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using Unity.Reflect;
 using Unity.Reflect.Data;
 
@@ -15,7 +16,7 @@ namespace UnityEngine.Reflect
 
         public IPlayerClient Client { get; private set; }
 
-        readonly HashSet<string> m_UpdatedManifests = new HashSet<string>();
+        readonly List<object> m_PendingEvents = new List<object>();
         string m_ObservedProjectId;
 
         public void Connect(Project project)
@@ -25,7 +26,7 @@ namespace UnityEngine.Reflect
 
             // Create new client from channel and start observation
             Debug.Log($"Connect to new channel");
-            Client = Player.CreateClient(project, ProjectServerEnvironment.UnityUser, ProjectServerEnvironment.Client);            
+            Client = Player.CreateClient(project, ProjectServerEnvironment.UnityUser, ProjectServerEnvironment.Client);
             Client.ConnectionStatusChanged += ConnectionStatusChanged;
         }
 
@@ -43,7 +44,24 @@ namespace UnityEngine.Reflect
 
         public void ProcessPendingEvents()
         {
-            foreach (var sourceId in PopPendingEvents())
+            var pendingEvents = PopPendingEvents();
+
+            var connectionStatusEvents = pendingEvents.OfType<ConnectionStatus>().ToList();
+            if (connectionStatusEvents.Any())
+            {
+                var isConnected = connectionStatusEvents.Last() == ConnectionStatus.Connected;
+                Debug.Log($"ServiceObserver.StreamEventNotify on projectId '{m_ObservedProjectId}', isConnected: {isConnected}");
+
+                OnEventStreamUpdated?.Invoke(isConnected);
+                if (!isConnected)
+                {
+                    Disconnect();
+                    return;
+                }
+            }
+
+            var manifestEvents = pendingEvents.OfType<ManifestUpdatedEventArgs>().ToList();
+            foreach (var sourceId in manifestEvents.Select(e => e.SourceId).Distinct())
             {
                 var newManifest = Client.GetManifest(sourceId);
                 OnManifestUpdated?.Invoke(m_ObservedProjectId, sourceId, newManifest.Manifest);
@@ -67,7 +85,7 @@ namespace UnityEngine.Reflect
                 return;
             }
 
-            StopSync();            
+            StopSync();
             Client.ConnectionStatusChanged -= ConnectionStatusChanged;
             try
             {
@@ -81,34 +99,32 @@ namespace UnityEngine.Reflect
             Client = null;
         }
 
-        IEnumerable<string> PopPendingEvents()
+        object[] PopPendingEvents()
         {
-            lock (m_UpdatedManifests)
+            lock (m_PendingEvents)
             {
-                var pendingEvents = new HashSet<string>(m_UpdatedManifests);
-                m_UpdatedManifests.Clear();
+                var pendingEvents = m_PendingEvents.ToArray();
+                m_PendingEvents.Clear();
                 return pendingEvents;
             }
         }
 
         void OnManifestUpdate(object sender, ManifestUpdatedEventArgs e)
         {
-            lock (m_UpdatedManifests)
-            {
-                m_UpdatedManifests.Add(e.SourceId);
-            }
+            AddEvent(e);
         }
 
         void ConnectionStatusChanged(ConnectionStatus status)
         {
-            Debug.Log($"ServiceObserver.StreamEventNotify on projectId '{m_ObservedProjectId}', {status}");
-            var isConnected = status.Equals(ConnectionStatus.Connected);
-            if (!isConnected)
-            {
-                Disconnect();
-            }
+            AddEvent(status);
+        }
 
-            OnEventStreamUpdated?.Invoke(isConnected);
+        void AddEvent(object e)
+        {
+            lock (m_PendingEvents)
+            {
+                m_PendingEvents.Add(e);
+            }
         }
     }
 }

@@ -33,6 +33,9 @@ class XCodePostProcessBuild : IPostprocessBuildWithReport
 			//  include libz to support gRPC compression
 			pbxProject.AddFrameworkToProject(targetGuid, "libz.tbd", false);
 
+			//  include Safari Framework to support embedded Safari Login/Logout
+			pbxProject.AddFrameworkToProject(targetGuid, "SafariServices.framework", false);
+
 			pbxProject.WriteToFile(projectPath);
 			
 			
