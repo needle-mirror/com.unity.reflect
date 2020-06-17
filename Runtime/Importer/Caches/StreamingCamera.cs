@@ -6,7 +6,8 @@ namespace UnityEngine.Reflect
     public class StreamingCamera : MonoBehaviour
     {
         public int m_MaximumObjects = 0;
-        public SyncManager m_SyncManager;
+        
+        SyncManager m_SyncManager;
 
         List<StreamingReference> m_References = new List<StreamingReference>();
 
@@ -30,7 +31,12 @@ namespace UnityEngine.Reflect
             s_MemoryWarningOxygen = new char[k_MemoryWarningOxygen];
             s_MaximumObjects = 0;
         }
-        
+
+        private void Awake()
+        {
+            m_SyncManager = FindObjectOfType<SyncManager>();
+        }
+
         void Start()
         {
             m_LastPosition = Vector3.zero;

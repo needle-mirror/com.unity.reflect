@@ -1,44 +1,48 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using Unity.Reflect;
 using UnityEditor;
 
 namespace UnityEngine.Reflect
 {
-    static class ProjectServerEnvironment
+    public static class ProjectServerEnvironment
     {
-        public static string ProjectDataPath { get; }
+        // Editor or Viewer user can set this env var to "staging" or "test" to use Project Server on GCP stg or test
+        const string k_ProjectServerAddressEnvVar = "REFLECT_CLOUD";
 
-        public static ProjectServerClient Client { get; }
+        public static string ProjectDataPath { get; set; }
+
+        public static ProjectServerClient Client { get; set; }
 
         static UnityUser s_UnityUser;
 
         static readonly Dictionary<string, ProjectServerClient.CloudEnvironment> k_ProjectServerEnvironmentMap = new Dictionary<string, ProjectServerClient.CloudEnvironment>()
         {
-            { "dev", ProjectServerClient.CloudEnvironment.Test },
+            { "local", ProjectServerClient.CloudEnvironment.Local  },
+            { "test", ProjectServerClient.CloudEnvironment.Test },
             { "staging", ProjectServerClient.CloudEnvironment.Staging },
             { "production", ProjectServerClient.CloudEnvironment.Production },
         };
 
+        static bool s_Initialized;
+
         static ProjectServerEnvironment()
         {
-            var cloudConfiguration = ProjectServerClient.CloudEnvironment.Production;
+            Init();
+        }
 
-#if UNITY_EDITOR
-            var asm = Assembly.GetAssembly(typeof(CloudProjectSettings));
-            var unityConnect = asm.GetType("UnityEditor.Connect.UnityConnect");
-            var instanceProperty = unityConnect.GetProperty("instance");
-            var configurationProperty = unityConnect.GetProperty("configuration");
+        public static void Init()
+        {
+            if (s_Initialized)
+                return;
 
-            var instance = instanceProperty.GetValue(null, null);
-            var envValue = (string)configurationProperty.GetValue(instance, null);
+            s_Initialized = true;
+            
+            var env = Environment.GetEnvironmentVariable(k_ProjectServerAddressEnvVar) ?? "production";
 
-            if (!k_ProjectServerEnvironmentMap.TryGetValue(envValue?.ToLower() ?? string.Empty, out cloudConfiguration))
-            {
-                Debug.LogWarning($"Could not find cloud config environment, using production environment.");
-            }
-#endif
+            var cloudConfiguration = k_ProjectServerEnvironmentMap[env];
+            Debug.Log($"Using cloud configuration: {cloudConfiguration}");
 
             ProjectDataPath = Path.Combine(Application.persistentDataPath, "ProjectData");
             Client = new ProjectServerClient(cloudConfiguration, ProjectDataPath);

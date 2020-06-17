@@ -1,4 +1,5 @@
-﻿using UnityEngine.Rendering.PostProcessing;
+﻿using System.Collections.Generic;
+using UnityEngine.Rendering.PostProcessing;
 
 namespace UnityEngine.Reflect
 {
@@ -11,7 +12,7 @@ namespace UnityEngine.Reflect
         }
         
         public ListControl m_ListControl;
-        public Camera[] m_PostProcessCameras;
+        public List<Camera> m_PostProcessCameras;
         public Quality m_Quality;
         public Sprite m_BetterLookingImage;
         public Sprite m_MoreResponsiveImage;

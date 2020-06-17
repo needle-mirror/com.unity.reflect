@@ -19,21 +19,24 @@ namespace UnityEditor.Reflect
             
             if (s_BoldStyle == null)
             {
-                s_BoldStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
+                s_BoldStyle = new GUIStyle("Foldout") { fontStyle = FontStyle.Bold };
             }
             
-            EditorGUILayout.LabelField("Remapped Materials", s_BoldStyle);
+            m_MaterialRemapsProperty.isExpanded = EditorGUILayout.Foldout(m_MaterialRemapsProperty.isExpanded , "Remapped Materials", s_BoldStyle);
 
-            var size = m_MaterialRemapsProperty.arraySize;
-
-            for (int i = 0; i < size; ++i)
+            if (m_MaterialRemapsProperty.isExpanded)
             {
-                EditorGUILayout.BeginHorizontal();
+                var size = m_MaterialRemapsProperty.arraySize;
 
-                var item = m_MaterialRemapsProperty.GetArrayElementAtIndex(i);
-                EditorGUILayout.PropertyField(item.FindPropertyRelative("remappedMaterial"), new GUIContent(item.FindPropertyRelative("syncMaterialName").stringValue));
-                
-                EditorGUILayout.EndHorizontal();
+                for (int i = 0; i < size; ++i)
+                {
+                    EditorGUILayout.BeginHorizontal();
+
+                    var item = m_MaterialRemapsProperty.GetArrayElementAtIndex(i);
+                    EditorGUILayout.PropertyField(item.FindPropertyRelative("remappedMaterial"), new GUIContent(item.FindPropertyRelative("syncMaterialName").stringValue));
+
+                    EditorGUILayout.EndHorizontal();
+                }
             }
 
             EditorGUILayout.Space();

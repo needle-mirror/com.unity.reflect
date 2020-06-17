@@ -1,40 +1,47 @@
-## [1.1.0-preview.6] - 2020-03-10
+## [1.2.0-preview.26] - 2020-06-17
+
+## [1.2.0-preview.25] - 2020-06-16
+
+## [1.2.0-preview.24] - 2020-06-16
+
+## [1.2.0-preview.23] - 2020-06-15
+
+## [1.2.0-preview.22] - 2020-06-11
+
+## [1.2.0-preview.21] - 2020-06-09
+
+## [1.2.0-preview.20] - 2020-06-06
+
 # Features
-- Now supports larger meshes, and sending these in chunks to improve streaming performance.
-- Now compatible with Unity 2019.3
-- Using an updated version of the SyncServer's storage model (StorageModel v2)
+Navisworks Plugin: Navisworks 2019, 2020, 2021
+Note: We support geometry, materials and metadata. Navisworks supports a very wide range of data, and Reflect will not support everything in this first version.
 
-# CommonUI
-- use chromium webview in own process
-- Fix web view signing issues (#951)
+Revit Plugin: Revit 2021 Support
+Note: Revit 2018 is still supported, but will not be maintained, following Autodesk’s policy of supporting the past 3 versions
 
+Sketchup Plugin: Sketchup 2020 Support
 
-# Bug Fixes and Improvements
-- Materials react as intended when using BIM filters.
-- Alternative flow for when there are too many add-ins in Revit.
-- Improved culling on objects
+Editor Workflow: A new tool in Reflect allows you to convert between Built-in, URP & HDRP
 
-## [1.1.0-preview.5] - 2020-03-10
+# Bug Fixes
+UI: Fixed an issue where the Reflect UI would sometimes be stuck behind Revit, making it look like Revit crashed.
 
-## [1.1.0-preview.4] - 2020-02-26
+Reflect: Fixed a crash in server when exporting very large models, due to running out of memory
+Reflect: Fixed a bug where merged objects would lose some metadata
+Revit crashed.
+Reflect: Fixed an issue where Reflect would fail if a single mesh was bigger than 128MB. New limit for a single object is 2GB.
+Reflect: Fixed a “missing Assembly Error” when building Reflect for OSX
 
-## [1.1.0-preview.3] - 2020-02-26
+Sync: Fixed an issue where moving linked Revit files while sync is active would create a duplicate of the linked file
 
-## [1.1.0-preview.2] - 2020-02-17
+Rhino: Fixed an issue where Rhino model orientation was sometimes wrong
+Rhino: Rhino “Document” filter is now available
+Rhino: Fixed an issue with Rhino unit conversions
+Rhino: Fixed an issue where Rhino would send objects twice
 
-## [1.1.0-preview.1] - 2020-02-10
-
-## [1.0.1-preview.2] - 2020-02-03
-
-## [1.0.1-preview.1] - 2019-12-17
-
-## [1.0.0-preview.19] - 2019-11-21
-
-## [1.0.0-preview.18] - 2019-11-19
-
-## [1.0.0-preview.17] - 2019-11-19
-
-## [1.0.0-preview.16] - 2019-11-15
+Sketchup: Fixed an issues where “document” filter was not available for data coming from Sketchup
+Sketchup: Sketchup “Document” filter is now available
+Sketchup: Fixed an issues where “document” filter was not available for data coming from Sketchup
 
 ## [1.0.0-preview.15] - 2019-11-15
 

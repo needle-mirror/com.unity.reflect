@@ -23,7 +23,7 @@ namespace UnityEngine.Reflect
         const string k_AnomymousUser = "Please sign in";
         bool m_IsLoggedIn = false;
         string m_SessionToken = string.Empty;
-        bool m_SplashScreenComplete = false;
+        bool m_SplashScreenComplete = true; // TODO: temp hack to skip splash screen
 
         Coroutine m_RefreshUserInfoCoroutine;
 
@@ -32,30 +32,56 @@ namespace UnityEngine.Reflect
 
         void Awake()
         {
+            ProjectServerEnvironment.Init();
             UpdateDisplay();
         }
 
         void UpdateDisplay()
         {
-            UserDisplayName.gameObject.SetActive(m_SplashScreenComplete);
+            if (UserDisplayName != null)
+            {
+                UserDisplayName.gameObject.SetActive(m_SplashScreenComplete);
+            }
 #if UNITY_EDITOR
-            LoginButton.gameObject.SetActive(false);
-            LogoutButton.gameObject.SetActive(false);
+            if (LoginButton != null)
+            {
+                LoginButton.gameObject.SetActive(false);
+                LogoutButton.gameObject.SetActive(false);
+            }
+
             if (m_SplashScreenComplete)
             {
-                UserDisplayName.text = m_IsLoggedIn && unityUser != null ? unityUser.DisplayName : k_AnomymousUser;
+                if (UserDisplayName != null)
+                {
+                    UserDisplayName.text = m_IsLoggedIn && unityUser != null ? unityUser.DisplayName : k_AnomymousUser;
+                }
             }
 #else
             if (m_SplashScreenComplete)
             {
-                LoginButton.gameObject.SetActive(!m_IsLoggedIn);
-                LogoutButton.gameObject.SetActive(m_IsLoggedIn);
-                UserDisplayName.text = m_IsLoggedIn && unityUser != null ? unityUser.DisplayName : k_AnomymousUser;
+                if (LoginButton != null)
+                {
+                    LoginButton.gameObject.SetActive(!m_IsLoggedIn);
+                }
+                if (LogoutButton != null)
+                {
+                    LogoutButton.gameObject.SetActive(m_IsLoggedIn);
+                }
+                if (UserDisplayName != null)
+                {
+                    UserDisplayName.text = m_IsLoggedIn && unityUser != null ? unityUser.DisplayName : k_AnomymousUser;
+                }
             }
             else
             {
-                LoginButton.gameObject.SetActive(false);
-                LogoutButton.gameObject.SetActive(false);
+                if (LoginButton != null)
+                {
+                    LoginButton.gameObject.SetActive(false);
+                }
+                if (LogoutButton != null)
+                {
+                    LogoutButton.gameObject.SetActive(false);
+                }
             }
 #endif
         }
@@ -69,6 +95,10 @@ namespace UnityEngine.Reflect
 
         public void SetAccessToken(string token)
         {
+            // This seems to be called before awake. Make sure ProjectServerEnvironment
+            // is initialized on the main thread.
+            ProjectServerEnvironment.Init();
+            
             m_SessionToken = token;
             m_IsLoggedIn = !string.IsNullOrEmpty(m_SessionToken);
             if (m_IsLoggedIn)
@@ -83,7 +113,7 @@ namespace UnityEngine.Reflect
             UpdateDisplay();
         }
 
-        public void GetUserInfo(string token)
+        void GetUserInfo(string token)
         {
             if (m_RefreshUserInfoCoroutine != null)
             {
@@ -95,23 +125,22 @@ namespace UnityEngine.Reflect
         IEnumerator GetUserInfoCoroutine(string token)
         {
             // Use ContinueWith to make sure the task doesn't throw
-            var task = Task.Run(() => ProjectServerEnvironment.Client.GetUserInfo(token)).ContinueWith(t => t);
+            var task = Task.Run(() => ProjectServerEnvironment.Client.GetUserInfo(token));//.ContinueWith(t => t);
             while (!task.IsCompleted)
             {
                 yield return null;
             }
-
-            var listTask = task.Result;
-            if (listTask.IsFaulted)
+            
+            if (task.IsFaulted)
             {
-                Debug.LogError($"Get User Info failed: {listTask.Exception}");
-                if (listTask.Exception.InnerExceptions.OfType<RpcException>().Where(x => x.StatusCode.Equals(StatusCode.Unauthenticated) || x.StatusCode.Equals(StatusCode.PermissionDenied)).FirstOrDefault() != null)
+                Debug.LogError($"Get User Info failed: {task.Exception}");
+                if (task.Exception.InnerExceptions.OfType<RpcException>().Where(x => x.StatusCode.Equals(StatusCode.Unauthenticated) || x.StatusCode.Equals(StatusCode.PermissionDenied)).FirstOrDefault() != null)
                 {
                     onAuthenticationFailure?.Invoke();
                 }
                 yield break;
             }
-            unityUser = listTask.Result;
+            unityUser = task.Result;
             onUnityUserChanged?.Invoke(unityUser);
             UpdateDisplay();
         }

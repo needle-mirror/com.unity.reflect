@@ -1,3 +1,4 @@
+using System;
 using UnityEngine.UI;
 
 namespace UnityEngine.Reflect
@@ -21,6 +22,24 @@ namespace UnityEngine.Reflect
         public event EventHandler onDelete;
 
         ListControlItemData m_Data;
+
+        public void UpdateData(Project project)
+        {
+            var inData = new ListControlItemData
+            {
+                project = project,
+                id = project.serverProjectId,
+                projectId = project.projectId,
+                title = project.name,
+                description = project.description,
+                date = DateTime.Today, // TODO
+                options = ListControlItemData.Option.Open, //ResolveAvailableOptions(project),
+                enabled = true,
+                payload = project
+            };
+            
+            UpdateData(inData);
+        }
 
         public void UpdateData(ListControlItemData inData)
         {

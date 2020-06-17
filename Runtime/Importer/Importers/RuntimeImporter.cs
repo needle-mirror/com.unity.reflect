@@ -7,7 +7,7 @@ namespace UnityEngine.Reflect
     {       
         public TAsset Import(TModel model, object settings)
         {
-            var asset = CreateNew(model);
+            var asset = CreateNew(model, settings);
             
             ImportInternal(model, asset, settings);
             
@@ -20,7 +20,7 @@ namespace UnityEngine.Reflect
             ImportInternal(model, asset, settings);
         }
         
-        public abstract TAsset CreateNew(TModel model);
+        public abstract TAsset CreateNew(TModel model, object settings = null);
         
         protected abstract void Clear(TAsset asset);
 

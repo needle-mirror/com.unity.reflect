@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.IO;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Events;
@@ -28,12 +29,18 @@ public class LoginResolver : MonoBehaviour
     const string k_JwtTokenFileName = "jwttoken.data";
     const string k_jwtParamName = "?jwt=";
     bool IsMainViewer = false;
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+    bool IsTopMost = false;
+#endif
+    public static string ViewProjectId = string.Empty;
     string m_ReflectLoginUrl = string.Empty;
 
     public static readonly bool k_IsWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
     public static readonly bool k_IsOSX = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
     public static readonly bool k_IsIOS = Application.platform == RuntimePlatform.IPhonePlayer;
     public static readonly bool k_IsAndroid = Application.platform == RuntimePlatform.Android;
+
+    private IInteropable m_Interop;
 
     public StringUnityEvent OnGetToken;
     Coroutine m_SilentLogoutCoroutine;
@@ -80,14 +87,19 @@ public class LoginResolver : MonoBehaviour
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
         AddRegistryKeys();
 
+        if (m_Interop == null) 
+        {
+            m_Interop = new WindowsStandaloneInterop();
+            m_Interop.Start();
+        }
+
         string[] args = Environment.GetCommandLineArgs();
-        var myHandle = GetWindowHandle();
-        m_ReflectLoginUrl = $"{k_LoginUrl}{myHandle}";
+        SetLoginUrlWithWindowPtr();
         // Unity usual start command have the path to application as single argument
         // Some Build will mishandle spaces and artificially creates more than 1 argument
         var appPathFound = false;
         var appPath = string.Empty;
-        var trailingTokenArg = string.Empty;
+        var trailingArg = string.Empty;
         for (var i=0;i<args.Length;i++)
         {
             if (!appPathFound) {
@@ -101,20 +113,38 @@ public class LoginResolver : MonoBehaviour
             }
             else 
             {
-                trailingTokenArg += args[i];
-                Debug.Log($"trailingTokenArg {trailingTokenArg}");
+                if (!string.IsNullOrEmpty(trailingArg)) 
+                {   
+                    trailingArg += " ";
+                }
+                trailingArg += args[i];
+                Debug.Log($"trailingArg {trailingArg}");
             }
         }
 
-        if (string.IsNullOrEmpty(trailingTokenArg))
+        if (string.IsNullOrEmpty(trailingArg))
         {
             IsMainViewer = true;
         }
         else
         {
-            if (TryCreateUriAndValidate(trailingTokenArg, UriKind.Absolute, out var uri))
+            var splitRequest = trailingArg.Split(' ');
+            // Request from dashboard to open specific project in app
+            // OPEN_PROJECT_REQUEST ?jwt=token projectId sourceId
+            if (trailingArg.StartsWith("OPEN_PROJECT_REQUEST") && (splitRequest.Length > 2)) 
             {
-                ReadUrlCallback(uri);
+                ViewProjectId = splitRequest[2];
+                if (TryCreateUriAndValidate(splitRequest[1], UriKind.Absolute, out var uri))
+                {
+                    ReadUrlCallback(uri);
+                }   
+            }
+            else 
+            {
+                if (TryCreateUriAndValidate(trailingArg, UriKind.Absolute, out var uri))
+                {
+                    ReadUrlCallback(uri);
+                }
             }
         }
 #endif
@@ -139,10 +169,25 @@ public class LoginResolver : MonoBehaviour
             uriResult.Query.StartsWith(k_jwtParamName);
     }
 
+    void SetLoginUrlWithWindowPtr() 
+    {
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+        IntPtr hWnd = GetWindowHandle();
+        m_ReflectLoginUrl = $"{k_LoginUrl}{hWnd}";
+#endif
+    }
+
     // Focus will be given (or taken by user) after browser login redirection
     // We use this event to try and read the local file containing the jwt token.
     void OnApplicationFocus(bool hasFocus)
     {
+        #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+            if (hasFocus)
+            {
+                SetLoginUrlWithWindowPtr();
+            }
+        #endif
+
         if (IsMainViewer)
         {
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
@@ -160,6 +205,14 @@ public class LoginResolver : MonoBehaviour
                 }
                 // In all cases, if file exists, delete it.
                 File.Delete(viewerTokenFilePath);
+            }
+            // When logging out, we make this app topMost, to avoid loosing focus,
+            // But as soon as user interact with OS, we release this state
+            if (IsTopMost) 
+            {
+                var wHandle = GetWindowHandle();
+                SetWindowPos(wHandle, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                IsTopMost = false;
             }
 #endif
         }
@@ -182,51 +235,55 @@ public class LoginResolver : MonoBehaviour
     void ReadUrlCallback(Uri uri)
     {
         LoginCredential.jwtToken = uri.Query.Substring(k_jwtParamName.Length);
-        var saveToDirectory = $"{Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)}/Unity/Reflect/{Application.productName}";
-        if (!Directory.Exists(saveToDirectory))
+        if (!string.IsNullOrEmpty(ViewProjectId))
         {
-            Directory.CreateDirectory(saveToDirectory);
+            ProcessJwtToken();
         }
-        var viewerTokenFilePath = Path.Combine(saveToDirectory, k_JwtTokenFileName);
-        File.WriteAllText(viewerTokenFilePath, LoginCredential.jwtToken);
-        
-        var absolutePath = uri.AbsolutePath.ToString();       
-        var pathAndQuery = uri.PathAndQuery;
-        var startIndex = pathAndQuery.LastIndexOf("/") + 1;
-        var endIndex = pathAndQuery.LastIndexOf("?");
-        var idString = pathAndQuery.Substring(startIndex, endIndex - startIndex);
-        int processOrHandleId = 0;
-        int.TryParse(idString, out processOrHandleId);
-        IntPtr processIdIntPtr = new IntPtr(processOrHandleId);
-        
-		var canExit = true;
-        try
+        else
         {
+            var saveToDirectory = $"{Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)}/Unity/Reflect/{Application.productName}";
+            if (!Directory.Exists(saveToDirectory))
+            {
+                Directory.CreateDirectory(saveToDirectory);
+            }
+            var viewerTokenFilePath = Path.Combine(saveToDirectory, k_JwtTokenFileName);
+            File.WriteAllText(viewerTokenFilePath, LoginCredential.jwtToken);
+
+            var absolutePath = uri.AbsolutePath.ToString();
+            var pathAndQuery = uri.PathAndQuery;
+            var startIndex = pathAndQuery.LastIndexOf("/") + 1;
+            var endIndex = pathAndQuery.LastIndexOf("?");
+            var idString = pathAndQuery.Substring(startIndex, endIndex - startIndex);
+            int processOrHandleId = 0;
+            int.TryParse(idString, out processOrHandleId);
+            IntPtr processIdIntPtr = new IntPtr(processOrHandleId);
+
+            var canExit = true;
+            try
+            {
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
                 // If processId not found, keep current instance
-                if (IsIconic(processIdIntPtr))
-                {
-                    ShowWindow(processIdIntPtr, ShowWindowEnum.Restore);
-                }
+                SetWindowPos(processIdIntPtr, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
                 canExit = SetForegroundWindow(processIdIntPtr) != 0;
 #endif
-        }
-        catch (Exception)
-        {
-            canExit = false;
-        }
-        finally
-        {
-            if (canExit)
-            {
-                Application.Quit();
             }
-            else
+            catch (Exception)
             {
-                ProcessJwtToken();
-                if (File.Exists(viewerTokenFilePath))
+                canExit = false;
+            }
+            finally
+            {
+                if (canExit)
                 {
-                    File.Delete(viewerTokenFilePath);
+                    Application.Quit();
+                }
+                else
+                {
+                    ProcessJwtToken();
+                    if (File.Exists(viewerTokenFilePath))
+                    {
+                        File.Delete(viewerTokenFilePath);
+                    }
                 }
             }
         }
@@ -269,6 +326,20 @@ public class LoginResolver : MonoBehaviour
 #endif
     }
 
+    void Awake()
+    {
+        OnSplashScreenComplete();
+    }
+
+    void OnDisable() 
+    {
+        if (m_Interop != null) 
+        {
+            m_Interop.OnDisable();
+            m_Interop = null;
+        }
+    }
+
     void RemovePersistentToken()
     {
         if (File.Exists(k_JwtTokenPersistentPath))
@@ -278,6 +349,7 @@ public class LoginResolver : MonoBehaviour
     }
     public void DisplayLoginBrowserWindow()
     {
+        Debug.Log($"Sign in using: {m_ReflectLoginUrl}");
 #if UNITY_IOS && !UNITY_EDITOR
         LaunchSafariWebViewUrl(m_ReflectLoginUrl);
 #else
@@ -294,6 +366,12 @@ public class LoginResolver : MonoBehaviour
 #if UNITY_IOS && !UNITY_EDITOR
             InvalidateToken();
             LaunchSafariWebViewUrl(unityUserLogoutUrl);
+#elif UNITY_STANDALONE_WIN && !UNITY_EDITOR
+            InvalidateToken();
+            var wHandle = GetWindowHandle();
+            SetWindowPos(wHandle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            IsTopMost = true;
+            Application.OpenURL(unityUserLogoutUrl);
 #else
             SilentInvalidateTokenLogout(unityUserLogoutUrl);
 #endif
@@ -328,6 +406,7 @@ public class LoginResolver : MonoBehaviour
 
     IEnumerator SilentLogoutCoroutine(string logoutUrl)
     {
+        InvalidateToken();
         using (UnityWebRequest webRequest = UnityWebRequest.Get(logoutUrl))
         {
             yield return webRequest.SendWebRequest();
@@ -338,7 +417,6 @@ public class LoginResolver : MonoBehaviour
             else
             {
                 Debug.Log("LogoutUrl success");
-                InvalidateToken();
             }
         }
     }
@@ -357,9 +435,12 @@ public class LoginResolver : MonoBehaviour
         }
     }
 
-#if UNITY_STANDALONE_WIN  && !UNITY_EDITOR
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
     [DllImport("user32.dll")]
     static extern int SetForegroundWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll")]
     static extern int ShowWindow(IntPtr hwnd, ShowWindowEnum winEnum);
@@ -367,11 +448,22 @@ public class LoginResolver : MonoBehaviour
     [DllImport("user32.dll")]
     static extern IntPtr GetActiveWindow();
 
+    [DllImport("user32.dll")]
+    public static extern IntPtr FindWindow(string className, string windowName);
+
     [DllImport("User32.dll")]
     private static extern bool IsIconic(IntPtr handle);
 
-    static IntPtr GetWindowHandle()
+    [DllImport("user32.dll")]
+    static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+    
+    public static IntPtr GetWindowHandle()
     {
+        IntPtr hWnd = FindWindow(null, Application.productName);
+        if (hWnd != IntPtr.Zero) 
+        {
+            return hWnd;
+        }
         return GetActiveWindow();
     }
 
@@ -383,6 +475,12 @@ public class LoginResolver : MonoBehaviour
         Minimize = 6, ShowMinNoActivate = 7, ShowNoActivate = 8,
         Restore = 9, ShowDefault = 10, ForceMinimized = 11
     };
+
+    const UInt32 SWP_NOSIZE = 0x0001;
+    const UInt32 SWP_NOMOVE = 0x0002;
+    const UInt32 SWP_SHOWWINDOW = 0x0040;
+    static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+    static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
 
     void AddRegistryKeys()
     {

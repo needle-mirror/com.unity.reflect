@@ -16,6 +16,14 @@ namespace UnityEngine.Reflect
             renderers[inRenderer] = inRenderer.sharedMaterials;
         }
 
+        public void AddRenderers(IEnumerable<Renderer> renderers)
+        {
+            foreach (var renderer in renderers)
+            {
+                AddRenderer(renderer);
+            }
+        }
+
         public void RemoveRenderer(Renderer inRenderer)
         {
             renderers.Remove(inRenderer);
@@ -35,6 +43,14 @@ namespace UnityEngine.Reflect
                 {
                     SwapRenderer(r.Key, inMaterial);
                 }
+            }
+        }
+
+        public void SwapRenderers(IEnumerable<Renderer> renderers, Material material)
+        {
+            foreach (var renderer in renderers)
+            {
+                SwapRenderer(renderer, material);
             }
         }
 

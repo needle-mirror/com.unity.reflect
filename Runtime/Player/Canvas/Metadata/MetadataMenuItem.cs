@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -29,10 +30,11 @@ namespace UnityEngine.Reflect
         {
             base.AddNode(node);
 
-            var rend = node.GetComponent<Renderer>();
-            if (rend != null)
+            var renderers = node.GetComponentsInChildren<Renderer>();
+            
+            if (renderers.Length > 0)
             {
-                m_MaterialSwapper.AddRenderer(rend);
+                m_MaterialSwapper.AddRenderers(renderers);
                 
                 if (!m_Visible)
                 {
@@ -41,7 +43,7 @@ namespace UnityEngine.Reflect
 
                 if (GetActiveMenuItem() == this)
                 {
-                    m_MaterialSwapper.SwapRenderer(rend, m_SelectedMaterial);
+                    m_MaterialSwapper.SwapRenderers(renderers, m_SelectedMaterial);
                     return true;
                 }
             }
@@ -52,11 +54,10 @@ namespace UnityEngine.Reflect
         public override void RemoveNode(Transform node)
         {
             base.RemoveNode(node);
-            
-            var rend = node.GetComponent<Renderer>();
-            if (rend != null)
+            var renderers = node.GetComponentsInChildren<Renderer>().ToList();
+            if (renderers.Count > 0)
             {
-                m_MaterialSwapper.RemoveRenderer(rend);
+                renderers.ForEach (x => m_MaterialSwapper.RemoveRenderer(x));
             }
         }
 

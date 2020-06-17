@@ -14,6 +14,7 @@ namespace UnityEngine.Reflect.Controller.Gestures.Desktop
         public KeyCode[] LeftButtons { get; set; } = new KeyCode[] { KeyCode.A, KeyCode.LeftArrow };
         public KeyCode[] RightButtons { get; set; } = new KeyCode[] { KeyCode.D, KeyCode.RightArrow };
         public KeyCode[] NeededButtons { get; set; } = new KeyCode[0];
+        public KeyCode[] ExcludedButtons { get; set; } = new KeyCode[0];
         public Vector2 Multiplier { get; set; } = Vector2.one;
 
         public DirectionButtonsGesture(Action<Vector2> directionGiven)
@@ -30,6 +31,12 @@ namespace UnityEngine.Reflect.Controller.Gestures.Desktop
             foreach (var button in NeededButtons)
             {
                 if (!Input.GetKey(button))
+                    return;
+            }
+
+            foreach (var button in ExcludedButtons)
+            {
+                if (Input.GetKey(button))
                     return;
             }
 

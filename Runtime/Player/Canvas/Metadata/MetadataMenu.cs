@@ -1,5 +1,6 @@
 ﻿using UnityEngine.UI;
 
+
 namespace UnityEngine.Reflect
 {
     public class MetadataMenu : Menu
@@ -36,7 +37,8 @@ namespace UnityEngine.Reflect
         public override bool AddNode(Transform node)
         {
             var ret = false;
-            if (node.GetComponent<Renderer>() != null)
+            var renderers = node.GetComponentsInChildren<Renderer>();
+            if (renderers.Length > 0)
             {
                 var model = node.GetComponent<Metadata>();
                 if (model != null)

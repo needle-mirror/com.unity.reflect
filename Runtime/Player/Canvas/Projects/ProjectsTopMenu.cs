@@ -1,5 +1,8 @@
+using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
 namespace UnityEngine.Reflect
@@ -12,11 +15,58 @@ namespace UnityEngine.Reflect
         
         [SerializeField]
         Image m_RefreshIcon;
+
+        [Space]
+
+        [SerializeField]
+        ListControlItem m_Item;
+
+        [SerializeField]
+        Transform m_Content;
+        
+        [Serializable]
+        public class ProjectEvent : UnityEvent<Project> { }
+
+        [SerializeField]
+        ProjectEvent m_OnItemOpen;
         
 #pragma warning restore 0649
 
         Coroutine m_RefreshButtonCoroutine;
+
+        List<ListControlItem> m_Items = new List<ListControlItem>();
         
+        public void RefreshProjectList(List<Project> projects)
+        {
+            ClearProjects();
+
+            foreach (var project in projects)
+            {
+                var item = Instantiate(m_Item, m_Content);
+                
+                item.UpdateData(project);
+
+                item.onOpen += OnItemClicked;
+                
+                m_Items.Add(item);
+            }
+        }
+
+        void OnItemClicked(ListControlItemData indata)
+        {
+            m_OnItemOpen.Invoke(indata.project);
+        }
+
+        public void ClearProjects()
+        {
+            foreach (var item in m_Items)
+            {
+                Destroy(item.gameObject);
+            }
+
+            m_Items.Clear();
+        }
+
         public bool RefreshButtonEnabled
         {
             get => m_RefreshButton.interactable;

@@ -14,6 +14,8 @@ namespace UnityEngine.Reflect
             Connected = 1 << 4
         }
 
+        public Project project;
+        
         public string id;
         public string title;
         public string description;

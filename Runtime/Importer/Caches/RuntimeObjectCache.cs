@@ -12,15 +12,15 @@ namespace UnityEngine.Reflect
     
     class RuntimeObjectCache : IObjectCache
     {
-        SyncObjectImportSettings m_Settings;
+        SyncObjectImportConfig m_Config;
 
         Dictionary<string, List<GameObject>> m_Instances;
         readonly SyncObjectImporter m_SyncObjectImporter = new SyncObjectImporter();
         readonly AssetSource m_AssetSource;
         
-        public RuntimeObjectCache(SyncObjectImportSettings settings, AssetSource assetSource)
+        public RuntimeObjectCache(SyncObjectImportConfig config, AssetSource assetSource)
         {
-            m_Settings = settings;
+            m_Config = config;
             m_AssetSource = assetSource;
             m_Instances = new Dictionary<string, List<GameObject>>();
         }
@@ -35,7 +35,7 @@ namespace UnityEngine.Reflect
                 var model = m_AssetSource.LoadModel<SyncObject>(key);
                 foreach (var gameObject in list)
                 {
-                    m_SyncObjectImporter.Reimport(model, gameObject, m_Settings);    
+                    m_SyncObjectImporter.Reimport(model, gameObject, m_Config);    
                 }
             }
 			return list;
@@ -48,7 +48,7 @@ namespace UnityEngine.Reflect
             if (model == null)
                 return null;
             
-            var gameObject = m_SyncObjectImporter.Import(model, m_Settings);
+            var gameObject = m_SyncObjectImporter.Import(model, m_Config);
 
             if (!m_Instances.TryGetValue(key, out var list))
             {

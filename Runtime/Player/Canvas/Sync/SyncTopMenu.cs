@@ -7,10 +7,12 @@ namespace UnityEngine.Reflect
     {
         event Action onSyncEnabled;
         event Action onSyncDisabled;
-        
+        event Action onSyncStopped;
+        event Action onSyncStarted;
+
         event Action onSyncUpdateBegin;
         event Action<bool> onSyncUpdateEnd;
-        
+
         void StartSync();        
         void StopSync();
     }
@@ -29,7 +31,7 @@ namespace UnityEngine.Reflect
         [SerializeField]
         float m_RotateSpeed = 300.0f;
 
-        bool m_Animated;
+        bool m_Animated;        
         bool m_Started;
         float m_TargetAngle = 0f;
 
@@ -40,6 +42,9 @@ namespace UnityEngine.Reflect
         {
             syncTask.onSyncEnabled += OnSyncEnabled;
             syncTask.onSyncDisabled += OnSyncDisabled;
+
+            syncTask.onSyncStopped += OnSyncStopped;
+            syncTask.onSyncStarted += OnSyncStarted;
 
             syncTask.onSyncUpdateBegin += OnSyncUpdateBegin;
             syncTask.onSyncUpdateEnd += OnSyncUpdateEnd;
@@ -55,6 +60,9 @@ namespace UnityEngine.Reflect
 
             syncTask.onSyncUpdateBegin -= OnSyncUpdateBegin;
             syncTask.onSyncUpdateEnd -= OnSyncUpdateEnd;
+            
+            syncTask.onSyncStopped -= OnSyncStopped;
+            syncTask.onSyncStarted -= OnSyncStarted;            
 
             onSyncStart -= syncTask.StartSync;
             onSyncStop -= syncTask.StopSync;
@@ -63,7 +71,7 @@ namespace UnityEngine.Reflect
         void OnSyncDisabled()
         {
             StopAnimation();
-            m_Started = false;
+
             button.interactable = false;
             button.image.color = m_DisableColor;
         }
@@ -73,41 +81,30 @@ namespace UnityEngine.Reflect
             StopAnimation();
 
             button.interactable = true;
-            button.image.color = m_Color;
+            button.image.color = m_Started ? m_SyncingColor : m_Color;
         }
         
-        void OnSyncStart()
+        void OnSyncStarted()
         {
-            StopAnimation();
             m_Started = true;
-            button.image.color = m_SyncingColor;
+            button.image.color = m_SyncingColor;            
+        }        
 
-            onSyncStart?.Invoke();
-        }
-        
-        void OnSyncStop()
+        void OnSyncStopped()
         {
             StopAnimation();
             m_Started = false;
-            button.image.color = m_Color;
-
-            onSyncStop?.Invoke();
+            button.image.color = m_Color;            
         }
         
         void OnSyncUpdateBegin()
         {
-            if (m_Started)
-            {
-                StartAnimation();
-            }
+            StartAnimation();
         }
         
         void OnSyncUpdateEnd(bool hasChanged)
         {
-            if (m_Started)
-            {
-                StopAnimation();
-            }
+            StopAnimation();
         }
 
         void StartAnimation()
@@ -129,11 +126,11 @@ namespace UnityEngine.Reflect
         {
             if (m_Started)
             {
-                OnSyncStop();
+                onSyncStop?.Invoke();
             }
             else
             {
-                OnSyncStart();
+                onSyncStart?.Invoke();
             }
         }
 

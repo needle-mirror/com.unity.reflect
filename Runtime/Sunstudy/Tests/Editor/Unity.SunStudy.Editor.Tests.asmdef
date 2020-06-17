@@ -1,0 +1,13 @@
+{
+    "name": "Unity.SunStudy.Editor.Tests",
+    "references": [
+        "Unity.SunStudy"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": []
+}

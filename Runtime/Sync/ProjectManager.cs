@@ -91,7 +91,7 @@ namespace UnityEngine.Reflect
         {
             if (m_ProjectManagerInternal != null)
                 return;
-
+            
             m_ProjectManagerInternal = new ProjectManagerInternal();
             m_ProjectManagerInternal.onAuthenticationFailure += () => onAuthenticationFailure?.Invoke();
 

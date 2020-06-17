@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -11,6 +12,7 @@ using Unity.Reflect.Model;
 
 namespace UnityEngine.Reflect
 {
+    [Serializable]
     public class Project
     {
         readonly UnityProject m_UnityProject;
@@ -22,7 +24,7 @@ namespace UnityEngine.Reflect
         public string description => m_UnityProject.Host.ServerName;
         internal bool isAvailableOnline => m_UnityProject.Source == UnityProject.SourceOption.ProjectServer;
 
-        internal Project(UnityProject unityProject)
+        public Project(UnityProject unityProject)
         {
             m_UnityProject = unityProject;
         }
@@ -33,7 +35,7 @@ namespace UnityEngine.Reflect
         }
     }
 
-    class ProjectListRefreshException : Exception
+    public class ProjectListRefreshException : Exception
     {
         public UnityProjectCollection.StatusOption Status { get; }
 
@@ -69,7 +71,7 @@ namespace UnityEngine.Reflect
 
         const int k_FileIOAttempts = 3;
 
-        const float k_FileIORetryDelaySeconds = 1;
+        const int k_FileIORetryDelayMS = 1000;
 
         public ProjectManagerInternal(string storageRoot, bool useServerFolder, bool useProjectNameAsRootFolder)
         {
@@ -101,7 +103,7 @@ namespace UnityEngine.Reflect
             return m_LocalStorage.LoadProjectManifests(project);
         }
 
-        public IEnumerator DownloadProjectLocally(Project project, bool incremental, Action<Exception> errorHandler, string temporaryDownloadFolder = null)
+        public IEnumerator DownloadProjectLocally(Project project, bool incremental, Action<Exception> errorHandler)
         {
             Action<Exception> completeWithError = (ex) =>
             {
@@ -126,7 +128,14 @@ namespace UnityEngine.Reflect
                     }
                     else
                     {
-                        message = $"A connection with the server {unityProject.Host.ServerName} could not be established. This server may be outside your local network (LAN) or may not accept external connections due to firewall policies.";
+                        if (unityProject.Host.ServerName == "Cloud")
+                        {
+                            message = $"A connection with Reflect Cloud could not be established.";
+                        }
+                        else
+                        {
+                            message = $"A connection with the server {unityProject.Host.ServerName} could not be established. This server may be outside your local network (LAN) or may not accept external connections due to firewall policies.";
+                        }
                     }
 
                     ex = new ConnectionException(message, ex);
@@ -205,7 +214,7 @@ namespace UnityEngine.Reflect
                         {
                             var percent = (i + p) * projectPercent;
                             progressChanged?.Invoke(percent, k_Downloading);
-                        }, temporaryDownloadFolder, errorHandler);
+                        }, errorHandler);
                 }
 
                 onProjectChanged?.Invoke(project);
@@ -219,8 +228,98 @@ namespace UnityEngine.Reflect
             }
         }
 
+        internal struct DownloadError
+        {
+            public readonly Exception exception;
+            public readonly ManifestEntry entry;
+
+            public DownloadError(Exception exception, ManifestEntry entry)
+            {
+                this.exception = exception;
+                this.entry = entry;
+            }
+        }
+
+        internal class DownloadProgress
+        {
+            readonly object m_Lock = new object();
+            
+            public float percent
+            {
+                get
+                {
+                    lock (m_Lock)
+                    {
+                        return m_Total == 0 ? 0.0f : ((float)m_Current) / m_Total;
+                    }
+                }
+            }
+
+            public ConcurrentQueue<DownloadError> errors = new ConcurrentQueue<DownloadError>();
+
+            int m_Total;
+            int m_Current;
+
+            public void SetTotal(int totalExpected)
+            {
+                lock (m_Lock)
+                {
+                    m_Current = 0;
+                    m_Total = totalExpected;
+                }
+
+                errors = new ConcurrentQueue<DownloadError>();
+            }
+
+            public void ReportCompleted()
+            {
+                lock (m_Lock)
+                {
+                    m_Current += 1;
+                }
+            }
+        }
+
+        DownloadProgress m_DownloadProgress = new DownloadProgress();
+
         public IEnumerator DownloadSourceProjectLocally(Project project, string sourceId, SyncManifest oldManifest, SyncManifest newManifest, IPlayerClient client,
-            Action<float> onProgress, string temporaryDownloadFolder = null, Action<Exception> errorHandler = null)
+            Action<float> onProgress, Action<Exception> errorHandler = null)
+        {
+            onProgress?.Invoke(0.0f);
+
+            var task = Task.Run(() => DownloadTask(client, oldManifest, newManifest, project, sourceId, m_DownloadProgress));
+
+            // Breath and let one frame render for UI feedback
+            yield return null;
+            
+            do
+            {
+                while (m_DownloadProgress.errors.TryDequeue(out var error))
+                {
+                    Debug.LogError($"Unable to download '{error.entry}' : {error.exception?.Message}");
+                }
+
+                onProgress?.Invoke(m_DownloadProgress.percent);
+
+                // Breath
+                yield return null;
+
+            } while (!task.IsCompleted || !m_DownloadProgress.errors.IsEmpty);
+
+            onProgress?.Invoke(1.0f);
+
+            if (task.IsFaulted)
+            {
+                var exception = task.Exception?.InnerException ?? task.Exception;
+                
+                Debug.LogError($"Error while downloading Source '{sourceId}' in Project '{project.name}' : {exception?.Message}");
+                onError?.Invoke(exception);
+                errorHandler?.Invoke(exception);
+            }
+        }
+
+        async Task DownloadTask(IPlayerClient client, SyncManifest oldManifest, SyncManifest newManifest,
+            UnityProject project, string sourceId, DownloadProgress progress)
         {
             List<ManifestEntry> entries;
 
@@ -236,30 +335,32 @@ namespace UnityEngine.Reflect
 
                 // TODO Handle deleted models
             }
-
-            onProgress?.Invoke(0.0f);
-
-            var useDownloadFolder = !string.IsNullOrEmpty(temporaryDownloadFolder);
+            
+            progress.SetTotal(entries.Count);
 
             var destinationFolder = m_LocalStorage.GetSourceProjectFolder(project, sourceId);
-            var downloadFolder = useDownloadFolder ? Path.Combine(destinationFolder, temporaryDownloadFolder) : destinationFolder;
 
-            int i = 0,
-                total = entries.Count;
-            foreach (ManifestEntry entry in entries)
+            var tasks = entries.Select(entry => DownloadAndStore(client, sourceId, entry, newManifest, destinationFolder, progress)).ToList();
+
+            // Don't forget the manifest itself
+            tasks.Add(RunFileIOOperation(() =>
             {
-                Action<Exception> downloadErrorHandler = e => Debug.LogError($"Unable to download '{entry}' : {e.Message}");
-                ISyncModel syncModel = null;
-                try
-                {
-                    // TODO No need to deserialize then serialize back the SyncModel when all we need is to download the file locally
-                    // TODO: Use async service call and yield until completion
-                    syncModel = client.GetSyncModel(sourceId, entry.ModelPath, entry.Hash); // TODO var bitArray = client.GetSyncModelRaw(...) or client.Download(...)
-                }
-                catch (Exception ex)
-                {
-                    downloadErrorHandler(ex);
-                }
+                newManifest.EditorSave(destinationFolder);
+                return Task.CompletedTask;
+            }));
+            
+            // Wait for all download to finish
+            await Task.WhenAll(tasks);
+        }
+
+        internal static async Task DownloadAndStore(IPlayerClient client, string sourceId, ManifestEntry entry, SyncManifest newManifest,
+            string downloadFolder, DownloadProgress progress)
+        {
+            Exception exception = null;
+            
+            try
+            {
+                var syncModel = await client.GetSyncModelAsync(sourceId, entry.ModelPath, entry.Hash);
 
                 if (syncModel != null)
                 {
@@ -269,58 +370,48 @@ namespace UnityEngine.Reflect
 
                     var fullPath = Path.Combine(downloadFolder, entry.ModelPath);
                     var directory = Path.GetDirectoryName(fullPath);
-                    yield return RunFileIOOperation(() =>
+
+                    await RunFileIOOperation(async () =>
                     {
                         Directory.CreateDirectory(directory);
-                        PlayerFile.Save(syncModel, fullPath);
-                    }, downloadErrorHandler);
+                        await PlayerFile.SaveAsync(syncModel, fullPath);
+                    });
                 }
-
-                onProgress?.Invoke(((float) ++i) / total);
-
-                yield return null;
             }
-
-            // Don't forget the manifest itself
-            yield return RunFileIOOperation(
-                () => newManifest.EditorSave(downloadFolder),
-                (e) =>
-                {
-                    onError?.Invoke(e);
-                    errorHandler?.Invoke(e);
-                    throw e;
-                });
-
-            if (useDownloadFolder)
+            catch (Exception ex)
             {
-                // Move all content to from temporary download folder to the final destination
-                MoveDirectory(downloadFolder, destinationFolder);
+                exception = ex;
             }
+            
+            if (exception != null)
+            {
+                progress.errors.Enqueue(new DownloadError(exception, entry));
+            }
+                            
+            progress.ReportCompleted();
         }
-
-        IEnumerator RunFileIOOperation(Action operation, Action<Exception> errorHandler)
+        
+        internal static async Task RunFileIOOperation(Func<Task> operation)
         {
             var remainingAttempts = k_FileIOAttempts;
             do
             {
                 try
                 {
-                    operation();
-                    yield break;
+                    await operation();
+                    return;
                 }
                 catch (IOException e)
                 {
                     if (--remainingAttempts <= 0)
                     {
                         var ex = new IOException($"File IO operation abandoned after {k_FileIOAttempts} attempts", e);
-                        errorHandler?.Invoke(ex);
-                        yield break;
+                        throw ex;
                     }
-
-                    Debug.LogWarning($"File IO operation failed, retrying in {k_FileIORetryDelaySeconds} seconds: {e.Message}");
                 }
 
-                yield return new WaitForSecondsRealtime(k_FileIORetryDelaySeconds);
+                await Task.Delay(k_FileIORetryDelayMS);
+
             } while (remainingAttempts > 0);
         }
 
@@ -328,6 +419,7 @@ namespace UnityEngine.Reflect
         {
             switch (syncModel)
             {
+                // Keep for backward compatibility with old client cache model
                 case SyncPrefab syncPrefab:
                     SetReferencedSyncModelPath(syncPrefab, manifest);
                     break;
@@ -338,6 +430,10 @@ namespace UnityEngine.Reflect
 
                 case SyncMaterial syncMaterial:
                     SetReferencedSyncModelPath(syncMaterial, manifest);
+                    break;
+                
+                case SyncObjectInstance syncObjectInstance:
+                    SetReferencedSyncModelPath(syncObjectInstance, manifest);
                     break;
             }
         }
@@ -527,37 +623,6 @@ namespace UnityEngine.Reflect
         public void Cancel()
         {
             // TODO
-        }
-
-        // Directory.Move does not support partial moves / overrides.
-        static void MoveDirectory(string source, string target)
-        {
-            var sourcePath = FormatPath(source);
-            var targetPath = FormatPath(target);
-            var files = Directory.EnumerateFiles(sourcePath, "*", SearchOption.AllDirectories).GroupBy(Path.GetDirectoryName);
-
-            foreach (var folder in files)
-            {
-                var targetFolder = FormatPath(folder.Key).Replace(sourcePath, targetPath);
-                Directory.CreateDirectory(targetFolder);
-                foreach (var file in folder)
-                {
-                    var targetFile = Path.Combine(targetFolder, Path.GetFileName(file));
-
-                    if (System.IO.File.Exists(targetFile))
-                    {
-                        System.IO.File.Delete(targetFile);
-                    }
-
-                    System.IO.File.Move(file, targetFile);
-                }
-            }
-            Directory.Delete(source, true);
-        }
-
-        static string FormatPath(string path)
-        {
-            return path.Replace("\\", "/").TrimEnd('/', ' ');
         }
     }
 }

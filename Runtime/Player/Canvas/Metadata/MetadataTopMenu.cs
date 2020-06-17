@@ -1,16 +1,29 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace UnityEngine.Reflect
 {
+
     public class MetadataTopMenu : TopMenu
     {
         public string[] keys =
         {
-            "Category", "Category/Family", "Document", "System Classification", "Type", "Manufacturer", "Phase Created",
-            "Phase Demolished", "Layer"
+            "Category",
+            "Category/Family",
+            "Document",
+            "System Classification",
+            "Type",
+            "Manufacturer",
+            "Phase Created",
+            "Phase Demolished",
+            "Layer",
+            "Item",
+            "Transform",
+            "Element",
+            "Timeliner"
         };
         public Material m_TransparentMaterial;
         public SyncManager m_SyncManager;
@@ -24,7 +37,6 @@ namespace UnityEngine.Reflect
         protected override void Awake()
         {
             base.Awake();
-
             menuTemplate.SetActive(false);
         }
 
@@ -49,7 +61,7 @@ namespace UnityEngine.Reflect
         {
             m_MaterialSwapper.SetMaterial(m_TransparentMaterial, excludedRenderers);
         }
-        
+
         public void ShowAllRenderers()
         {
             m_MaterialSwapper.Restore();
@@ -72,9 +84,9 @@ namespace UnityEngine.Reflect
             instance.onObjectCreated += OnObjectCreated;
             instance.onObjectDestroyed += OnObjectDestroyed;
             instance.onObjectChanged += OnObjectCreated;
-		}
+        }
 
-		public override void OnClick()
+        public override void OnClick()
         {
             if (m_MenuOpen)
             {
@@ -102,7 +114,7 @@ namespace UnityEngine.Reflect
                         menu.gameObject.SetActive(false);
                     }
                 }
-                
+
                 //  open parameter automatically if there is only one
                 if (index == 1)
                 {
@@ -147,7 +159,7 @@ namespace UnityEngine.Reflect
                 key = item.GetMenu().GetKey();
                 value = item.GetValue();
             }
-            
+
             Clear();
             CreateMenu();
 
@@ -177,28 +189,32 @@ namespace UnityEngine.Reflect
                 }
             }
         }
-        
+
         void OnObjectCreated(SyncObjectBinding obj)
         {
             AddChildren(obj.transform);
         }
-        
+
         void OnObjectDestroyed(SyncObjectBinding obj)
         {
             RemoveChildren(obj.transform);
         }
-        
+
         void AddChildren(Transform node)
         {
-            var rend = node.GetComponent<Renderer>();
-            if (rend != null)
+            var renderers = new List<Renderer>();
+            if (node.GetComponent<Metadata>())
             {
-                m_MaterialSwapper.AddRenderer(rend);
-                
-                bool selected = AddNode(node);
-                if (!selected && MenuItem.GetActiveMenuItem() != null)
+                renderers = node.GetComponentsInChildren<Renderer>().ToList();
+                if (renderers.Count > 0)
                 {
-                    m_MaterialSwapper.SwapRenderer(rend, m_TransparentMaterial);
+                    renderers.ForEach( (x) => m_MaterialSwapper.AddRenderer(x));
+                    
+                    bool selected = AddNode(node);
+                    if (!selected && MenuItem.GetActiveMenuItem() != null)
+                    {
+                        m_MaterialSwapper.SwapRenderers(renderers, m_TransparentMaterial);
+                    }
                 }
             }
 
@@ -212,9 +228,9 @@ namespace UnityEngine.Reflect
         bool AddNode(Transform node)
         {
             var ret = false;
-            foreach (var m in m_Menus)
+            foreach (var menu in m_Menus)
             {
-                if (m.AddNode(node))
+                if (menu.AddNode(node))
                 {
                     ret = true;
                 }
@@ -227,10 +243,10 @@ namespace UnityEngine.Reflect
         {
             RemoveNode(node);
 
-            var rend = node.GetComponent<Renderer>();
-            if (rend != null)
+            var renderers = node.GetComponentsInChildren<Renderer>().ToList();
+            if (renderers.Count > 0)
             {
-                m_MaterialSwapper.RemoveRenderer(rend);
+                renderers.ForEach (x => m_MaterialSwapper.RemoveRenderer(x));
             }
 
             //  parse children recursively

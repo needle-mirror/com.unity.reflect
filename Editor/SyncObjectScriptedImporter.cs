@@ -5,6 +5,7 @@ using Unity.Reflect.Model;
 using UnityEditor.Experimental.AssetImporters;
 using UnityEngine;
 using UnityEngine.Reflect;
+using UnityEngine.Rendering;
 
 namespace UnityEditor.Reflect
 {   
@@ -19,17 +20,25 @@ namespace UnityEditor.Reflect
             var sceneElement = PlayerFile.Load<SyncObject>(ctx.assetPath);
             
             Init(sceneElement.Name);
-            
-            var defaultMaterial = AssetDatabase.GetBuiltinExtraResource<Material>("Default-Material.mat");
+
+            var defaultMaterial = ReflectMaterialManager.defaultMaterial;
 
             var elementImporter = new SyncObjectImporter();
             var root = elementImporter.Import(sceneElement,
-                new SyncObjectImportSettings { defaultMaterial = defaultMaterial, importLights = m_ImportLights, materialCache = this, meshCache = this });
+                new SyncObjectImportConfig
+                {
+                    settings = new SyncObjectImportSettings { defaultMaterial = defaultMaterial, importLights = m_ImportLights }, materialCache = this, meshCache = this
+                });
 
             SetUniqueNames(root.transform); // TODO Find a deterministic way to avoid name collisions.
             
             ctx.AddObjectToAsset("root", root);
             ctx.SetMainObject(root);
+        }
+        
+        static bool IsUsingRenderPipeline()
+        {
+            return GraphicsSettings.renderPipelineAsset != null;
         }
         
         static void SetUniqueNames(Transform root)

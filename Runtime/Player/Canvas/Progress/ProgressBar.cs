@@ -11,6 +11,7 @@ public class ProgressBar : MonoBehaviour
 
     void Start()
     {
+        m_Max = 0;
         progress.GetComponent<Image>().color = color;
     }
 
@@ -54,5 +55,19 @@ public class ProgressBar : MonoBehaviour
     void OnCancel()
     {
         ui.SetActive(false);
+    }
+
+    int m_Max;
+    
+    public void SetProgressChanged(int remainingTasks)
+    {
+        m_Max = Mathf.Max(m_Max, remainingTasks);
+        
+        OnProgressChanged(1.0f - ((float) remainingTasks / m_Max), $"Remaining: {remainingTasks}");
+
+        if (remainingTasks <= 0)
+        {
+            OnCancel();
+        }
     }
 }

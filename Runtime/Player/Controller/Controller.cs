@@ -37,7 +37,7 @@ namespace UnityEngine.Reflect.Controller
             DestroyController();
         }
 
-        protected void Update()
+        protected void FixedUpdate()
         {
             if (IsBlocked())
                 return;

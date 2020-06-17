@@ -24,17 +24,19 @@ class XCodePostProcessBuild : IPostprocessBuildWithReport
 			var projectPath = path + "/Unity-iPhone.xcodeproj/project.pbxproj";
 			PBXProject pbxProject = new PBXProject();
 			pbxProject.ReadFromFile(projectPath);
-			string targetGuid = pbxProject.TargetGuidByName("Unity-iPhone");
+			string targetGuid = pbxProject.GetUnityFrameworkTargetGuid(); 
+			string frameworkGuid = pbxProject.GetUnityFrameworkTargetGuid(); 
 
 			//  disable bitcode because the gRPC library does not have bitcode
 			//  remove when using a gRPC library containing bitcode
 			pbxProject.SetBuildProperty(targetGuid, "ENABLE_BITCODE", "NO");
+			pbxProject.SetBuildProperty(frameworkGuid, "ENABLE_BITCODE", "NO");
 
 			//  include libz to support gRPC compression
-			pbxProject.AddFrameworkToProject(targetGuid, "libz.tbd", false);
+			pbxProject.AddFrameworkToProject(frameworkGuid, "libz.tbd", false);
 
 			//  include Safari Framework to support embedded Safari Login/Logout
-			pbxProject.AddFrameworkToProject(targetGuid, "SafariServices.framework", false);
+			pbxProject.AddFrameworkToProject(frameworkGuid, "SafariServices.framework", false);
 
 			pbxProject.WriteToFile(projectPath);
 			

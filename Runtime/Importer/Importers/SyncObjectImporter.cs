@@ -3,17 +3,23 @@ using Unity.Reflect.Model;
 
 namespace UnityEngine.Reflect
 {
+    public class SyncObjectImportConfig
+    {
+        public IMeshCache meshCache;
+        public IMaterialCache materialCache;
+        public SyncObjectImportSettings settings;
+    }
+    
+    [Serializable]
     public class SyncObjectImportSettings
     {
         public bool importLights;
         public Material defaultMaterial;
-        public IMeshCache meshCache;
-        public IMaterialCache materialCache;
     }
     
     public class SyncObjectImporter : RuntimeImporter<SyncObject, GameObject>
     {
-        public override GameObject CreateNew(SyncObject syncElement)
+        public override GameObject CreateNew(SyncObject syncElement, object settings)
         {
             return new GameObject(syncElement.Name);
         }
@@ -37,27 +43,14 @@ namespace UnityEngine.Reflect
 
         protected override void ImportInternal(SyncObject syncObject, GameObject gameObject, object settings)
         {
-            Import(syncObject, gameObject, (SyncObjectImportSettings)settings);
+            Import(syncObject, gameObject, (SyncObjectImportConfig)settings);
         }
 
-        static void Import(SyncObject syncObject, GameObject gameObject, SyncObjectImportSettings settings)
-        {            
-            if (syncObject.Metadata != null && syncObject.Metadata.Count() > 0)
-            {
-                var model = gameObject.AddComponent<Metadata>();
-                foreach (var parameter in syncObject.Metadata.Parameters)
-                {
-                    var uParameter = parameter.Value;
-                    model.parameters.dictionary.Add(parameter.Key, new Metadata.Parameter
-                    {
-                        group = uParameter.ParameterGroup, value = uParameter.Value, visible = uParameter.Visible
-                    });
-                }
-            }
-
+        static void Import(SyncObject syncObject, GameObject gameObject, SyncObjectImportConfig config)
+        {
             if (syncObject.MeshId != SyncId.None)
             {
-                var mesh = settings.meshCache.GetMesh(syncObject.MeshId.Value);
+                var mesh = config.meshCache.GetMesh(syncObject.MeshId.Value);
 
                 if (mesh != null)
                 {
@@ -80,18 +73,18 @@ namespace UnityEngine.Reflect
 
                             if (materialId != SyncId.None)
                             {
-                                material = settings.materialCache.GetMaterial(materialId.Value);
+                                material = config.materialCache.GetMaterial(materialId.Value);
                             }
                         }
                         
-                        materials[i] = material ? material : settings.defaultMaterial;
+                        materials[i] = material ? material : config.settings.defaultMaterial;
                     }
 
                     renderer.sharedMaterials = materials;
                 }
             }
 
-            if (settings.importLights && syncObject.Light != null)
+            if (config.settings.importLights && syncObject.Light != null)
             {
                 ImportLight(syncObject.Light, gameObject);
             }
@@ -110,7 +103,7 @@ namespace UnityEngine.Reflect
             {
                 foreach (var child in syncObject.Children)
                 {
-                    if (IsEmpty(child, settings))
+                    if (IsEmpty(child, config))
                         continue;
                     
                     var childObject = new GameObject(child.Name);
@@ -118,12 +111,12 @@ namespace UnityEngine.Reflect
                     childObject.transform.parent = gameObject.transform;
                     ImportersUtils.SetTransform(childObject.transform, child.Transform);
                     
-                    Import(child, childObject, settings);
+                    Import(child, childObject, config);
                 }
             }
         }
 
-        static bool IsEmpty(SyncObject syncObject, SyncObjectImportSettings settings)
+        static bool IsEmpty(SyncObject syncObject, SyncObjectImportConfig config)
         {
             if (syncObject.Children != null && syncObject.Children.Count > 0)
                 return false;
@@ -131,7 +124,7 @@ namespace UnityEngine.Reflect
             if (syncObject.MeshId != SyncId.None)
                 return false;
 
-            if (settings.importLights && syncObject.Light != null)
+            if (config.settings.importLights && syncObject.Light != null)
                 return false;
             
             if (syncObject.Rpc != null)

@@ -1,9 +1,16 @@
+using System;
+using UnityEngine.Events;
 using UnityEngine.Reflect.Controller.Gestures;
 using UnityEngine.Reflect.Controller.Gestures.Desktop;
 using UnityEngine.Reflect.Controller.Gestures.Touch;
 
 namespace UnityEngine.Reflect.Controller
 {
+    [Serializable]
+    public class DoubleClickOrTapEvent : UnityEvent<Vector2>
+    {
+    }
+    
     public class FreeCamController : Controller
     {
         static readonly float k_ElasticThreshold = 0.05f;
@@ -17,12 +24,15 @@ namespace UnityEngine.Reflect.Controller
         public float DesktopRotateAroundPivotSensitivity = 0.05f;
         public float DesktopRotateCameraSensitivity = 1;
         public Vector2 DesktopMoveSensitivity = Vector2.one;
+        public float DesktopShiftFactor = 2;
         public float TouchZoomSensitivity = 100;
         public float TouchZoomThreshold = .01f;
         public float TouchPanSensitivity = 200;
         public float TouchPanThreshold = .03f;
         public float TouchRotateSensitivity = 500;
 
+        public DoubleClickOrTapEvent m_OnDoubleClickOrTap;
+        
         float m_DistanceToPivot = 50;
         Vector3 m_CameraRotationEuler;
         Vector3 m_PivotRotationEuler;
@@ -48,6 +58,13 @@ namespace UnityEngine.Reflect.Controller
         {
             var t = transform;
             t.position = target - t.forward * m_DistanceToPivot;
+        }
+
+        public void ResetPosition()
+        {
+            m_DistanceToPivot = 50;
+            transform.localRotation = Quaternion.identity;
+            UpdatePosition(Vector3.zero);
         }
 
         void OnDrawGizmos()
@@ -100,8 +117,25 @@ namespace UnityEngine.Reflect.Controller
             mouseRotateCamera.startMove += StartRotateCamera;
             var moveCamera = new DirectionButtonsGesture(MoveCamera) {
                 Multiplier = DesktopMoveSensitivity,
+                ExcludedButtons = new KeyCode[]
+                {
+                    KeyCode.LeftShift
+                }
             };
-            listener.AddListeners(mouseZoom, mouseAltZoom, mousePan, mouseLeftClickRotate, mouseRotateCamera, moveCamera);
+            var moveCameraDouble = new DirectionButtonsGesture(MoveCamera)
+            {
+                Multiplier = DesktopMoveSensitivity * DesktopShiftFactor,
+                NeededButtons = new KeyCode[]
+                {
+                    KeyCode.LeftShift
+                }
+            };
+            var mouseTeleport = new MouseClickGesture(OnDoubleClickOrTap)
+            {
+                ClickNumber = 2
+            };
+            listener.AddListeners(mouseZoom, mouseAltZoom, mousePan, mouseLeftClickRotate, mouseRotateCamera, 
+                moveCamera, moveCameraDouble, mouseTeleport);
 
             // Subscribe to touch events
             var touchZoom = new TouchPinchGesture(ZoomMobile)
@@ -115,14 +149,16 @@ namespace UnityEngine.Reflect.Controller
                 Multiplier = - Vector2.one * TouchPanSensitivity,
                 DetectionThreshold = TouchPanThreshold
             };
-            touchPan.onPanStart += StartElasticPan;
-            touchPan.onPanEnd += StopElasticPan;
             var touchRotate = new TouchPanGesture(RotateAroundPivot)
             {
                 Multiplier = Vector2.one * TouchRotateSensitivity
             };
             touchRotate.onPanStart += StartRotateAroundPivot;
-            listener.AddListeners(touchZoom, touchPan, touchRotate);
+            var touchTeleport = new TouchMultiTapGesture(OnDoubleClickOrTap)
+            {
+                TapNumber = 2
+            };
+            listener.AddListeners(touchZoom, touchPan, touchRotate, touchTeleport);
         }
 
         void Zoom(float amount)
@@ -198,13 +234,18 @@ namespace UnityEngine.Reflect.Controller
             transform.position += transform.forward * direction.y + transform.right * direction.x;
         }
 
+        void OnDoubleClickOrTap(Vector2 position)
+        {
+            m_OnDoubleClickOrTap?.Invoke(position);
+        }
+
         protected override void UpdateController()
         {
             if (m_ElasticReturn)
             {
                 if ((Target - m_ElasticPanPoint).magnitude > k_ElasticThreshold)
                 {
-                    Target = Vector3.SmoothDamp(Target, m_ElasticPanPoint, ref m_ElasticVelocity, k_ElasticTime);
+                    Target = Vector3.SmoothDamp(Target, m_ElasticPanPoint, ref m_ElasticVelocity, k_ElasticTime, float.MaxValue, Time.fixedDeltaTime);
                 }
                 else
                 {

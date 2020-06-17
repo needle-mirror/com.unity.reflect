@@ -1,11 +1,22 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Grpc.Core;
 using Unity.EditorCoroutines.Editor;
 using Unity.Reflect;
+using Unity.Reflect.Model;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Reflect;
+
+static class DialogText
+{
+    public static readonly string title = "Reflect Material Upgrade";
+    public static readonly string proceed = "Proceed";
+    public static readonly string ok = "Ok";
+    public static readonly string cancel = "Cancel";
+    public static readonly string noSelectionMessage = "You must select at least one material.";
+}
 
 class ReflectWindow : EditorWindow
 {
@@ -13,6 +24,7 @@ class ReflectWindow : EditorWindow
     string m_ImportFolder = "Reflect";
 
     ProjectManagerInternal m_ProjectManagerInternal;
+    ReflectProjectDownloader m_ProjectDownloader;
 
     Vector2 m_ScrollPosition;
 
@@ -22,8 +34,6 @@ class ReflectWindow : EditorWindow
     DateTime m_LastUpdate;
     const double k_UpdateIntervalMs = 1000.0;
 
-    static readonly string k_DownloadFolder = ".downloads";
-
     static GUIStyle s_HeaderStyle;
 
     EditorCoroutine m_RefreshProjectsCoroutine;
@@ -32,11 +42,53 @@ class ReflectWindow : EditorWindow
 
     Exception m_RefreshProjectsException;
 
-    [UnityEditor.MenuItem("Window/Reflect")]
+    [UnityEditor.MenuItem("Window/Reflect/Reflect Window")]
     static void OpenWindow()
     {
         var window = GetWindow<ReflectWindow>("Reflect");
         window.Show();
+    }
+    
+    [UnityEditor.MenuItem("Window/Reflect/Convert to current RenderPipeline", priority = 1100)]
+    static void ConvertReflectToCurrentRenderPipeline()
+    {
+        var assetPaths = new List<string>();
+        
+        FindAssetWithExtension(SyncMaterial.Extension, assetPaths);
+        FindAssetWithExtension(SyncObject.Extension, assetPaths); // Because some SyncObjects might be using the defaultMaterial
+        FindAssetWithExtension(SyncPrefab.Extension, assetPaths); // TODO Investigate why it's not automatically triggered
+
+        if (assetPaths.Count == 0)
+        {
+            EditorUtility.DisplayDialog(DialogText.title, DialogText.noSelectionMessage, DialogText.ok);
+            return;
+        }
+
+        if (!EditorUtility.DisplayDialog(DialogText.title, $"Convert imported Reflect assets to {ReflectMaterialManager.converterName}", 
+            DialogText.proceed, DialogText.cancel))
+        {
+            return;
+        }
+
+        AssetDatabase.StartAssetEditing();
+
+        foreach (var assetPath in assetPaths)
+        {
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.Default);
+        }
+        
+        AssetDatabase.StopAssetEditing();
+    }
+
+    static void FindAssetWithExtension(string extension, List<string> assetPaths)
+    {
+        var fullPaths = Directory.GetFiles(Application.dataPath, $"*{extension}", SearchOption.AllDirectories);
+
+        foreach (var path in fullPaths)
+        {
+            var assetPath = path.Replace(Application.dataPath, "Assets" + Path.DirectorySeparatorChar);
+            assetPaths.Add(assetPath);
+        }
     }
 
     void OnEnable()
@@ -62,6 +114,29 @@ class ReflectWindow : EditorWindow
         {
             var fullImportFolder = Path.Combine(Application.dataPath, m_ImportFolder);
             m_ProjectManagerInternal = new ProjectManagerInternal(fullImportFolder, false, true);
+            
+            m_ProjectDownloader = new ReflectProjectDownloader(fullImportFolder);
+
+            m_ProjectDownloader.onProgressChanged += f =>
+            {
+                m_TaskProgress = f;
+                
+                if (m_TaskProgress < 1.0f)
+                {
+                    m_TaskInProgressName = "Downloading";
+                }
+                else
+                {
+                    m_TaskInProgressName = null;
+                    m_TaskProgress = 0.0f;
+                    AssetDatabase.Refresh();
+                }
+            };
+            m_ProjectDownloader.onError += exception =>
+            {
+                var msg = exception is RpcException rpcException ? rpcException.Status.Detail : exception.ToString();
+                Debug.LogError(msg);
+            };
 
             m_ProjectManagerInternal.progressChanged += (f, s) =>
             {
@@ -206,7 +281,7 @@ class ReflectWindow : EditorWindow
             {
                 if (ProjectGUI(project))
                 {
-                    EditorCoroutineUtility.StartCoroutine(m_ProjectManagerInternal.DownloadProjectLocally(project, true, null, k_DownloadFolder), this);
+                    EditorCoroutineUtility.StartCoroutine(m_ProjectDownloader.Download(project), this);
                 }
             }
         }

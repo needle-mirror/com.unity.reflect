@@ -12,7 +12,8 @@
           "Google.Protobuf": "3.7.0",
           "Grpc": "1.21.0",
           "Grpc.Tools": "1.21.0",
-          "NETStandard.Library": "2.0.3"
+          "NETStandard.Library": "2.0.3",
+          "NuGet.Build.Tasks.Pack": "5.2.0"
         },
         "runtime": {
           "Reflect.dll": {}
@@ -65,6 +66,7 @@
           "Microsoft.NETCore.Platforms": "1.1.0"
         }
       },
+      "NuGet.Build.Tasks.Pack/5.2.0": {},
       "System.Buffers/4.4.0": {
         "runtime": {
           "lib/netstandard2.0/System.Buffers.dll": {
@@ -166,6 +168,13 @@
       "sha512": "sha512-st47PosZSHrjECdjeIzZQbzivYBJFv6P2nv4cj2ypdI204DO+vZ7l5raGMiX4eXMJ53RfOIg+/s4DHVZ54Nu2A==",
       "path": "netstandard.library/2.0.3",
       "hashPath": "netstandard.library.2.0.3.nupkg.sha512"
+    },
+    "NuGet.Build.Tasks.Pack/5.2.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-jRE2Ya2cFTEu9XZ6rQtYjKE1a8q2KjCs0b8bd3cGlZ1cdgfZ6EgR2X0LZ/pCbN2WVcCRI7ISEIcqJ5Ji+Z1HMQ==",
+      "path": "nuget.build.tasks.pack/5.2.0",
+      "hashPath": "nuget.build.tasks.pack.5.2.0.nupkg.sha512"
     },
     "System.Buffers/4.4.0": {
       "type": "package",

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -65,11 +66,13 @@ namespace UnityEngine.Reflect
         public virtual bool AddNode(Transform node)
         {
             bool ret = false;
-            Renderer rend = node.GetComponent<Renderer>();
-            if (rend != null)
+            var renderers = node.GetComponentsInChildren<Renderer>().ToList();
+            if (renderers.Count > 0) 
             {
-                ret = m_Nodes.Add(rend);
-                m_FilterView.AddRenderer(rend);
+                int presize = m_Nodes.Count;
+                m_Nodes.UnionWith(renderers);
+                renderers.ForEach(x=>m_FilterView.AddRenderer(x));
+                ret = m_Nodes.Count > presize;
             }
 
             return ret;
@@ -77,10 +80,10 @@ namespace UnityEngine.Reflect
 
         public virtual void RemoveNode(Transform node)
         {
-            Renderer rend = node.GetComponent<Renderer>();
-            if (rend != null)
+            var renderers = node.GetComponentsInChildren<Renderer>().ToList();
+            if (renderers.Count > 0)
             {
-                m_Nodes.Remove(rend);
+                renderers.ForEach (x => m_Nodes.Remove(x));
             }
         }
 

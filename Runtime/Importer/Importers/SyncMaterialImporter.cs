@@ -2,12 +2,14 @@
 using Unity.Reflect.Model;
 
 namespace UnityEngine.Reflect
-{   
+{
     public class SyncMaterialImporter : RuntimeImporter<SyncMaterial, Material>
     {
-        public override Material CreateNew(SyncMaterial syncMaterial)
+        public override Material CreateNew(SyncMaterial syncMaterial, object settings = null)
         {
-            var material = new Material(StandardShaderHelper.GetShader(syncMaterial));            
+            var shader = ReflectMaterialManager.GetShader(syncMaterial);
+            
+            var material = new Material(shader);
             return material;
         }
 
@@ -18,8 +20,7 @@ namespace UnityEngine.Reflect
 
         protected override void ImportInternal(SyncMaterial syncMaterial, Material material, object settings)
         {
-            var textureCache = (ITextureCache)settings;
-            StandardShaderHelper.ComputeMaterial(syncMaterial, material, textureCache);
+            ReflectMaterialManager.ComputeMaterial(syncMaterial, material, settings as ITextureCache);
         }
     }
 }

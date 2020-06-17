@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
-using Unity.Reflect.Model;
+﻿﻿using System;
+using System.Collections.Generic;
+ using System.IO;
+ using Unity.Reflect.Model;
 
 namespace UnityEngine.Reflect
 {
@@ -9,21 +11,18 @@ namespace UnityEngine.Reflect
         readonly RuntimeMeshCache m_MeshCache;
         readonly RuntimeMaterialCache m_MaterialCache;
         readonly RuntimeObjectCache m_ObjectCache;
-        
-        Material m_DefaultMaterial = new Material(Shader.Find("Standard")) { color = Color.cyan };
 
         public SyncPrefabImporter(bool importLights, params string[] sources)
         {
             var assetSource = new AssetSource(sources);
-            
+
             m_TextureCache = new RuntimeTextureCache(assetSource);
             m_MaterialCache = new RuntimeMaterialCache(m_TextureCache, assetSource);
             m_MeshCache = new RuntimeMeshCache(assetSource);
             
-            var elementSettings = new SyncObjectImportSettings
+            var elementSettings = new SyncObjectImportConfig
             {
-                defaultMaterial = m_DefaultMaterial,
-                importLights = importLights,
+                settings = new SyncObjectImportSettings { defaultMaterial = ReflectMaterialManager.defaultMaterial, importLights = importLights },
                 materialCache = m_MaterialCache,
                 meshCache = m_MeshCache
             };
@@ -139,7 +138,7 @@ namespace UnityEngine.Reflect
             return root.transform;
         }
 
-        static SyncObjectBinding CreateInstance(Transform root, SyncObjectInstance instance, IObjectCache objectCache)
+        public static SyncObjectBinding CreateInstance(Transform root, SyncObjectInstance instance, IObjectCache objectCache)
         {
             var syncObject = objectCache.CreateInstance(instance.ObjectId.Value);
 
@@ -158,6 +157,14 @@ namespace UnityEngine.Reflect
             ImportersUtils.SetTransform(gameObject.transform, instance.Transform);
 
             var metadata = gameObject.GetComponent<Metadata>();
+
+
+            if (metadata != null)
+            {
+                Object.DestroyImmediate(metadata);
+            }
+
+            metadata = gameObject.AddComponent<Metadata>();
             if (metadata != null && instance.Metadata != null)
             {
                 foreach (var parameter in instance.Metadata.Parameters)

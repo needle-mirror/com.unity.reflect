@@ -9,6 +9,7 @@ namespace UnityEngine.Reflect
         public Button button;
         public Transform buttonBackground;
         public Transform ui;
+        public Button cancelScreenButton;
 
         public event Action<bool> OnVisiblityChanged;
         const float stepX = 80f;
@@ -24,6 +25,7 @@ namespace UnityEngine.Reflect
             {
                 index = transform.GetSiblingIndex();
                 sTopMenus.Add(this); // Fix Me. This will keep adding Menus if the Scene is reloaded
+                sTopMenus.Sort((a, b) => a.index - b.index);
             }
         }
 
@@ -89,7 +91,7 @@ namespace UnityEngine.Reflect
             OnVisiblityChanged?.Invoke(false);
         }
 
-        public void ShowButtons()
+        public static void ShowButtons()
         {
             if (!s_CanShowButtons)
             {
@@ -107,7 +109,7 @@ namespace UnityEngine.Reflect
             }
         }
 
-        public void HideButtons()
+        public static void HideButtons()
         {
             foreach (var m in sTopMenus)
             {
@@ -116,6 +118,36 @@ namespace UnityEngine.Reflect
                     m.button.gameObject.SetActive(false);
                     m.buttonBackground.gameObject.SetActive(false);
                 }
+            }
+        }
+
+        public static void EnableCancelScreenButtons(bool isEnabled)
+        {
+            foreach (var m in sTopMenus)
+            {
+                if (m.cancelScreenButton != null)
+                {
+                    m.cancelScreenButton.gameObject.SetActive(isEnabled);
+                }
+            }
+        }
+
+        public static void DeactivateAll()
+        {
+            foreach (var m in sTopMenus)
+            {
+                if (m.button != null)
+                {
+                    m.Deactivate();
+                }
+            }
+        }
+
+        public static void Click(int index)
+        {
+            if (0 <= index && index < sTopMenus.Count)
+            {
+                sTopMenus[index].OnClick();
             }
         }
     }

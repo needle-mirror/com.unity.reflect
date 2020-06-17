@@ -7,96 +7,129 @@ using Unity.Reflect.Data;
 namespace UnityEngine.Reflect
 {
     class ServiceObserver
-    {
-        public delegate void ManifestUpdated(string projectId, string sessionId, SyncManifest newManifest);
-        public event ManifestUpdated OnManifestUpdated;
+    {        
+        public delegate void ManifestUpdated(string projectId, IPlayerClient playerClient, bool allManifests, string[] sourceIds);        
+        public event ManifestUpdated onManifestsUpdated;
 
-        public delegate void EventStreamUpdated(bool connected);
-        public event EventStreamUpdated OnEventStreamUpdated;
+        bool m_SyncStarted;
+        public event Action onSyncEnabled;
+        public event Action onSyncDisabled;
+        public event Action onSyncStarted;
+        public event Action onSyncStopped;
 
-        public IPlayerClient Client { get; private set; }
+        IPlayerClient m_Client;
 
-        readonly List<object> m_PendingEvents = new List<object>();
+        readonly List<object> m_PendingEvents = new List<object>();        
         string m_ObservedProjectId;
 
-        public void Connect(Project project)
+        public ServiceObserver(IUpdateDelegate updateDelegate)
+        {
+            if (updateDelegate != null)
+            {
+                updateDelegate.onUpdate += Update;
+            }
+        }
+
+        public void BindProject(Project project)
         {
             Disconnect();
             m_ObservedProjectId = project.projectId;
+            
+            if (project == Project.Empty)
+            {
+                onSyncDisabled?.Invoke();
+                return;
+            }            
 
-            // Create new client from channel and start observation
-            Debug.Log($"Connect to new channel");
-            Client = Player.CreateClient(project, ProjectServerEnvironment.UnityUser, ProjectServerEnvironment.Client);
-            Client.ConnectionStatusChanged += ConnectionStatusChanged;
+            try
+            {
+                m_Client = Player.CreateClient(project, ProjectServerEnvironment.UnityUser, ProjectServerEnvironment.Client);
+                m_Client.ConnectionStatusChanged += ConnectionStatusChanged;
+                onSyncEnabled?.Invoke();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"An error occured connecting to PlayerClient: {e}");
+                
+                // A limitation here is we can't recover a connection if the initial connection fails for now
+                BindProject(Project.Empty);
+            }
         }
 
         public void StartSync()
         {
-            Client.ManifestUpdated += OnManifestUpdate;
-            UpdateAllManifests();
+            m_SyncStarted = true;
+            m_Client.ManifestUpdated += OnManifestUpdate;
+            onSyncStarted?.Invoke();
         }
 
         public void StopSync()
         {
-            Client.ManifestUpdated -= OnManifestUpdate;
-            PopPendingEvents();
+            m_SyncStarted = false;
+            m_Client.ManifestUpdated -= OnManifestUpdate;
+            PopPendingEvents(); 
+            onSyncStopped?.Invoke();
+        }
+
+        void Update(float unscaledDeltaTime)
+        {
+            ProcessPendingEvents();
         }
 
         public void ProcessPendingEvents()
         {
             var pendingEvents = PopPendingEvents();
-
+            var updatedManifests = new List<SyncManifest>();            
+            
             var connectionStatusEvents = pendingEvents.OfType<ConnectionStatus>().ToList();
             if (connectionStatusEvents.Any())
             {
-                var isConnected = connectionStatusEvents.Last() == ConnectionStatus.Connected;
-                Debug.Log($"ServiceObserver.StreamEventNotify on projectId '{m_ObservedProjectId}', isConnected: {isConnected}");
-
-                OnEventStreamUpdated?.Invoke(isConnected);
-                if (!isConnected)
+                if (connectionStatusEvents.Last() != ConnectionStatus.Connected)
                 {
-                    Disconnect();
+                    Debug.Log($"ServiceObserver disconnected from stream on projectId '{m_ObservedProjectId}'");
+                    onSyncDisabled?.Invoke();
                     return;
                 }
+                
+                Debug.Log($"ServiceObserver connected to stream on projectId '{m_ObservedProjectId}'");
+                onSyncEnabled?.Invoke();
+                
+                if (m_SyncStarted)
+                {
+                    onManifestsUpdated?.Invoke(m_ObservedProjectId, m_Client, true, Array.Empty<string>());
+                }
             }
-
-            var manifestEvents = pendingEvents.OfType<ManifestUpdatedEventArgs>().ToList();
-            foreach (var sourceId in manifestEvents.Select(e => e.SourceId).Distinct())
+            else if (m_SyncStarted)
             {
-                var newManifest = Client.GetManifest(sourceId);
-                OnManifestUpdated?.Invoke(m_ObservedProjectId, sourceId, newManifest.Manifest);
+                var manifestEvents = pendingEvents.OfType<ManifestUpdatedEventArgs>().ToList();
+                if (manifestEvents.Any())
+                {
+                    var sourceIds = manifestEvents.Select(e => e.SourceId).Distinct().ToArray();
+                    onManifestsUpdated?.Invoke(m_ObservedProjectId, m_Client, false, sourceIds);
+                }                
             }
         }
-
-        void UpdateAllManifests()
+        
+        void Disconnect()
         {
-            var response = Client.GetManifests();
-
-            foreach (var responseManifest in response)
-            {
-                OnManifestUpdated?.Invoke(m_ObservedProjectId, responseManifest.SourceId, responseManifest.Manifest);
-            }
-        }
-
-        public void Disconnect()
-        {
-            if (Client == null)
+            if (m_Client == null)
             {
                 return;
             }
 
             StopSync();
-            Client.ConnectionStatusChanged -= ConnectionStatusChanged;
+            m_Client.ConnectionStatusChanged -= ConnectionStatusChanged;
+
             try
             {
                 Debug.Log($"Releasing observation of service.");
-                Client.Dispose();
+                m_Client.Dispose();
             }
             catch (Exception ex)
             {
                 Debug.LogError($"An error occured releasing m_Client: {ex.Message}");
             }
-            Client = null;
+            m_Client = null;
         }
 
         object[] PopPendingEvents()

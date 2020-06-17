@@ -56,6 +56,11 @@ namespace UnityEngine.Reflect
             }
         }
 
+        private const string KeyFromPathOldValue = "\\";
+        private const string KeyFromPathNewValue = "/";
+
+        private static readonly Dictionary<string, string> _keysFromPaths = new Dictionary<string, string>();
+
         readonly Dictionary<string, TAsset> m_Cache = new Dictionary<string, TAsset>();
 
         readonly Dictionary<int, OwnerCount> m_OwnerCount = new Dictionary<int, OwnerCount>();
@@ -122,7 +127,7 @@ namespace UnityEngine.Reflect
         {
             var model = m_AssetSource.LoadModel<TModel>(key);
 
-            var asset = TryGet(key) ?? m_Importer.CreateNew(model);
+            var asset = TryGet(key) ?? m_Importer.CreateNew(model, settings);
 
             m_Importer.Reimport(model, asset, settings);
 
@@ -149,7 +154,12 @@ namespace UnityEngine.Reflect
         
         static string KeyFromPath(string path)
         {
-            return path.ToLowerInvariant().Replace("\\", "/"); // TODO Improve this
+            if (_keysFromPaths.TryGetValue(path, out var key))
+                return key;
+
+            key = path.ToLowerInvariant().Replace(KeyFromPathOldValue, KeyFromPathNewValue);
+            _keysFromPaths.Add(path, key);
+            return key;
         }
     }
 }

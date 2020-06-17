@@ -4,7 +4,6 @@
         "Unity.Reflect",
         "Unity.EditorCoroutines.Editor"
     ],
-    "optionalUnityReferences": [],
     "includePlatforms": [
         "Editor"
     ],
@@ -14,5 +13,27 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": []
+    "versionDefines": [
+        {
+            "name": "com.unity.render-pipelines.high-definition",
+            "expression": "7.1.8",
+            "define": "HDRP_AVAILABLE"
+        },
+        {
+            "name": "com.unity.render-pipelines.universal",
+            "expression": "7.1.8",
+            "define": "URP_AVAILABLE"
+        },
+        {
+            "name": "com.unity.render-pipelines.high-definition",
+            "expression": "6.9.0-preview",
+            "define": "HDRP_AVAILABLE"
+        },
+        {
+            "name": "com.unity.render-pipelines.lightweight",
+            "expression": "6.9.0",
+            "define": "LWRP_AVAILABLE"
+        }
+    ],
+    "noEngineReferences": false
 }
