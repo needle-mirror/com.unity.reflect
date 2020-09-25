@@ -284,7 +284,7 @@ namespace UnityEngine.Reflect
 
         static void AssignMap(this Material material, int id, SyncMap map, ITextureCache textureCache)
         {
-            var texture2D = map.TextureId != SyncId.None ? textureCache.GetTexture(map.TextureId.Value) : null;
+            var texture2D = map.TextureId != SyncId.None ? textureCache.GetTexture(map.TextureId) : null;
 
             material.SetTexture(id, texture2D);
 

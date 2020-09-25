@@ -32,7 +32,7 @@ namespace UnityEngine.Reflect
 
         void Awake()
         {
-            ProjectServerEnvironment.Init();
+            ProjectServer.Init();
             UpdateDisplay();
         }
 
@@ -97,7 +97,7 @@ namespace UnityEngine.Reflect
         {
             // This seems to be called before awake. Make sure ProjectServerEnvironment
             // is initialized on the main thread.
-            ProjectServerEnvironment.Init();
+            ProjectServer.Init();
             
             m_SessionToken = token;
             m_IsLoggedIn = !string.IsNullOrEmpty(m_SessionToken);
@@ -125,7 +125,7 @@ namespace UnityEngine.Reflect
         IEnumerator GetUserInfoCoroutine(string token)
         {
             // Use ContinueWith to make sure the task doesn't throw
-            var task = Task.Run(() => ProjectServerEnvironment.Client.GetUserInfo(token));//.ContinueWith(t => t);
+            var task = Task.Run(() => ProjectServer.Client.GetUserInfo(token));//.ContinueWith(t => t);
             while (!task.IsCompleted)
             {
                 yield return null;

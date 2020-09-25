@@ -21,8 +21,11 @@ namespace UnityEngine.Reflect
         public string serverProjectId => $"{m_UnityProject.Host.ServerId}:{m_UnityProject.ProjectId}";
         public string projectId => m_UnityProject.ProjectId;
         public string name => m_UnityProject.Name;
+        public UnityProjectHost host => m_UnityProject.Host;
         public string description => m_UnityProject.Host.ServerName;
-        internal bool isAvailableOnline => m_UnityProject.Source == UnityProject.SourceOption.ProjectServer;
+        public bool isAvailableOnline => m_UnityProject.Source == UnityProject.SourceOption.ProjectServer;
+
+        public DateTime lastPublished => m_UnityProject.LastPublished;
 
         public Project(UnityProject unityProject)
         {
@@ -78,7 +81,7 @@ namespace UnityEngine.Reflect
             m_LocalStorage = new PlayerStorage(storageRoot, useServerFolder, useProjectNameAsRootFolder);
         }
 
-        public ProjectManagerInternal() : this(ProjectServerEnvironment.ProjectDataPath, true, false)
+        public ProjectManagerInternal() : this(ProjectServer.ProjectDataPath, true, false)
         {
         }
 
@@ -116,7 +119,7 @@ namespace UnityEngine.Reflect
             {
                 try
                 {
-                    client = Player.CreateClient(project, ProjectServerEnvironment.UnityUser, ProjectServerEnvironment.Client);
+                    client = Player.CreateClient(project, ProjectServer.UnityUser, ProjectServer.Client);
                 }
                 catch (ConnectionException ex)
                 {
@@ -568,13 +571,13 @@ namespace UnityEngine.Reflect
         {
             onProjectsRefreshBegin?.Invoke();
 
-            var user = ProjectServerEnvironment.UnityUser;
+            var user = ProjectServer.UnityUser;
             var projects = new List<Project>();
 
             if (user != null)
             {
                 // Use ContinueWith to make sure the task doesn't throw
-                var task = Task.Run(() => ProjectServerEnvironment.Client.ListProjects(user, m_LocalStorage)).ContinueWith(t => t);
+                var task = Task.Run(() => ProjectServer.Client.ListProjects(user, m_LocalStorage)).ContinueWith(t => t);
                 while (!task.IsCompleted)
                 {
                     yield return null;

@@ -33,7 +33,7 @@ public class UserSession
             {
                 m_Manager.StopCoroutine("WaitForSessionCompletion");
             }
-            m_Task = Task.Run(() => ProjectServerEnvironment.Client.GetUserInfo(newToken));
+            m_Task = Task.Run(() => ProjectServer.Client.GetUserInfo(newToken));
             m_Manager.StartGetUserInfo(m_Task);
         }
         else

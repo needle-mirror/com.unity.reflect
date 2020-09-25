@@ -1,0 +1,19 @@
+{
+    "name": "Unity.Reflect.Pipeline.Editor",
+    "references": [
+        "Unity.Reflect.Pipeline"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "PIPELINE_API"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

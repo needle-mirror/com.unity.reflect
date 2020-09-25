@@ -88,7 +88,7 @@ namespace UnityEngine.Reflect
 
         protected static void AssignMap(Material material, string id, SyncMap map, ITextureCache textureCache) // TODO Use int ID
         {
-            var texture2D = map.TextureId != SyncId.None ? textureCache.GetTexture(map.TextureId.Value) : null;
+            var texture2D = map.TextureId != SyncId.None ? textureCache.GetTexture(map.TextureId) : null;
 
             material.SetTexture(id, texture2D);
 

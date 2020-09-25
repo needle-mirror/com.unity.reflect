@@ -58,14 +58,14 @@ namespace UnityEditor.Reflect
             }
         }
         
-        public Material GetMaterial(string key)
+        public Material GetMaterial(SyncId id)
         {
-            return GetReferencedAsset<Material>(key);
+            return GetReferencedAsset<Material>(id.Value);
         }
 
-        public Mesh GetMesh(string key)
+        public Mesh GetMesh(SyncId id)
         {
-            return GetReferencedAsset<Mesh>(key);
+            return GetReferencedAsset<Mesh>(id.Value);
         }
     }
 }

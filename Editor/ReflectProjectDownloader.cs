@@ -33,7 +33,7 @@ class ReflectProjectDownloader
         IPlayerClient client = null;
         try
         {
-            client = Player.CreateClient(project, ProjectServerEnvironment.UnityUser, ProjectServerEnvironment.Client);
+            client = Player.CreateClient(project, ProjectServer.UnityUser, ProjectServer.Client);
         }
         catch (ConnectionException ex)
         {

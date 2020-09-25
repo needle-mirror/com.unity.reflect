@@ -1,0 +1,65 @@
+using System;
+using Unity.Reflect.Model;
+using UnityEngine;
+using UnityEngine.Reflect;
+using UnityEngine.Reflect.Pipeline;
+
+namespace Unity.Reflect.Samples
+{
+    class SampleMaterialConverterNode : MaterialConverterNode
+    {
+        public Shader opaqueShader;
+        public Shader transparentShader;
+        
+        protected override MaterialConverter Create(ISyncModelProvider provider, IExposedPropertyTable resolver)
+        {
+            var converter = new SampleMaterialConverter(textureCacheParam.value, output, opaqueShader, transparentShader);
+
+            input.streamEvent = converter.OnStreamEvent;
+
+            return converter;
+        }
+    }
+
+    class SampleMaterialConverter : MaterialConverter
+    {
+        readonly Shader m_OpaqueShader;
+        readonly Shader m_TransparentShader;
+
+        public SampleMaterialConverter(ITextureCache textureCache, IOutput<SyncedData<Material>> output, Shader opaqueShader, Shader transparentShader)
+            : base(textureCache, output)
+        {
+            m_OpaqueShader = opaqueShader;
+            m_TransparentShader = transparentShader;
+        }
+
+        protected override Material Import(SyncMaterial syncMaterial)
+        {
+            Material material;
+            
+            if (syncMaterial.Alpha >= 1.0f)
+            {
+                material = new Material(m_OpaqueShader);
+                
+                var map = syncMaterial.AlbedoMap;
+                if (map.TextureId != SyncId.None)
+                {
+                    material.SetTexture("_MainTex", m_TextureCache.GetTexture(map.TextureId));
+
+                    var offset = map.Offset;
+                    material.SetTextureOffset("_MainTex", new Vector2(offset.X, offset.Y));
+
+                    var tiling = map.Tiling;
+                    material.SetTextureScale("_MainTex", new Vector2(tiling.X, tiling.Y));
+                }
+            }
+            else
+            {
+                material = new Material(m_TransparentShader);
+                material.SetFloat("_Alpha", syncMaterial.Alpha);
+            }
+
+            return material;
+        }
+    }
+}

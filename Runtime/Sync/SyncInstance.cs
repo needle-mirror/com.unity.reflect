@@ -238,14 +238,6 @@ namespace UnityEngine.Reflect
                     {
                         //Debug.Log("Adding Element Instance : " + identifier);
                         syncObject = m_SyncPrefabImporter.CreateInstance(m_SyncInstanceRoot, instance);
-                        if (syncObject != null)
-                        {
-                            onObjectCreated?.Invoke(syncObject);
-                            if (++counter % 20 == 0)
-                            {
-                                yield return null;
-                            }
-                        }
                     }
 
                     if (syncObject != null)
@@ -254,11 +246,17 @@ namespace UnityEngine.Reflect
 
                         // Hack. Put the instance at its positions even if it didn't change. TODO Optimize
                         ImportersUtils.SetTransform(syncObject.transform, instance.Transform);
+                        
+                        onObjectCreated?.Invoke(syncObject);
+                        if (++counter % 20 == 0)
+                        {
+                            yield return null;
+                        }
                     }
                 }
             }
-
-			// Remove any non referenced elements
+            
+            // Remove any non referenced elements
             var keys = m_ElementInstances.Keys.ToArray();
             foreach (var key in keys)
             {

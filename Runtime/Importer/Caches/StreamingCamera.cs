@@ -198,7 +198,6 @@ namespace UnityEngine.Reflect
                     instance.Key.RemoveVisibilityFilter(m_VisibilityFilter);
                 }
 
-                m_SyncManager.ApplyPrefabChanges();
                 m_Instances.Clear();
                 m_References.Clear();
             }

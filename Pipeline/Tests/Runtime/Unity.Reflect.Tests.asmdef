@@ -1,0 +1,24 @@
+{
+    "name": "Unity.Reflect.Tests",
+    "references": [
+        "Unity.Reflect",
+        "Unity.Reflect.Pipeline",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "Reflect.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "PIPELINE_API"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

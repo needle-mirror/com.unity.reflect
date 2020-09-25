@@ -64,5 +64,27 @@ namespace UnityEngine.Reflect
             var scl = uTransform.Scale;
             transform.localScale = new Vector3(scl.X, scl.Y, scl.Z);
         }
+
+        public static void SetMetadata(GameObject gameObject, SyncMetadata uMetadata)
+        {
+            var metadata = gameObject.GetComponent<Metadata>();
+            if (metadata != null)
+                Object.DestroyImmediate(metadata);
+
+            metadata = gameObject.AddComponent<Metadata>();
+            if (metadata != null && uMetadata != null)
+            {
+                foreach (var parameter in uMetadata.Parameters)
+                {
+                    var parameterValue = parameter.Value;
+                    metadata.parameters.dictionary[parameter.Key] = new Metadata.Parameter
+                    {
+                        group = parameterValue.ParameterGroup,
+                        value = parameterValue.Value,
+                        visible = parameterValue.Visible
+                    };
+                }
+            }
+        }
     }
 }

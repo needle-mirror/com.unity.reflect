@@ -26,7 +26,7 @@ namespace UnityEngine.Reflect
         {
             if (updateDelegate != null)
             {
-                updateDelegate.onUpdate += Update;
+                updateDelegate.update += Update;
             }
         }
 
@@ -43,7 +43,7 @@ namespace UnityEngine.Reflect
 
             try
             {
-                m_Client = Player.CreateClient(project, ProjectServerEnvironment.UnityUser, ProjectServerEnvironment.Client);
+                m_Client = Player.CreateClient(project, ProjectServer.UnityUser, ProjectServer.Client);
                 m_Client.ConnectionStatusChanged += ConnectionStatusChanged;
                 onSyncEnabled?.Invoke();
             }

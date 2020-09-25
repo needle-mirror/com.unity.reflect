@@ -23,6 +23,9 @@ namespace UnityEngine.Reflect
     [System.Serializable]
     public class FailureEvent : UnityEvent<string> {}
 
+    [System.Serializable]
+    public class DeepLinkingEvent : UnityEvent<string> {}
+
     internal static class UrlHelper
     {
         private static readonly string k_UriScheme = "reflect";
@@ -44,6 +47,7 @@ namespace UnityEngine.Reflect
         public FailureEvent authenticationFailed;
         public UnityUserUnityEvent userLoggedIn;
         public UnityEvent userLoggedOut;
+        public DeepLinkingEvent deepLinkingRequested;
 
         private IAuthenticatable authBackend;
         private string m_TokenPersistentPath;
@@ -73,13 +77,17 @@ namespace UnityEngine.Reflect
                 userLoggedOut = new UnityEvent();
             }
 
-            ProjectServerEnvironment.Init();
+            ProjectServer.Init();
 #if UNITY_EDITOR
             authBackend = new UnityEditorAuthBackend(this);
 #elif UNITY_STANDALONE_OSX
             authBackend = new OSXStandaloneAuthBackend(this);
 #elif UNITY_STANDALONE_WIN
             authBackend = new WindowsStandaloneAuthBackend(this);
+#elif UNITY_IOS
+            authBackend = new IOSAuthBackend(this);
+#elif UNITY_ANDROID
+            authBackend = new AndroidAuthBackend(this);
 #endif
             m_TokenPersistentPath = Path.Combine(Application.persistentDataPath, k_JwtTokenFileName);
         }
@@ -93,6 +101,13 @@ namespace UnityEngine.Reflect
         void FixedUpdate()
         {
             authBackend?.Update();
+        }
+
+        void OnDisable()
+        {
+            authBackend = null;
+            session = null;
+            ProjectServer.Cleanup();
         }
 
         internal void ProcessToken(string token, bool update = true)
@@ -211,6 +226,11 @@ namespace UnityEngine.Reflect
         {
             yield return 0;
             userLoggedOut?.Invoke();
+        }
+
+        public void onDeeplink(string deeplink)
+        {
+            deepLinkingRequested?.Invoke(deeplink);
         }
     }
 }

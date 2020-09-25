@@ -5,7 +5,7 @@ namespace UnityEngine.Reflect
 {
     public interface IMeshCache
     {
-        Mesh GetMesh(string key);
+        Mesh GetMesh(SyncId id);
     }
     
     class RuntimeMeshCache : RuntimeCache<SyncMesh, Mesh>, IMeshCache
@@ -15,9 +15,9 @@ namespace UnityEngine.Reflect
         {
         }
         
-        public Mesh GetMesh(string key)
+        public Mesh GetMesh(SyncId id)
         {
-            return Import(key, null);
+            return Import(id.Value, null);
         }  
         
         public void Reimport(string key)

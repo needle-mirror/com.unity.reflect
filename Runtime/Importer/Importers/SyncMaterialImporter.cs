@@ -10,6 +10,7 @@ namespace UnityEngine.Reflect
             var shader = ReflectMaterialManager.GetShader(syncMaterial);
             
             var material = new Material(shader);
+            material.enableInstancing = true;
             return material;
         }
 

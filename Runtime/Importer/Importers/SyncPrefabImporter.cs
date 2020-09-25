@@ -155,29 +155,7 @@ namespace UnityEngine.Reflect
             gameObject.name = instance.Name;
             gameObject.transform.parent = root;
             ImportersUtils.SetTransform(gameObject.transform, instance.Transform);
-
-            var metadata = gameObject.GetComponent<Metadata>();
-
-
-            if (metadata != null)
-            {
-                Object.DestroyImmediate(metadata);
-            }
-
-            metadata = gameObject.AddComponent<Metadata>();
-            if (metadata != null && instance.Metadata != null)
-            {
-                foreach (var parameter in instance.Metadata.Parameters)
-                {
-                    var parameterValue = parameter.Value;
-                    metadata.parameters.dictionary[parameter.Key] = new Metadata.Parameter
-                    {
-                        group = parameterValue.ParameterGroup,
-                        value = parameterValue.Value,
-                        visible = parameterValue.Visible
-                    };
-                }
-            }
+            ImportersUtils.SetMetadata(gameObject, instance.Metadata);
 
             return syncObject;
         }

@@ -11,9 +11,9 @@ namespace UnityEditor.Reflect
     [ScriptedImporter(1, "SyncMaterial", importQueueOffset:1)]
     public class SyncMaterialScriptedImporter : ReflectScriptedImporter, ITextureCache
     {       
-        public virtual Texture2D GetTexture(string key)
+        public virtual Texture2D GetTexture(SyncId id)
         {           
-            return GetReferencedAsset<Texture2D>(key);
+            return GetReferencedAsset<Texture2D>(id.Value);
         }
         
         public override void OnImportAsset(AssetImportContext ctx)

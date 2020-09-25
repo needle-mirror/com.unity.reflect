@@ -26,11 +26,14 @@ namespace UnityEngine.Reflect
         [DllImport("User32.dll")]
         static extern bool IsIconic(IntPtr handle);
 
+        [DllImport("user32.dll")]
+        public static extern IntPtr FindWindow(string className, string windowName);
+
         bool IsMainViewer = false;
         bool IsTopMost = true;
         string ViewProjectId = string.Empty;
         private LoginManager m_Manager;
-        
+
         private readonly string k_LoginUrl = "https://api.unity.com/v1/oauth2/authorize?client_id=industrial_reflect&response_type=rsa_jwt&state=hello&redirect_uri=reflect://implicit/callback/login/";
         private readonly string k_LogoutUrl = "https://api.unity.com/v1/oauth2/end-session";
         private readonly string k_RegistryUrlProtocol = "URL Protocol";
@@ -46,8 +49,19 @@ namespace UnityEngine.Reflect
             Application.focusChanged += OnApplicationFocus;
         }
 
+        void SetLoginUrlWithWindowPtr()
+        {
+            IntPtr hWnd = GetWindowHandle();
+            m_ReflectLoginUrl = $"{k_LoginUrl}{hWnd}";
+        }
+
         void OnApplicationFocus(bool hasFocus)
         {
+            if (hasFocus)
+            {
+                SetLoginUrlWithWindowPtr();
+            }
+
             if (IsMainViewer)
             {
 
@@ -81,11 +95,10 @@ namespace UnityEngine.Reflect
         {
             m_Manager.ReadPersistentToken();
 
-            AddRegistryKeys();
             string[] args = Environment.GetCommandLineArgs();
-            var myHandle = GetWindowHandle();
 
-            m_ReflectLoginUrl = $"{k_LoginUrl}{myHandle}";
+            SetLoginUrlWithWindowPtr();
+
             // Unity usual start command have the path to application as single argument
             // Some Build will mishandle spaces and artificially creates more than 1 argument
             var appPathFound = false;
@@ -94,7 +107,7 @@ namespace UnityEngine.Reflect
             for (var i=0;i<args.Length;i++)
             {
                 if (!appPathFound) {
-                     if (i > 0) 
+                     if (i > 0)
                      {
                          appPath += " ";
                      }
@@ -102,10 +115,10 @@ namespace UnityEngine.Reflect
                      appPathFound = File.Exists(appPath);
                      Debug.Log($"appPathFound {appPathFound} : {appPath}");
                  }
-                 else 
+                 else
                  {
-                     if (!string.IsNullOrEmpty(trailingArg)) 
-                     {   
+                     if (!string.IsNullOrEmpty(trailingArg))
+                     {
                          trailingArg += " ";
                      }
                      trailingArg += args[i];
@@ -121,10 +134,10 @@ namespace UnityEngine.Reflect
             {
                  // Request from dashboard to open specific project in app
                  // OPEN_PROJECT_REQUEST ?jwt=token projectId
-                 if (trailingArg.StartsWith("OPEN_PROJECT_REQUEST")) 
+                 if (trailingArg.StartsWith("OPEN_PROJECT_REQUEST"))
                  {
                      var splitRequest = trailingArg.Split(' ');
-                     // If at least idToken and projectId is provided 
+                     // If at least idToken and projectId is provided
                      if (splitRequest.Length > 2) {
                          ViewProjectId = splitRequest[2];
                          if (UrlHelper.TryCreateUriAndValidate(splitRequest[1], UriKind.Absolute, out var uri))
@@ -133,7 +146,7 @@ namespace UnityEngine.Reflect
                          }
                      }
                  }
-                 else 
+                 else
                  {
                      if (UrlHelper.TryCreateUriAndValidate(trailingArg, UriKind.Absolute, out var uri))
                      {
@@ -150,12 +163,13 @@ namespace UnityEngine.Reflect
 
         public void Login()
         {
+            AddRegistryKeys();
             Application.OpenURL(m_ReflectLoginUrl);
         }
 
         public void Logout()
         {
-            var url = ProjectServerEnvironment.UnityUser?.LogoutUrl?.AbsoluteUri;
+            var url = ProjectServer.UnityUser?.LogoutUrl?.AbsoluteUri;
             if (!string.IsNullOrEmpty(url))
             {
                 Debug.Log($"Sign out using: {url}");
@@ -175,6 +189,12 @@ namespace UnityEngine.Reflect
 
         static IntPtr GetWindowHandle()
         {
+            // "UnityWndClass" is the string value returned when invoking user32.dll GetClassName function
+            IntPtr hWnd = FindWindow("UnityWndClass", Application.productName);
+            if (hWnd != IntPtr.Zero)
+            {
+                return hWnd;
+            }
             return GetActiveWindow();
         }
 
@@ -195,26 +215,32 @@ namespace UnityEngine.Reflect
 
         void AddRegistryKeys()
         {
+            var appDomainLocation = typeof(AppDomain).Assembly.Location;
+            var subPath = appDomainLocation.Substring(0, appDomainLocation.LastIndexOf("_Data\\Managed\\"));
+            var lastFolderIndex = subPath.LastIndexOf("\\");
+            var exePathRoot =  subPath.Substring(0, lastFolderIndex + 1);
+            var exeAppName = subPath.Substring(lastFolderIndex + 1);
+            var applicationLocation =  $"{exePathRoot}{exeAppName}.exe";
+            
             // Early exit if entry already exists and has the current application path
             using (Microsoft.Win32.RegistryKey reflectKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("SOFTWARE\\Classes\\" + k_UriScheme, false))
             {
-                var appDomainLocation = typeof(AppDomain).Assembly.Location;
-                var managedSubFolder = $"{Application.productName}_Data\\Managed\\";
-                var applicationLocation = appDomainLocation.Substring(0, appDomainLocation.LastIndexOf(managedSubFolder)) + $"{Application.productName}.exe";
-
                 if (reflectKey != null)
                 {
                     var shellKey = reflectKey.OpenSubKey(k_RegistryShellKey);
-                    var shellKeyApplicationPath = shellKey.GetValue("") as string;
-                    if (shellKeyApplicationPath.Contains(applicationLocation))
+                    if (shellKey != null)
                     {
-                        return;
+                        var shellKeyApplicationPath = shellKey.GetValue("") as string;
+                        if (shellKeyApplicationPath.Contains(applicationLocation))
+                        {
+                            return;
+                        }
                     }
                 }
-                RegisterUriScheme(applicationLocation);
             }
+            RegisterUriScheme(applicationLocation);
         }
-        
+
         public void RegisterUriScheme(string applicationLocation)
         {
             // Use CurrentUser, since LocalMachine will fail on some browser
@@ -228,13 +254,20 @@ namespace UnityEngine.Reflect
                 }
             }
         }
-    
+
         void ReadUrlCallback(Uri uri)
         {
             var urlToken = uri.Query.Substring(k_jwtParamName.Length);
-            m_Manager.ProcessToken(urlToken);
             if (string.IsNullOrEmpty(ViewProjectId))
             {
+                var saveToDirectory = $"{Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)}/Unity/Reflect/{Application.productName}";
+                if (!Directory.Exists(saveToDirectory))
+                {
+                    Directory.CreateDirectory(saveToDirectory);
+                }
+                var viewerTokenFilePath = Path.Combine(saveToDirectory, k_JwtTokenFileName);
+                File.WriteAllText(viewerTokenFilePath, urlToken);
+
                 var pathAndQuery = uri.PathAndQuery;
                 var startIndex = pathAndQuery.LastIndexOf("/") + 1;
                 var endIndex = pathAndQuery.LastIndexOf("?");
@@ -246,11 +279,7 @@ namespace UnityEngine.Reflect
                 var canExit = true;
                 try
                 {
-                    // If processId not found, keep current instance
-                    if (IsIconic(processIdIntPtr))
-                    {
-                        ShowWindow(processIdIntPtr, ShowWindowEnum.Restore);
-                    }
+                    SetWindowPos(processIdIntPtr, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
                     canExit = SetForegroundWindow(processIdIntPtr) != 0;
                 }
                 catch (Exception)

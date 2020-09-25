@@ -6,7 +6,7 @@ namespace UnityEngine.Reflect
 {
     public interface ITextureCache
     {
-        Texture2D GetTexture(string key);
+        Texture2D GetTexture(SyncId id);
     }
     
     class RuntimeTextureCache : RuntimeCache<SyncTexture, Texture2D>, ITextureCache
@@ -16,9 +16,9 @@ namespace UnityEngine.Reflect
         {
         }
         
-        public Texture2D GetTexture(string key)
+        public Texture2D GetTexture(SyncId id)
         {
-            return Import(key, null);
+            return Import(id.Value, null);
         }
         
         public void Reimport(string key)

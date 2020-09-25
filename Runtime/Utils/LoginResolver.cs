@@ -55,17 +55,17 @@ public class LoginResolver : MonoBehaviour
     [DllImport("__Internal")]
     extern static void DismissSafariWebView();
 #endif
- 
+
 #if UNITY_STANDALONE_OSX && !UNITY_EDITOR
 
-    [DllImport("__Internal")]
+    [DllImport("OSXReflectViewerPlugin")]
     static extern void DeepLink_Reset();
 
-    [DllImport("__Internal")]
+    [DllImport("OSXReflectViewerPlugin")]
     static extern string DeepLink_GetURL();
 
-    [DllImport("__Internal")]
-    static extern string DeepLink_GetSourceApplication();
+    [DllImport("OSXReflectViewerPlugin")]
+    static extern string DeepLink_GetProcessId();
 #endif
 
     void Start()
@@ -81,12 +81,15 @@ public class LoginResolver : MonoBehaviour
             + "Other Settings -> Api Compatibility Level)."
         );
 #endif
+
+#if UNITY_STANDALONE_OSX && !UNITY_EDITOR
+        m_ReflectLoginUrl = $"{k_LoginUrl}{DeepLink_GetProcessId()}";
+#endif
+
 #if UNITY_IOS && !UNITY_EDITOR
         UnityDeeplinks_init(gameObject.name);
 #endif
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
-        AddRegistryKeys();
-
         if (m_Interop == null) 
         {
             m_Interop = new WindowsStandaloneInterop();
@@ -181,12 +184,12 @@ public class LoginResolver : MonoBehaviour
     // We use this event to try and read the local file containing the jwt token.
     void OnApplicationFocus(bool hasFocus)
     {
-        #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
             if (hasFocus)
             {
                 SetLoginUrlWithWindowPtr();
             }
-        #endif
+#endif
 
         if (IsMainViewer)
         {
@@ -338,6 +341,7 @@ public class LoginResolver : MonoBehaviour
             m_Interop.OnDisable();
             m_Interop = null;
         }
+        ProjectServer.Cleanup();
     }
 
     void RemovePersistentToken()
@@ -350,6 +354,9 @@ public class LoginResolver : MonoBehaviour
     public void DisplayLoginBrowserWindow()
     {
         Debug.Log($"Sign in using: {m_ReflectLoginUrl}");
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+        AddRegistryKeys();
+#endif
 #if UNITY_IOS && !UNITY_EDITOR
         LaunchSafariWebViewUrl(m_ReflectLoginUrl);
 #else
@@ -359,7 +366,7 @@ public class LoginResolver : MonoBehaviour
 
     public void LogoutRequest()
     {
-        var unityUserLogoutUrl = ProjectServerEnvironment.UnityUser?.LogoutUrl?.AbsoluteUri;
+        var unityUserLogoutUrl = ProjectServer.UnityUser?.LogoutUrl?.AbsoluteUri;
         if (!string.IsNullOrEmpty(unityUserLogoutUrl))
         {
             Debug.Log($"Sign out using: {unityUserLogoutUrl}");
@@ -459,7 +466,8 @@ public class LoginResolver : MonoBehaviour
     
     public static IntPtr GetWindowHandle()
     {
-        IntPtr hWnd = FindWindow(null, Application.productName);
+        // "UnityWndClass" is the string value returned when invoking user32.dll GetClassName function
+        IntPtr hWnd = FindWindow("UnityWndClass", Application.productName);
         if (hWnd != IntPtr.Zero) 
         {
             return hWnd;
@@ -484,24 +492,30 @@ public class LoginResolver : MonoBehaviour
 
     void AddRegistryKeys()
     {
+        var appDomainLocation = typeof(AppDomain).Assembly.Location;
+        var subPath = appDomainLocation.Substring(0, appDomainLocation.LastIndexOf("_Data\\Managed\\"));
+        var lastFolderIndex = subPath.LastIndexOf("\\");
+        var exePathRoot =  subPath.Substring(0, lastFolderIndex + 1);
+        var exeAppName = subPath.Substring(lastFolderIndex + 1);
+        var applicationLocation =  $"{exePathRoot}{exeAppName}.exe";
+
         // Early exit if entry already exists and has the current application path
         using (Microsoft.Win32.RegistryKey reflectKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("SOFTWARE\\Classes\\" + k_UriScheme, false))
         {
-            var appDomainLocation = typeof(AppDomain).Assembly.Location;
-            var managedSubFolder = $"{Application.productName}_Data\\Managed\\";
-            var applicationLocation = appDomainLocation.Substring(0, appDomainLocation.LastIndexOf(managedSubFolder)) + $"{Application.productName}.exe";
-
             if (reflectKey != null)
             {
                 var shellKey = reflectKey.OpenSubKey(k_RegistryShellKey);
-                var shellKeyApplicationPath = shellKey.GetValue("") as string;
-                if (shellKeyApplicationPath.Contains(applicationLocation))
+                if (shellKey != null)
                 {
-                    return;
+                    var shellKeyApplicationPath = shellKey.GetValue("") as string;
+                    if (shellKeyApplicationPath.Contains(applicationLocation))
+                    {
+                        return;
+                    }
                 }
             }
-            RegisterUriScheme(applicationLocation);
         }
+        RegisterUriScheme(applicationLocation);
     }
 
     public void RegisterUriScheme(string applicationLocation)

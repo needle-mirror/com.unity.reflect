@@ -110,7 +110,7 @@ namespace UnityEngine.Reflect
         public void SetUnityUser(UnityUser unityUser = null)
         {
             Debug.Log($"ProjectManager.SetUnityUser: {unityUser != null}");
-            ProjectServerEnvironment.UnityUser = unityUser;
+            ProjectServer.UnityUser = unityUser;
             StartDiscovery();
         }
     }

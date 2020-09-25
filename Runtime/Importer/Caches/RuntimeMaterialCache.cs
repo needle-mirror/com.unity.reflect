@@ -5,7 +5,7 @@ namespace UnityEngine.Reflect
 {   
     public interface IMaterialCache
     {
-        Material GetMaterial(string key);
+        Material GetMaterial(SyncId id);
     }
     
     class RuntimeMaterialCache : RuntimeCache<SyncMaterial, Material>, IMaterialCache
@@ -18,9 +18,9 @@ namespace UnityEngine.Reflect
             m_TextureCache = textureCache;
         }
                 
-        public Material GetMaterial(string key)
+        public Material GetMaterial(SyncId id)
         {
-            return string.IsNullOrEmpty(key) ? null : Import(key, m_TextureCache);
+            return id == SyncId.None ? null : Import(id.Value, m_TextureCache);
         }
         
         public Material Reimport(string key)

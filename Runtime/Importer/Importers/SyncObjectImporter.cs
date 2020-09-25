@@ -50,7 +50,7 @@ namespace UnityEngine.Reflect
         {
             if (syncObject.MeshId != SyncId.None)
             {
-                var mesh = config.meshCache.GetMesh(syncObject.MeshId.Value);
+                var mesh = config.meshCache.GetMesh(syncObject.MeshId);
 
                 if (mesh != null)
                 {
@@ -73,7 +73,7 @@ namespace UnityEngine.Reflect
 
                             if (materialId != SyncId.None)
                             {
-                                material = config.materialCache.GetMaterial(materialId.Value);
+                                material = config.materialCache.GetMaterial(materialId);
                             }
                         }
                         

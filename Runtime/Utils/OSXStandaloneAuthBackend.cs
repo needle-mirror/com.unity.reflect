@@ -9,14 +9,14 @@ namespace UnityEngine.Reflect
 {
     internal class OSXStandaloneAuthBackend : IAuthenticatable
     {
-        [DllImport("__Internal")]
+        [DllImport("OSXReflectViewerPlugin")]
         static extern void DeepLink_Reset();
 
-        [DllImport("__Internal")]
+        [DllImport("OSXReflectViewerPlugin")]
         static extern string DeepLink_GetURL();
 
-        [DllImport("__Internal")]
-        static extern string DeepLink_GetSourceApplication();
+        [DllImport("OSXReflectViewerPlugin")]
+        static extern string DeepLink_GetProcessId();
 
         private LoginManager m_Manager;
         private readonly string k_LoginUrl = "https://api.unity.com/v1/oauth2/authorize?client_id=industrial_reflect&response_type=rsa_jwt&state=hello&redirect_uri=reflect://implicit/callback/login/";
@@ -35,12 +35,14 @@ namespace UnityEngine.Reflect
 
         public void Login()
         {
-            Application.OpenURL(k_LoginUrl);
+            var loginUrl = $"{k_LoginUrl}{DeepLink_GetProcessId()}"; 
+            Debug.Log($"Sign in using: {loginUrl}");
+            Application.OpenURL(loginUrl);
         }
 
         public void Logout()
         {
-            var url = ProjectServerEnvironment.UnityUser?.LogoutUrl?.AbsoluteUri;
+            var url = ProjectServer.UnityUser?.LogoutUrl?.AbsoluteUri;
             if (!string.IsNullOrEmpty(url))
             {
                 Debug.Log($"Silent Sign out using: {url}");

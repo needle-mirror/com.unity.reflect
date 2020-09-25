@@ -1,0 +1,5 @@
+{
+	"displayName":"Pipeline API",
+	"description": "Samples for the Reflect Pipeline API demonstrating how to customize a Reflect Model import into Unity at runtime.",
+	"createSeparatePackage": false
+}
