@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 
 namespace UnityEngine.Reflect
 {
+    // Windows OS interop layer
     internal class WindowsStandaloneInterop : IInteropable
     {
 
@@ -17,9 +18,6 @@ namespace UnityEngine.Reflect
         static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 
         [DllImport("user32.dll")]
-        static extern IntPtr SetWindowLong(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
-
-        [DllImport("user32.dll")]
         static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
         public delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
@@ -28,42 +26,35 @@ namespace UnityEngine.Reflect
         IntPtr m_PreviousMainWindowWndProcPtr = IntPtr.Zero;
         IntPtr m_WndProcDelegatePtr;
         WndProcDelegate m_WndProcDelegate;
+
+        private LoginManager m_LoginManager;
         
         const uint WM_SETTEXT = 0x000C;
 
         readonly string k_MainWindowTitle = Application.productName;
         string m_InstanceId;
         bool m_HasDelegate = false;
+        
+        internal WindowsStandaloneInterop(LoginManager loginManager)
+        {
+            m_LoginManager = loginManager;
+        }
 
         public void Start()
         {
             if (m_HasDelegate) return;
-
             m_InstanceId = Guid.NewGuid().ToString();
-            m_MainWindow = LoginResolver.GetWindowHandle();
+            m_MainWindow = WindowsStandaloneAuthBackend.GetWindowHandle();
             m_WndProcDelegate = new WndProcDelegate(wndProc);
             m_WndProcDelegatePtr = Marshal.GetFunctionPointerForDelegate(m_WndProcDelegate);
-            // Depending on arch, we will replace the window ptr for wndProc
-            try 
+            try
             {
-                m_PreviousMainWindowWndProcPtr = SetWindowLong(m_MainWindow, -4, m_WndProcDelegatePtr);
+                m_PreviousMainWindowWndProcPtr = SetWindowLongPtr(m_MainWindow, -4, m_WndProcDelegatePtr);
                 m_HasDelegate = true;
             }
-            catch (Exception longex)
+            catch (Exception longptrex)
             {
-                Debug.Log($"set wndProc long exception: {longex}");
-            }
-            if (!m_HasDelegate)
-            {
-                try
-                {
-                    m_PreviousMainWindowWndProcPtr = SetWindowLongPtr(m_MainWindow, -4, m_WndProcDelegatePtr);
-                    m_HasDelegate = true;
-                }
-                catch (Exception longptrex)
-                {
-                    Debug.Log($"set wndProc longPtr exception: {longptrex}");
-                }
+                Debug.Log($"set wndProc longPtr exception: {longptrex}");
             }
         }
 
@@ -76,11 +67,9 @@ namespace UnityEngine.Reflect
             if (msg == WM_SETTEXT)
             {
                 var message = Marshal.PtrToStringAnsi(lParam);
-                if (message.StartsWith("OPEN_PROJECT_REQUEST"))
-                {
-                    var request = message.Split(' ');
-                    // TODO handle the request
-                    Debug.Log($"open projectid {request[2]} request using token: {request[1]}");
+                if (UrlHelper.TryParseDeepLink(message, out var token, out var route, out var args))
+                {   
+                    m_LoginManager.ProcessDeepLink(token, route, args);
                     return IntPtr.Zero;
                 }
             }

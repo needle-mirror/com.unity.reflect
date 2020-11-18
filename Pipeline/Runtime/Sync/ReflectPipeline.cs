@@ -1,22 +1,50 @@
-﻿using System;
-using System.Linq;
+using System;
+using Unity.Reflect.Utils;
 
 namespace UnityEngine.Reflect.Pipeline
 {
     [Serializable]
     class ExposedReferenceLookUp : SerializableDictionary<PropertyName, Object> { }
-
-    public class ReflectPipeline : MonoBehaviour, IUpdateDelegate, IExposedPropertyTable
+    
+    public class ReflectPipeline : MonoBehaviour, IUpdateDelegate, IExposedPropertyTable, ILogReceiver
     {
+#pragma warning disable CS0649
+        [SerializeField, HideInInspector]
+        ReflectBootstrapperBehavior m_Hook;
+#pragma warning restore CS0649
+
         public PipelineAsset pipelineAsset;
 
         public event Action<float> update;
+
+        // Use this event to do any change on the pipeline, like adding node or change connections.
+        // Any change done on the pipeline after this callback is not legal and can have unexpected effects.
+        public event Action beforeInitialize;
+
+        // Use this event to access newly created node processors. Do not use this callback to change the pipeline. 
+        public event Action afterInitialize;
         
         [SerializeField, HideInInspector]
         ExposedReferenceLookUp m_ExposedReferenceLookUp = new ExposedReferenceLookUp();
 
         PipelineRunner m_PipelineRunner;
-        
+
+        void Awake()
+        {
+            if (m_Hook == null)
+            {
+                m_Hook = gameObject.AddComponent<ReflectBootstrapperBehavior>();
+            }
+            
+            // Register to Logs coming from the Reflect core assembly
+            Unity.Reflect.Utils.Logger.AddReceiver(this);
+        }
+
+        void OnDestroy()
+        {
+            Unity.Reflect.Utils.Logger.RemoveReceiver(this);
+        }
+
         public bool TryGetNode<T>(out T node) where T : class, IReflectNode
         {
             node = null;
@@ -38,11 +66,15 @@ namespace UnityEngine.Reflect.Pipeline
                 return;
             }
 
-            m_PipelineRunner = new PipelineRunner();
+            beforeInitialize?.Invoke();
+
+            m_PipelineRunner = new PipelineRunner(m_Hook.Hook);
             
             m_PipelineRunner.CreateProcessors(this, provider);
             
             m_PipelineRunner.Initialize();
+            
+            afterInitialize?.Invoke();
         }
 
         public void RefreshPipeline()
@@ -91,6 +123,30 @@ namespace UnityEngine.Reflect.Pipeline
         public void ClearReferenceValue(PropertyName id)
         {
             m_ExposedReferenceLookUp.Remove(id);
+        }
+        
+        void ILogReceiver.LogReceived(Unity.Reflect.Utils.Logger.Level level, string msg)
+        {
+            switch (level)
+            {
+                case Unity.Reflect.Utils.Logger.Level.Debug:
+                case Unity.Reflect.Utils.Logger.Level.Info:
+                    Debug.Log(msg);
+                    break;
+
+                case Unity.Reflect.Utils.Logger.Level.Warn:
+                    Debug.LogWarning(msg);
+                    break;
+
+                case Unity.Reflect.Utils.Logger.Level.Error:
+                case Unity.Reflect.Utils.Logger.Level.Fatal:
+                    Debug.LogError(msg);
+                    break;
+
+                default:
+                    Debug.Log(msg);
+                    break;
+            }
         }
     }
 }

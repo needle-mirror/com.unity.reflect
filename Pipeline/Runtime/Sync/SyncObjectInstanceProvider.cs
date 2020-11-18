@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Reflect;
 using Unity.Reflect.Data;
 using Unity.Reflect.Model;
 
@@ -15,7 +14,7 @@ namespace UnityEngine.Reflect.Pipeline
         public StreamAssetInput input = new StreamAssetInput();
         public StreamInstanceOutput output = new StreamInstanceOutput();
         
-        protected override SyncObjectInstanceProvider Create(ISyncModelProvider provider, IExposedPropertyTable resolver)
+        protected override SyncObjectInstanceProvider Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
             var node = new SyncObjectInstanceProvider(provider, output);
 
@@ -54,6 +53,8 @@ namespace UnityEngine.Reflect.Pipeline
                 this.streamInstance = streamInstance;
             }
         }
+
+        AsyncAutoResetEvent m_DownloadRequestEvent = new AsyncAutoResetEvent();
 
         readonly ConcurrentQueue<StreamAsset> m_DownloadRequests;
         readonly ConcurrentQueue<DownloadResult> m_DownloadResults;
@@ -105,13 +106,13 @@ namespace UnityEngine.Reflect.Pipeline
                 if (!PersistentKey.IsKeyFor<SyncObjectInstance>(stream.key.key))
                     return;
                 
-                m_DownloadRequests.Enqueue(stream.data);
+                EnqueueDownloadRequest(stream.data);
             }
             else if (streamEvent == StreamEvent.Changed)
             {
                 if (PersistentKey.IsKeyFor<SyncObjectInstance>(stream.key.key))
                 {
-                    m_DownloadRequests.Enqueue(stream.data);
+                    EnqueueDownloadRequest(stream.data);
                 }
                 else if (PersistentKey.IsKeyFor<SyncObject>(stream.key.key))
                 {
@@ -120,7 +121,7 @@ namespace UnityEngine.Reflect.Pipeline
                     foreach (var instance in instances)
                     {
                         m_DirtySyncObject.Add(instance.key);
-                        m_DownloadRequests.Enqueue(instance);
+                        EnqueueDownloadRequest(instance);
                     }
                 }
             }
@@ -208,6 +209,11 @@ namespace UnityEngine.Reflect.Pipeline
                 m_State = State.Idle;
             }
         }
+        void EnqueueDownloadRequest(StreamAsset item)
+        {
+            m_DownloadRequests.Enqueue(item);
+            m_DownloadRequestEvent.Set();
+        }
 
         async Task DownloadTask(CancellationToken token)
         {
@@ -227,7 +233,10 @@ namespace UnityEngine.Reflect.Pipeline
                     }
                 }
 
-                await Task.WhenAll(tasks);
+                if (tasks.Count > 0)
+                    await Task.WhenAll(tasks);
+                else
+                    await m_DownloadRequestEvent.WaitAsync(token);
             }
         }
 

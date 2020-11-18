@@ -6,15 +6,19 @@ namespace UnityEngine.Reflect.Pipeline
 {
     public class PipelineRunner
     {
+        ReflectBootstrapper m_Hook;
+
         IReflectRootNode m_Root;
-
         IList<IReflectNode> m_Nodes;
-
         IList<IReflectNodeProcessor> m_Processors;
-
         IUpdateDelegate m_UpdateDelegate;
 
         public IEnumerable<IReflectNodeProcessor> processors => m_Processors;
+
+        public PipelineRunner(ReflectBootstrapper hook)
+        {
+            m_Hook = hook;
+        }
 
         public void CreateProcessors(ReflectPipeline pipeline, ISyncModelProvider provider)
         {
@@ -44,7 +48,7 @@ namespace UnityEngine.Reflect.Pipeline
 
             foreach (var node in m_Nodes)
             {
-                var n = node.CreateProcessor(provider, resolver);
+                var n = node.CreateProcessor(m_Hook, provider, resolver);
                 
                 if (n is ReflectTask task)
                 {

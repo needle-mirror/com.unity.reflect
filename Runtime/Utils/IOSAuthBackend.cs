@@ -1,25 +1,24 @@
-﻿#if UNITY_IOS //&& !UNITY_EDITOR && PIPELINE_API
+﻿#if UNITY_IOS
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Unity.Reflect.Utils;
 using UnityEngine;
+using UnityEngine.SocialPlatforms;
 
 namespace UnityEngine.Reflect
 {
-    public class IOSAuthBackend : IAuthenticatable
+    public class IOSAuthBackend : IAuthenticatable, IDeepLinkable
     {
-        [DllImport("__Internal")]
-        private static extern void UnityDeeplinks_init(string gameObject = null, string deeplinkMethod = null);
+        private DeepLinkManager m_DeepLinkManager;
+
+        private LoginManager m_Manager;
+
         [DllImport("__Internal")]
         static extern void LaunchSafariWebViewUrl(string url);
         [DllImport("__Internal")]
         static extern void DismissSafariWebView();
-
-        private LoginManager m_Manager;
-        private readonly string k_LoginUrl = "https://api.unity.com/v1/oauth2/authorize?client_id=industrial_reflect&response_type=rsa_jwt&state=hello&redirect_uri=reflect://implicit/callback/login/";
-        private readonly string k_LogoutUrl = "https://api.unity.com/v1/oauth2/end-session";
-        private readonly string k_jwtParamName = "?jwt=";
 
         internal IOSAuthBackend(LoginManager manager)
         {
@@ -28,8 +27,7 @@ namespace UnityEngine.Reflect
 
         public void Start()
         {
-            UnityDeeplinks_init(m_Manager.gameObject.name);
-            m_Manager.deepLinkingRequested.AddListener(OnDeepLinkingRequested);
+            m_DeepLinkManager = new DeepLinkManager(m_Manager);
             m_Manager.ReadPersistentToken();
         }
 
@@ -39,32 +37,18 @@ namespace UnityEngine.Reflect
 
         public void Login()
         {
-            LaunchSafariWebViewUrl(k_LoginUrl);
+            LaunchSafariWebViewUrl(AuthConfiguration.LoginUrl);
         }
 
         public void Logout()
         {
-            var url = ProjectServer.UnityUser?.LogoutUrl?.AbsoluteUri;
-            if (!string.IsNullOrEmpty(url))
-            {
-                Debug.Log($"Silent Sign out using: {url}");
-                m_Manager.InvalidateToken();
-                LaunchSafariWebViewUrl(url);
-            }
-            else
-            {
-                Debug.Log($"Sign out using: {k_LogoutUrl}");
-                m_Manager.InvalidateToken();
-                LaunchSafariWebViewUrl(k_LogoutUrl);
-            }
+            Debug.Log($"Sign out using: {AuthConfiguration.LogoutUrl}");
+            m_Manager.InvalidateToken();
+            LaunchSafariWebViewUrl(AuthConfiguration.LogoutUrl);
         }
 
-        private void OnDeepLinkingRequested(string deepLinkingInfo)
+        public void DeepLinkComplete()
         {
-            if (UrlHelper.TryCreateUriAndValidate(deepLinkingInfo, UriKind.Absolute, out var uri))
-            {
-                m_Manager.ProcessToken(uri.Query.Substring(k_jwtParamName.Length));
-            }
             DismissSafariWebView();
         }
     }

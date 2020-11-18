@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Reflect;
 using UnityEngine.Reflect.Pipeline;
 
 namespace Unity.Reflect.Samples
@@ -11,7 +12,7 @@ namespace Unity.Reflect.Samples
         public StreamInstanceInput input = new StreamInstanceInput();
         public StreamInstanceOutput output = new StreamInstanceOutput();
 
-        protected override MetadataHardFilter Create(ISyncModelProvider provider, IExposedPropertyTable resolver)
+        protected override MetadataHardFilter Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
             var filter = new MetadataHardFilter(output);
 

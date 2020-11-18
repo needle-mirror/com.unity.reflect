@@ -89,7 +89,7 @@ namespace UnityEditor.Reflect
                 FindProperties(props);
                 m_MaterialEditor = materialEditor;
                 
-                StandardShaderHelper.ComputeKeywords(material);
+                StandardShaderHelper.ComputeFlagsAndKeywords(material);
                 m_FirstTimeApply = false;
             }
 
@@ -123,7 +123,7 @@ namespace UnityEditor.Reflect
 
             DoTintArea();
             
-            StandardShaderHelper.ComputeKeywords(material);
+            StandardShaderHelper.ComputeFlagsAndKeywords(material);
 
             EditorGUILayout.Space();
             

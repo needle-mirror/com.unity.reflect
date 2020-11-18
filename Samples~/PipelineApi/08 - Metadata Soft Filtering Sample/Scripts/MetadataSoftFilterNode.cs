@@ -11,7 +11,7 @@ namespace Unity.Reflect.Samples
     {
         public StreamInstanceInput instanceInput = new StreamInstanceInput();
         public GameObjectInput gameObjectInput = new GameObjectInput();
-        protected override MetadataSoftFilter Create(ISyncModelProvider provider, IExposedPropertyTable resolver)
+        protected override MetadataSoftFilter Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
             var filter = new MetadataSoftFilter();
 

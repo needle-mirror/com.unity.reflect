@@ -24,7 +24,7 @@ namespace UnityEngine.Reflect.Pipeline
     {
         public StreamAssetOutput assetOutput = new StreamAssetOutput();
 
-        protected override ProjectStreamer Create(ISyncModelProvider provider, IExposedPropertyTable resolver)
+        protected override ProjectStreamer Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
            return new ProjectStreamer(provider, assetOutput);
         }

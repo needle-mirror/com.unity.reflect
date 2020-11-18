@@ -24,7 +24,7 @@ namespace UnityEngine.Reflect.Pipeline.Samples
         public GameObjectInput input = new GameObjectInput();
         public GameObjectReplacerNodeSettings settings;
 
-        protected override GameObjectReplacer Create(ISyncModelProvider provider, IExposedPropertyTable resolver)
+        protected override GameObjectReplacer Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
             var node = new GameObjectReplacer(settings);
             input.streamEvent = node.OnGameObjectEvent;

@@ -8,7 +8,7 @@ namespace UnityEngine.Reflect.Pipeline.Samples
     {
         public GameObjectInput input = new GameObjectInput();
 
-        protected override AddCollider Create(ISyncModelProvider provider, IExposedPropertyTable resolver)
+        protected override AddCollider Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
             var node = new AddCollider();
             input.streamEvent = node.OnGameObjectEvent;

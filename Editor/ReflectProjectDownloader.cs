@@ -8,7 +8,7 @@ using Unity.Reflect;
 using Unity.Reflect.Data;
 using Unity.Reflect.IO;
 using Unity.Reflect.Model;
-using UnityEngine;
+using UnityEditor.Reflect;
 using UnityEngine.Reflect;
 
 class ReflectProjectDownloader

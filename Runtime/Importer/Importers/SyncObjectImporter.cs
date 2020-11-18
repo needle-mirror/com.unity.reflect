@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Unity.Reflect.Model;
 
 namespace UnityEngine.Reflect
@@ -9,7 +10,17 @@ namespace UnityEngine.Reflect
         public IMaterialCache materialCache;
         public SyncObjectImportSettings settings;
     }
-    
+
+    public class ObjectDependencies
+    {
+        public List<(SyncId Id, Mesh Mesh)> meshes;
+
+        public ObjectDependencies(List<(SyncId, Mesh)> meshes)
+        {
+            this.meshes = meshes;
+        }
+    }
+
     [Serializable]
     public class SyncObjectImportSettings
     {
@@ -22,6 +33,15 @@ namespace UnityEngine.Reflect
         public override GameObject CreateNew(SyncObject syncElement, object settings)
         {
             return new GameObject(syncElement.Name);
+        }
+
+        public (ObjectDependencies Dependencies, GameObject GameObject) ImportAndGetDependencies(SyncObject model, object settings)
+        {
+            var asset = CreateNew(model, settings);
+
+            var dependencies = Import(model, asset, (SyncObjectImportConfig)settings);
+
+            return (dependencies, asset);
         }
 
         protected override void Clear(GameObject gameObject)
@@ -46,14 +66,18 @@ namespace UnityEngine.Reflect
             Import(syncObject, gameObject, (SyncObjectImportConfig)settings);
         }
 
-        static void Import(SyncObject syncObject, GameObject gameObject, SyncObjectImportConfig config)
+        static ObjectDependencies Import(SyncObject syncObject, GameObject gameObject, SyncObjectImportConfig config)
         {
+            var meshes = new List<(SyncId, Mesh)>();
+
             if (syncObject.MeshId != SyncId.None)
             {
                 var mesh = config.meshCache.GetMesh(syncObject.MeshId);
 
                 if (mesh != null)
                 {
+                    meshes.Add((syncObject.MeshId, mesh));
+
                     var meshFilter = gameObject.AddComponent<MeshFilter>();
                     meshFilter.sharedMesh = mesh;
 
@@ -76,7 +100,7 @@ namespace UnityEngine.Reflect
                                 material = config.materialCache.GetMaterial(materialId);
                             }
                         }
-                        
+
                         materials[i] = material ? material : config.settings.defaultMaterial;
                     }
 
@@ -114,6 +138,8 @@ namespace UnityEngine.Reflect
                     Import(child, childObject, config);
                 }
             }
+
+            return new ObjectDependencies(meshes);
         }
 
         static bool IsEmpty(SyncObject syncObject, SyncObjectImportConfig config)

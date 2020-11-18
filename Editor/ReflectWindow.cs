@@ -6,6 +6,7 @@ using Unity.EditorCoroutines.Editor;
 using Unity.Reflect;
 using Unity.Reflect.Model;
 using UnityEditor;
+using UnityEditor.Reflect;
 using UnityEngine;
 using UnityEngine.Reflect;
 
@@ -25,6 +26,8 @@ class ReflectWindow : EditorWindow
 
     ProjectManagerInternal m_ProjectManagerInternal;
     ReflectProjectDownloader m_ProjectDownloader;
+
+    public const string ReflectLandingPageUrl = "https://unity.com/aec/reflect";
 
     Vector2 m_ScrollPosition;
 
@@ -186,6 +189,8 @@ class ReflectWindow : EditorWindow
     {
         if (m_ProjectManagerInternal != null)
         {
+            m_ProjectManagerInternal.Cancel();
+
             m_ProjectManagerInternal.onProjectsRefreshBegin -= OnProjectRefreshBegin;
             m_ProjectManagerInternal.onProjectsRefreshEnd -= OnProjectRefreshEnd;
 
@@ -257,7 +262,7 @@ class ReflectWindow : EditorWindow
             {
                 if (GUILayout.Button("Learn more", GUILayout.Width(100)))
                 {
-                    Application.OpenURL(ProjectMenuManager.ReflectLandingPageUrl);
+                    Application.OpenURL(ReflectLandingPageUrl);
                 }
             }
 
@@ -305,7 +310,8 @@ class ReflectWindow : EditorWindow
         EditorGUILayout.BeginVertical(boxStyle);
 
         EditorGUILayout.LabelField(project.name, s_HeaderStyle);
-        EditorGUILayout.LabelField(project.description);
+        EditorGUILayout.LabelField(string.Format("Location: {0}", project.description));
+        EditorGUILayout.LabelField(string.Format("Last Modified : {0}", project.lastPublished.ToString("MMMM dd, yyyy")));
 
         var pressed = false;
 

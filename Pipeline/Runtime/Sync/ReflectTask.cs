@@ -75,7 +75,7 @@ namespace UnityEngine.Reflect.Pipeline
                     Debug.LogError($"Task {this} did not stop after {timeOut}MS ({m_Task.Status}).");
                 }
             }
-            catch (TaskCanceledException)
+            catch (Exception)
             {
                 // Task properly cancelled
             }

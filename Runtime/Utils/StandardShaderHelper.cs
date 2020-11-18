@@ -77,17 +77,19 @@ namespace UnityEngine.Reflect
         // emission
         const string k_NameEmissionMap = "_EmissionMap";
         static readonly int k_IdEmissionMap = Shader.PropertyToID(k_NameEmissionMap);
-        static readonly int k_IdEmission = Shader.PropertyToID("_Emission");
+        static readonly int k_IdEmission = Shader.PropertyToID("_EmissionColor");
         static readonly int k_IdEmissionMode = Shader.PropertyToID("_EmissionMode");
-        
-        // keywords
+
+        // use map flags
         static readonly int k_IdUseAlbedoMap = Shader.PropertyToID("_UseAlbedoMap");
         static readonly int k_IdUseNormalMap = Shader.PropertyToID("_UseNormalMap");
         static readonly int k_IdUseSmoothnessMap = Shader.PropertyToID("_UseSmoothnessMap");
         static readonly int k_IdUseMetallicMap = Shader.PropertyToID("_UseMetallicMap");
         static readonly int k_IdUseEmissionMap = Shader.PropertyToID("_UseEmissionMap");
-        static readonly int k_IdUseCutout = Shader.PropertyToID("_UseCutout");
-        static readonly int k_IdUseAlphaMap = Shader.PropertyToID("_ALPHA_MAP");
+        static readonly int k_IdUseAlphaMap = Shader.PropertyToID("_UseAlphaMap");
+
+        // keywords
+        static readonly string k_IdUseCutout = "_USECUTOUT";
         const string k_KeywordMapRotation = "_MAP_ROTATION";
 
         static readonly Dictionary<int, SuffixId> k_SuffixIds = new Dictionary<int, SuffixId>()
@@ -106,6 +108,11 @@ namespace UnityEngine.Reflect
         // Used in shaders
         public static bool IsTransparent(SyncMaterial syncMaterial)
         {
+            // It doesn't make a lot of sense for a material to be both emissive and transparent.
+            // So in case of emissive materials, force opaque shader.
+            if (syncMaterial.Emission != SyncColor.Black || syncMaterial.EmissionMap.TextureId != SyncId.None)
+                return false;
+            
             return syncMaterial.Alpha < 1.0f || syncMaterial.AlphaMap.TextureId != SyncId.None;
         }
         
@@ -193,25 +200,25 @@ namespace UnityEngine.Reflect
                 : MaterialGlobalIlluminationFlags.EmissiveIsBlack;
                 
             material.SetFloat(k_IdEmissionMode, (float)emissionMode);
-                
+
             // Compile material
-            ComputeKeywords(material);
+            ComputeFlagsAndKeywords(material);
         }
-        
-        public static void ComputeKeywords(Material material)
+
+        public static void ComputeFlagsAndKeywords(Material material)
         {
             k_ActiveMapIds.Clear();
-            
-            SetMapKeyword(material, k_IdUseAlbedoMap, k_IdMainTex, k_ActiveMapIds);
-            
-            SetMapKeyword(material, k_IdUseNormalMap, k_IdBumpMap, k_ActiveMapIds, !material.GetFloat(k_IdBumpScale).Equals(0.0f));
-            
-            SetMapKeyword(material, k_IdUseSmoothnessMap, k_IdSmoothnessMap, k_ActiveMapIds);
-            SetMapKeyword(material, k_IdUseMetallicMap, k_IdMetallicMap, k_ActiveMapIds);
+
+            SetMapFlag(material, k_IdUseAlbedoMap, k_IdMainTex, k_ActiveMapIds);
+
+            SetMapFlag(material, k_IdUseNormalMap, k_IdBumpMap, k_ActiveMapIds, !material.GetFloat(k_IdBumpScale).Equals(0.0f));
+
+            SetMapFlag(material, k_IdUseSmoothnessMap, k_IdSmoothnessMap, k_ActiveMapIds);
+            SetMapFlag(material, k_IdUseMetallicMap, k_IdMetallicMap, k_ActiveMapIds);
 
             var emissionMode = (EmissionMode) material.GetFloat(k_IdEmissionMode);
 
-            SetMapKeyword(material, k_IdUseEmissionMap, k_IdEmissionMap, k_ActiveMapIds, emissionMode == EmissionMode.Map);
+            SetMapFlag(material, k_IdUseEmissionMap, k_IdEmissionMap, k_ActiveMapIds, emissionMode == EmissionMode.Map);
             
             if (material.HasProperty(k_IdCutoutThreshold))
             {
@@ -228,16 +235,28 @@ namespace UnityEngine.Reflect
             
             if (material.HasProperty(k_IdAlpha))
             {
-                SetMapKeyword(material, k_IdUseAlphaMap, k_IdAlphaMap, k_ActiveMapIds, !material.GetFloat(k_IdAlpha).Equals(0.0f));
+                SetMapFlag(material, k_IdUseAlphaMap, k_IdAlphaMap, k_ActiveMapIds, !material.GetFloat(k_IdAlpha).Equals(0.0f));
             }
 
             SetMapRotationKeyword(material, k_ActiveMapIds);
         }
 
-        static void SetMapKeyword(Material material, int keyword, int id, List<int> activeMaps, bool extraCondition = true)
+        static void SetMapFlag(Material material, int propertyId, int id, List<int> activeMaps, bool extraCondition = true)
         {
             var active = extraCondition && material.GetTexture(id) != null;
-            material.SetFloat(keyword, active ? 1.0f : 0.0f);
+
+            material.SetInt(propertyId, active ? 1 : 0);
+
+            if (active)
+                activeMaps.Add(id);
+        }
+
+        static void SetMapKeyword(Material material, string keyword, int id, List<int> activeMaps, bool extraCondition = true)
+        {
+            var active = extraCondition && material.GetTexture(id) != null;
+
+            SetKeyword(material, keyword, active);
+
             if (active)
                 activeMaps.Add(id);
         }

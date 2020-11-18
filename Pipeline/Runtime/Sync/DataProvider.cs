@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Reflect;
 using Unity.Reflect.Data;
 using Unity.Reflect.Model;
 
@@ -23,9 +22,9 @@ namespace UnityEngine.Reflect.Pipeline
         public SyncTextureOutput syncTextureOutput = new SyncTextureOutput();
         public StreamInstanceDataOutput instanceDataOutput = new StreamInstanceDataOutput();
         
-        protected override DataProvider Create(ISyncModelProvider provider, IExposedPropertyTable resolver)
+        protected override DataProvider Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
-            var p = new DataProvider(provider, hashCacheParam.value,
+            var p = new DataProvider(hook.services.eventHub, hook.services.memoryTracker, provider, hashCacheParam.value,
                 syncMeshOutput, syncMaterialOutput, syncTextureOutput, instanceDataOutput);
 
             instanceInput.streamBegin = p.OnStreamInstanceBegin;
@@ -51,7 +50,7 @@ namespace UnityEngine.Reflect.Pipeline
             this.asset = asset;
         }
     }
-    
+
     public class DataProvider : ReflectTaskNodeProcessor
     {
         struct DownloadResult
@@ -83,6 +82,9 @@ namespace UnityEngine.Reflect.Pipeline
             }
         }
 
+        readonly EventHub m_Hub;
+        readonly MemoryTracker m_MemTracker;
+
         readonly ConcurrentQueue<IStream> m_DownloadRequests;
         readonly ConcurrentQueue<DownloadResult> m_DownloadedInstances;
         readonly ConcurrentQueue<AssetEntry<ISyncModel>> m_DownloadedModels;
@@ -102,13 +104,21 @@ namespace UnityEngine.Reflect.Pipeline
         
         static readonly int k_MaxTaskSize = 10;
 
-        public DataProvider(ISyncModelProvider client, 
+        EventHub.Handle m_HubHandle;
+        MemoryTracker.Handle<SyncId, Mesh> m_MeshesHandle;
+        AsyncAutoResetEvent m_DownloadRequestEvent = new AsyncAutoResetEvent();
+
+        public DataProvider(EventHub hub,
+            MemoryTracker memTracker,
+            ISyncModelProvider client, 
             IHashProvider hashProvider,
             DataOutput<SyncMesh> syncMeshOutput, 
             DataOutput<SyncMaterial> syncMaterialOutput, 
             DataOutput<SyncTexture> syncTextureOutput, 
             DataOutput<StreamInstanceData> instanceDataOutput)
         {
+            m_Hub = hub;
+            m_MemTracker = memTracker;
             m_Client = client;
             m_HashProvider = hashProvider;
 
@@ -122,10 +132,11 @@ namespace UnityEngine.Reflect.Pipeline
             m_DownloadedModels = new ConcurrentQueue<AssetEntry<ISyncModel>>();
             
             m_StreamCaches = new Dictionary<StreamKey, StreamCache>();
-            
             m_InstanceCache = new Dictionary<StreamKey, StreamInstanceData>();
             
             m_AddedModels = new HashSet<StreamKey>();
+
+            m_HubHandle = m_Hub.Subscribe<MemoryTrackerCacheCreatedEvent<Mesh>>(e => m_MeshesHandle = e.handle);
         }
 
         protected enum State
@@ -149,11 +160,11 @@ namespace UnityEngine.Reflect.Pipeline
         {
             if (streamEvent == StreamEvent.Added)
             {
-                m_DownloadRequests.Enqueue(stream.data);
+                EnqueueDownloadRequest(stream.data);
             }
             else if (streamEvent == StreamEvent.Changed)
             {
-                m_DownloadRequests.Enqueue(stream.data);
+                EnqueueDownloadRequest(stream.data);
             }
             else if (streamEvent == StreamEvent.Removed)
             {
@@ -174,12 +185,12 @@ namespace UnityEngine.Reflect.Pipeline
 
             if (PersistentKey.IsKeyFor<SyncObjectInstance>(stream.key.key))
                 return;
-            
+
             var key = stream.key;
             if (!m_AddedModels.Contains(key)) // Asset was not downloaded and is not used by any instance. Skip.
                 return;
 
-            m_DownloadRequests.Enqueue(stream.data);
+            EnqueueDownloadRequest(stream.data);
         }
 
         public void OnStreamInstanceEnd()
@@ -210,7 +221,8 @@ namespace UnityEngine.Reflect.Pipeline
 
                 foreach (var asset in meshes)
                 {
-                    if (m_AddedModels.Add(asset.key))
+                    m_AddedModels.Add(asset.key);
+                    if (!m_MemTracker.ContainsKey(m_MeshesHandle, asset.asset.Id))
                     {
                         Trace("        >> Sending " + asset.GetType().Name + " " + asset.asset.Name);
                         m_SyncMeshOutput.SendStreamAdded(new SyncedData<SyncMesh>(asset.key, asset.asset));
@@ -265,6 +277,12 @@ namespace UnityEngine.Reflect.Pipeline
             }
         }
 
+        void EnqueueDownloadRequest(IStream item)
+        {
+            m_DownloadRequests.Enqueue(item);
+            m_DownloadRequestEvent.Set();
+        }
+
         void TrySendAddedOrChanged<T>(AssetEntry<ISyncModel> entry, IOutput<SyncedData<T>> output)
         {
             if (entry.asset is T value)
@@ -305,7 +323,10 @@ namespace UnityEngine.Reflect.Pipeline
                     }
                 }
 
-                await Task.WhenAll(tasks);
+                if (tasks.Count > 0)
+                    await Task.WhenAll(tasks);
+                else
+                    await m_DownloadRequestEvent.WaitAsync(token);
             }
         }
 
@@ -550,6 +571,7 @@ namespace UnityEngine.Reflect.Pipeline
         public override void OnPipelineShutdown()
         {
             m_AddedModels.Clear();
+            m_Hub.Unsubscribe(m_HubHandle);
             base.OnPipelineShutdown();
         }
     }

@@ -122,7 +122,9 @@ namespace UnityEngine.Reflect
                 mesh.SetTriangles(_intBuffer, i);
                 #endif
             }
-            
+
+            if (syncMesh.Normals.Count != syncMesh.Vertices.Count)
+                mesh.RecalculateNormals();
             mesh.RecalculateTangents();
         }
     }

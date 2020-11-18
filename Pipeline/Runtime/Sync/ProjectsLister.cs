@@ -98,7 +98,10 @@ namespace UnityEngine.Reflect.Pipeline
             
             if (!m_SubTask.IsCompleted)
                 return;
-            
+
+            if (m_SubTask.IsFaulted)
+                return;
+
             var result = GetResult(m_SubTask);
             
             m_Settings.OnProjectListingCompleted(result);

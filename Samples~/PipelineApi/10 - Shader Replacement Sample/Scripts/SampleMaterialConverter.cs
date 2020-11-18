@@ -11,9 +11,9 @@ namespace Unity.Reflect.Samples
         public Shader opaqueShader;
         public Shader transparentShader;
         
-        protected override MaterialConverter Create(ISyncModelProvider provider, IExposedPropertyTable resolver)
+        protected override MaterialConverter Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
-            var converter = new SampleMaterialConverter(textureCacheParam.value, output, opaqueShader, transparentShader);
+            var converter = new SampleMaterialConverter(hook.services.eventHub, hook.services.memoryTracker, textureCacheParam.value, output, opaqueShader, transparentShader);
 
             input.streamEvent = converter.OnStreamEvent;
 
@@ -26,8 +26,8 @@ namespace Unity.Reflect.Samples
         readonly Shader m_OpaqueShader;
         readonly Shader m_TransparentShader;
 
-        public SampleMaterialConverter(ITextureCache textureCache, IOutput<SyncedData<Material>> output, Shader opaqueShader, Shader transparentShader)
-            : base(textureCache, output)
+        public SampleMaterialConverter(EventHub hub, MemoryTracker memTracker, ITextureCache textureCache, IOutput<SyncedData<Material>> output, Shader opaqueShader, Shader transparentShader)
+            : base(hub, memTracker, textureCache, output)
         {
             m_OpaqueShader = opaqueShader;
             m_TransparentShader = transparentShader;

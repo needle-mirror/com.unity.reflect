@@ -1,4 +1,4 @@
-﻿#if UNITY_STANDALONE_WIN && !UNITY_EDITOR && PIPELINE_API
+﻿#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -9,39 +9,17 @@ using UnityEngine.Reflect;
 
 namespace UnityEngine.Reflect
 {
-    internal class WindowsStandaloneAuthBackend : IAuthenticatable
+    public class WindowsStandaloneAuthBackend : IAuthenticatable
     {
         [DllImport("user32.dll")]
-        static extern int SetForegroundWindow(IntPtr hwnd);
-
-        [DllImport("user32.dll")]
-        static extern int ShowWindow(IntPtr hwnd, ShowWindowEnum winEnum);
-
-        [DllImport("user32.dll")]
-        static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-        [DllImport("user32.dll")]
         static extern IntPtr GetActiveWindow();
-
-        [DllImport("User32.dll")]
-        static extern bool IsIconic(IntPtr handle);
 
         [DllImport("user32.dll")]
         public static extern IntPtr FindWindow(string className, string windowName);
 
-        bool IsMainViewer = false;
-        bool IsTopMost = true;
-        string ViewProjectId = string.Empty;
         private LoginManager m_Manager;
-
-        private readonly string k_LoginUrl = "https://api.unity.com/v1/oauth2/authorize?client_id=industrial_reflect&response_type=rsa_jwt&state=hello&redirect_uri=reflect://implicit/callback/login/";
-        private readonly string k_LogoutUrl = "https://api.unity.com/v1/oauth2/end-session";
-        private readonly string k_RegistryUrlProtocol = "URL Protocol";
-        private readonly string k_RegistryShellKey = @"shell\open\command";
-        private readonly string k_UriScheme = "reflect";
-        private readonly string k_jwtParamName = "?jwt=";
+        
         private string m_ReflectLoginUrl;
-        const string k_JwtTokenFileName = "jwttoken.data";
 
         internal WindowsStandaloneAuthBackend(LoginManager loginManager)
         {
@@ -52,7 +30,7 @@ namespace UnityEngine.Reflect
         void SetLoginUrlWithWindowPtr()
         {
             IntPtr hWnd = GetWindowHandle();
-            m_ReflectLoginUrl = $"{k_LoginUrl}{hWnd}";
+            m_ReflectLoginUrl = $"{AuthConfiguration.LoginUrl}{hWnd}";
         }
 
         void OnApplicationFocus(bool hasFocus)
@@ -60,34 +38,6 @@ namespace UnityEngine.Reflect
             if (hasFocus)
             {
                 SetLoginUrlWithWindowPtr();
-            }
-
-            if (IsMainViewer)
-            {
-
-                var viewerTokenFilePath = $"{Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)}/Unity/Reflect/" +
-                    $"{Application.productName}/{k_JwtTokenFileName}";
-                if (File.Exists(viewerTokenFilePath))
-                {
-                    if (hasFocus)
-                    {
-                        var nextToken = File.ReadAllText(viewerTokenFilePath);
-                        if (!nextToken.Equals(m_Manager.credentials.jwtToken))
-                        {
-                            m_Manager.ProcessToken(nextToken);
-                        }
-                    }
-                    // In all cases, if file exists, delete it.
-                    File.Delete(viewerTokenFilePath);
-                }
-                // When logging out, we make this app topMost, to avoid loosing focus,
-                // But as soon as user interact with OS, we release this state
-                if (IsTopMost)
-                {
-                    var wHandle = GetWindowHandle();
-                    SetWindowPos(wHandle, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-                    IsTopMost = false;
-                }
             }
         }
 
@@ -126,33 +76,13 @@ namespace UnityEngine.Reflect
                  }
             }
 
-            if (string.IsNullOrEmpty(trailingArg))
+            if (!string.IsNullOrEmpty(trailingArg))
             {
-                 IsMainViewer = true;
-            }
-            else
-            {
-                 // Request from dashboard to open specific project in app
-                 // OPEN_PROJECT_REQUEST ?jwt=token projectId
-                 if (trailingArg.StartsWith("OPEN_PROJECT_REQUEST"))
-                 {
-                     var splitRequest = trailingArg.Split(' ');
-                     // If at least idToken and projectId is provided
-                     if (splitRequest.Length > 2) {
-                         ViewProjectId = splitRequest[2];
-                         if (UrlHelper.TryCreateUriAndValidate(splitRequest[1], UriKind.Absolute, out var uri))
-                         {
-                             ReadUrlCallback(uri);
-                         }
-                     }
-                 }
-                 else
-                 {
-                     if (UrlHelper.TryCreateUriAndValidate(trailingArg, UriKind.Absolute, out var uri))
-                     {
-                         ReadUrlCallback(uri);
-                     }
-                 }
+                // DeepLink processing
+                if (UrlHelper.TryParseDeepLink(trailingArg, out var token, out var deepLinkRoute, out var deepLinkArgs))
+                {   
+                    m_Manager.ProcessDeepLink(token, deepLinkRoute, deepLinkArgs);
+                }
             }
         }
 
@@ -164,30 +94,20 @@ namespace UnityEngine.Reflect
         public void Login()
         {
             AddRegistryKeys();
+            Debug.Log($"Sign in using: {m_ReflectLoginUrl}");
             Application.OpenURL(m_ReflectLoginUrl);
         }
 
         public void Logout()
-        {
-            var url = ProjectServer.UnityUser?.LogoutUrl?.AbsoluteUri;
-            if (!string.IsNullOrEmpty(url))
-            {
-                Debug.Log($"Sign out using: {url}");
-                m_Manager.InvalidateToken();
-                var wHandle = GetWindowHandle();
-                SetWindowPos(wHandle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-                IsTopMost = true;
-                Application.OpenURL(url);
-            }
-            else
-            {
-                Debug.Log($"Sign out using: {k_LogoutUrl}");
-                m_Manager.InvalidateToken();
-                Application.OpenURL(k_LogoutUrl);
-            }
+        {   
+            Debug.Log($"Sign out using: {AuthConfiguration.LogoutUrl}");
+            m_Manager.InvalidateToken();
+            // This will deliberately unfocus the viewer application
+            Application.OpenURL(AuthConfiguration.LogoutUrl);
         }
 
-        static IntPtr GetWindowHandle()
+        // TODO move to other class to remove WindowsStandaloneInterop reference and reset this class as internal
+        public static IntPtr GetWindowHandle()
         {
             // "UnityWndClass" is the string value returned when invoking user32.dll GetClassName function
             IntPtr hWnd = FindWindow("UnityWndClass", Application.productName);
@@ -195,103 +115,27 @@ namespace UnityEngine.Reflect
             {
                 return hWnd;
             }
-            return GetActiveWindow();
+            hWnd = GetActiveWindow();
+            return hWnd;
         }
-
-        enum ShowWindowEnum
-        {
-            Hide = 0,
-            ShowNormal = 1, ShowMinimized = 2, ShowMaximized = 3,
-            Maximize = 3, ShowNormalNoActivate = 4, Show = 5,
-            Minimize = 6, ShowMinNoActivate = 7, ShowNoActivate = 8,
-            Restore = 9, ShowDefault = 10, ForceMinimized = 11
-        };
-
-        const UInt32 SWP_NOSIZE = 0x0001;
-        const UInt32 SWP_NOMOVE = 0x0002;
-        const UInt32 SWP_SHOWWINDOW = 0x0040;
-        static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
-        static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
 
         void AddRegistryKeys()
         {
             var appDomainLocation = typeof(AppDomain).Assembly.Location;
             var subPath = appDomainLocation.Substring(0, appDomainLocation.LastIndexOf("_Data\\Managed\\"));
             var lastFolderIndex = subPath.LastIndexOf("\\");
-            var exePathRoot =  subPath.Substring(0, lastFolderIndex + 1);
+            var exePathRoot = subPath.Substring(0, lastFolderIndex + 1);
             var exeAppName = subPath.Substring(lastFolderIndex + 1);
-            var applicationLocation =  $"{exePathRoot}{exeAppName}.exe";
-            
-            // Early exit if entry already exists and has the current application path
-            using (Microsoft.Win32.RegistryKey reflectKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("SOFTWARE\\Classes\\" + k_UriScheme, false))
-            {
-                if (reflectKey != null)
-                {
-                    var shellKey = reflectKey.OpenSubKey(k_RegistryShellKey);
-                    if (shellKey != null)
-                    {
-                        var shellKeyApplicationPath = shellKey.GetValue("") as string;
-                        if (shellKeyApplicationPath.Contains(applicationLocation))
-                        {
-                            return;
-                        }
-                    }
-                }
-            }
-            RegisterUriScheme(applicationLocation);
-        }
+            var applicationLocation =  $"{exePathRoot}Unity_Reflect_Interop\\{exeAppName}";
 
-        public void RegisterUriScheme(string applicationLocation)
-        {
             // Use CurrentUser, since LocalMachine will fail on some browser
-            using (var reflectKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey("SOFTWARE\\Classes\\" + k_UriScheme))
+            using (var reflectKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey("SOFTWARE\\Classes\\" + AuthConfiguration.UriScheme))
             {
-                reflectKey.SetValue("", "URL:" + k_UriScheme);
-                reflectKey.SetValue(k_RegistryUrlProtocol, "");
-                using (var commandKey = reflectKey.CreateSubKey(k_RegistryShellKey))
+                reflectKey.SetValue("", "URL:" + AuthConfiguration.UriScheme);
+                reflectKey.SetValue(AuthConfiguration.RegistryUrlProtocol, "");
+                using (var commandKey = reflectKey.CreateSubKey(AuthConfiguration.RegistryShellKey))
                 {
                     commandKey.SetValue("", "\"" + applicationLocation + "\" \"%1\"");
-                }
-            }
-        }
-
-        void ReadUrlCallback(Uri uri)
-        {
-            var urlToken = uri.Query.Substring(k_jwtParamName.Length);
-            if (string.IsNullOrEmpty(ViewProjectId))
-            {
-                var saveToDirectory = $"{Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)}/Unity/Reflect/{Application.productName}";
-                if (!Directory.Exists(saveToDirectory))
-                {
-                    Directory.CreateDirectory(saveToDirectory);
-                }
-                var viewerTokenFilePath = Path.Combine(saveToDirectory, k_JwtTokenFileName);
-                File.WriteAllText(viewerTokenFilePath, urlToken);
-
-                var pathAndQuery = uri.PathAndQuery;
-                var startIndex = pathAndQuery.LastIndexOf("/") + 1;
-                var endIndex = pathAndQuery.LastIndexOf("?");
-                var idString = pathAndQuery.Substring(startIndex, endIndex - startIndex);
-                int processOrHandleId = 0;
-                int.TryParse(idString, out processOrHandleId);
-                IntPtr processIdIntPtr = new IntPtr(processOrHandleId);
-
-                var canExit = true;
-                try
-                {
-                    SetWindowPos(processIdIntPtr, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-                    canExit = SetForegroundWindow(processIdIntPtr) != 0;
-                }
-                catch (Exception)
-                {
-                    canExit = false;
-                }
-                finally
-                {
-                    if (canExit)
-                    {
-                        Application.Quit();
-                    }
                 }
             }
         }

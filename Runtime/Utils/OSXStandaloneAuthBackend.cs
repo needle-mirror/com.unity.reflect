@@ -1,4 +1,4 @@
-﻿#if UNITY_STANDALONE_OSX && !UNITY_EDITOR && PIPELINE_API
+﻿#if UNITY_STANDALONE_OSX && !UNITY_EDITOR
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -19,9 +19,6 @@ namespace UnityEngine.Reflect
         static extern string DeepLink_GetProcessId();
 
         private LoginManager m_Manager;
-        private readonly string k_LoginUrl = "https://api.unity.com/v1/oauth2/authorize?client_id=industrial_reflect&response_type=rsa_jwt&state=hello&redirect_uri=reflect://implicit/callback/login/";
-        private readonly string k_LogoutUrl = "https://api.unity.com/v1/oauth2/end-session";
-        private readonly string k_jwtParamName = "?jwt=";
 
         internal OSXStandaloneAuthBackend(LoginManager manager)
         {
@@ -35,39 +32,29 @@ namespace UnityEngine.Reflect
 
         public void Login()
         {
-            var loginUrl = $"{k_LoginUrl}{DeepLink_GetProcessId()}"; 
+            var loginUrl = $"{AuthConfiguration.LoginUrl}{DeepLink_GetProcessId()}"; 
             Debug.Log($"Sign in using: {loginUrl}");
             Application.OpenURL(loginUrl);
         }
 
         public void Logout()
         {
-            var url = ProjectServer.UnityUser?.LogoutUrl?.AbsoluteUri;
-            if (!string.IsNullOrEmpty(url))
-            {
-                Debug.Log($"Silent Sign out using: {url}");
-                m_Manager.SilentInvalidateTokenLogout(url);
-            }
-            else
-            {
-                Debug.Log($"Sign out using: {k_LogoutUrl}");
-                m_Manager.InvalidateToken();
-                Application.OpenURL(k_LogoutUrl);
-            }
+            Debug.Log($"Sign out using: {AuthConfiguration.LogoutUrl}");
+            m_Manager.InvalidateToken();
+            Application.OpenURL(AuthConfiguration.LogoutUrl);
         }
-
         public void Update()
         {
             if (DeepLink_GetURL() == "") return;
-            onDeeplink(DeepLink_GetURL());
+            onDeepLink(DeepLink_GetURL());
             DeepLink_Reset();
         }
 
-        void onDeeplink(string deeplink)
+        void onDeepLink(string deepLink)
         {
-            if (UrlHelper.TryCreateUriAndValidate(deeplink, UriKind.Absolute, out var uri))
+            if (UrlHelper.TryCreateUriAndValidate(deepLink, out var uri))
             {
-                m_Manager.ProcessToken(uri.Query.Substring(k_jwtParamName.Length));
+                m_Manager.ProcessToken(uri.Query.Substring(AuthConfiguration.JwtParamName.Length));
             }
         }
     }

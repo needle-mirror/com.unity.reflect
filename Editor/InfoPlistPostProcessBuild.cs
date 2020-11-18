@@ -1,12 +1,9 @@
-#if UNITY_STANDALONE_OSX || UNITY_IOS
+#if UNITY_STANDALONE_OSX
 using UnityEditor;
 using UnityEditor.Build;
-#if UNITY_IOS
-using UnityEditor.iOS.Xcode;
-#elif UNITY_STANDALONE_OSX
 //Since the PlistParser doesn't exist in the normal UnityEditor files, we need to add it
 using UnityEditor.Reflect.Utils;
-#endif
+
 using UnityEngine;
 using System.IO;
 using UnityEditor.Build.Reporting;

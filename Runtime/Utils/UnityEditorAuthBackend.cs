@@ -1,4 +1,4 @@
-﻿#if UNITY_EDITOR && PIPELINE_API
+﻿#if UNITY_EDITOR
 using System;
 using System.Collections;
 using System.IO;
@@ -42,5 +42,4 @@ namespace UnityEngine.Reflect
         }
     }
 }
-
 #endif

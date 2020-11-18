@@ -12,7 +12,7 @@ namespace UnityEngine.Reflect.Pipeline
     {
         public virtual void OnPipelineInitialized()
         {
-            
+
         }
 
         public virtual void OnPipelineShutdown()
@@ -23,7 +23,7 @@ namespace UnityEngine.Reflect.Pipeline
 
     public interface IReflectNode
     {
-        IReflectNodeProcessor CreateProcessor(ISyncModelProvider provider, IExposedPropertyTable resolver);
+        IReflectNodeProcessor CreateProcessor(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver);
     }
 
     [Serializable]
@@ -32,12 +32,12 @@ namespace UnityEngine.Reflect.Pipeline
         public T processor { get; private set; }
 
 
-        public IReflectNodeProcessor CreateProcessor(ISyncModelProvider provider, IExposedPropertyTable resolver)
+        public IReflectNodeProcessor CreateProcessor(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
-            processor = Create(provider, resolver);
+            processor = Create(hook, provider, resolver);
             return processor;
         }
 
-        protected abstract T Create(ISyncModelProvider provider, IExposedPropertyTable resolver);
+        protected abstract T Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver);
     }
 }

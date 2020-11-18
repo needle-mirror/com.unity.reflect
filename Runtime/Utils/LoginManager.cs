@@ -1,8 +1,9 @@
-﻿#if PIPELINE_API
+﻿using Grpc.Core;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Unity.Reflect;
 using UnityEngine.Events;
@@ -11,55 +12,87 @@ using UnityEngine.Networking;
 namespace UnityEngine.Reflect
 {
     [Serializable]
-    public struct LoginCredential
-    {
-        public string jwtToken;
-        public bool isSecure;
-    }
+    public class UnityUserUnityEvent : UnityEvent<UnityUser> { }
 
-    [System.Serializable]
+    [Serializable]
     public class TokenEvent : UnityEvent<string> {}
 
-    [System.Serializable]
+    [Serializable]
     public class FailureEvent : UnityEvent<string> {}
 
-    [System.Serializable]
-    public class DeepLinkingEvent : UnityEvent<string> {}
+    public enum DeepLinkRoute
+    {
+        none,
+        implicitcallbacklogin,
+        openprojectrequest
+    };
 
     internal static class UrlHelper
     {
-        private static readonly string k_UriScheme = "reflect";
-        private static readonly string k_jwtParamName = "?jwt=";
-        internal static bool TryCreateUriAndValidate(string uriString, UriKind uriKind, out Uri uriResult)
+        internal static bool TryCreateUriAndValidate(string uriString, out Uri uriResult)
         {
-            return Uri.TryCreate(uriString, uriKind, out uriResult) &&
-                   string.Equals(uriResult.Scheme, k_UriScheme, StringComparison.OrdinalIgnoreCase) &&
-                   uriResult.Query.StartsWith(k_jwtParamName);
+            return Uri.TryCreate(uriString, UriKind.Absolute, out uriResult) &&
+                   string.Equals(uriResult.Scheme, AuthConfiguration.UriScheme, StringComparison.OrdinalIgnoreCase) &&
+                   uriResult.Query.StartsWith(AuthConfiguration.JwtParamName);
+        }
+
+        internal static bool TryParseDeepLink(string deepLinkUrlString, out string token, out DeepLinkRoute route, out List<string> args)
+        {
+            token = string.Empty;
+            route = DeepLinkRoute.none;
+            args = new List<string>();
+            if (Uri.TryCreate(deepLinkUrlString, UriKind.Absolute, out var uriResult))
+            {
+                token = uriResult.Query.Substring(AuthConfiguration.JwtParamName.Length);
+                var knownRoute = Enum.TryParse(uriResult.Host, out DeepLinkRoute deepLink);
+                // Make special case of implicit/callback/login as implicit is a keyword in C#
+                if (!knownRoute) 
+                {
+                    knownRoute = uriResult.Host.Equals("implicit") && uriResult.AbsolutePath.StartsWith("/callback/login");
+                    deepLink = DeepLinkRoute.implicitcallbacklogin;
+                }
+
+                if (knownRoute) 
+                {
+                    route = deepLink;
+                    args = uriResult.AbsolutePath.Split('/').ToList();
+                    args.RemoveAt(0);
+                }
+                return knownRoute && uriResult.Scheme.Equals(AuthConfiguration.UriScheme, StringComparison.OrdinalIgnoreCase) &&
+                   uriResult.Query.StartsWith(AuthConfiguration.JwtParamName);
+            }
+            else
+            {
+                return false;
+            }
         }
     }
-    
+
     public class LoginManager : MonoBehaviour
     {
-        public LoginCredential credentials;
-        public UserSession session;
+        public UnityUser m_User;
+        private Task<UnityUser> m_UnityUserTask;
 
-        public TokenEvent tokenUpdated;
         public FailureEvent authenticationFailed;
+        public TokenEvent tokenUpdated;
         public UnityUserUnityEvent userLoggedIn;
         public UnityEvent userLoggedOut;
-        public DeepLinkingEvent deepLinkingRequested;
 
         private IAuthenticatable authBackend;
+        private IInteropable m_Interop = null;
         private string m_TokenPersistentPath;
-
-        private readonly string k_JwtTokenFileName = "jwttoken.data";
+        
         private Coroutine m_SilentLogoutCoroutine;
         private Coroutine m_StartGetUserInfo;
         private Coroutine m_StartSendLogoutEvent;
 
+        public DeepLinkRoute deepLinkRoute = DeepLinkRoute.none;
+        public List<string> deepLinkArgs = new List<string>();
+
+        static readonly TimeSpan s_SessionExpiryThreshold = TimeSpan.FromDays(5);
+
         void Awake()
         {
-            credentials = new LoginCredential() { jwtToken = string.Empty, isSecure = false };
             if (tokenUpdated == null)
             {
                 tokenUpdated = new TokenEvent();
@@ -84,17 +117,18 @@ namespace UnityEngine.Reflect
             authBackend = new OSXStandaloneAuthBackend(this);
 #elif UNITY_STANDALONE_WIN
             authBackend = new WindowsStandaloneAuthBackend(this);
+            m_Interop = new WindowsStandaloneInterop(this);
+            m_Interop.Start();
 #elif UNITY_IOS
             authBackend = new IOSAuthBackend(this);
 #elif UNITY_ANDROID
             authBackend = new AndroidAuthBackend(this);
 #endif
-            m_TokenPersistentPath = Path.Combine(Application.persistentDataPath, k_JwtTokenFileName);
+            m_TokenPersistentPath = Path.Combine(Application.persistentDataPath, AuthConfiguration.JwtTokenFileName);
         }
 
         void Start()
         {
-            session = new UserSession(this);
             authBackend.Start();
         }
 
@@ -106,21 +140,74 @@ namespace UnityEngine.Reflect
         void OnDisable()
         {
             authBackend = null;
-            session = null;
+            if (m_Interop != null) 
+            {
+                m_Interop.OnDisable();
+                m_Interop = null;
+            }
+            if (m_StartGetUserInfo != null)
+            {
+                StopCoroutine(m_StartGetUserInfo);
+            }
+            m_UnityUserTask = null;
+
             ProjectServer.Cleanup();
+        }
+
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            if (pauseStatus || ProjectServer.Provider == LocaleUtils.GetProvider())
+            {
+                return;
+            }
+
+            if (m_User != null)
+            {
+                Logout();
+            }
+            ProjectServer.Cleanup();
+            ProjectServer.Init();
+        }
+
+        private void OnTokenUpdated(string newToken)
+        {
+            if (!string.IsNullOrEmpty(newToken))
+            {
+                m_UnityUserTask = Task.Run(() => ProjectServer.Client.GetUserInfo(newToken));
+                StartGetUserInfo(m_UnityUserTask);
+            }
+            else
+            {
+                StartSendLogoutEvent();
+            }
+        }
+
+        internal void ProcessDeepLink(string token, DeepLinkRoute route, List<string> args) 
+        {
+            deepLinkRoute = route;
+            deepLinkArgs = args;
+            switch (deepLinkRoute) 
+            {
+                case DeepLinkRoute.openprojectrequest:
+                    InvalidateToken();
+                    ProcessToken(token);
+                    break;
+                case DeepLinkRoute.implicitcallbacklogin:
+                    ProcessToken(token);
+                    break;
+            }
         }
 
         internal void ProcessToken(string token, bool update = true)
         {
             if (!string.IsNullOrEmpty(token))
             {
-                credentials.jwtToken = token;
                 if (update)
                 {
                     RemovePersistentToken();
                     File.WriteAllText(m_TokenPersistentPath, token);
                 }
-                tokenUpdated?.Invoke(token);
+                OnTokenUpdated(token);
             }
         }
 
@@ -132,7 +219,7 @@ namespace UnityEngine.Reflect
             }
             else
             {
-                tokenUpdated?.Invoke(string.Empty);
+                OnTokenUpdated(string.Empty);
             }
         }
 
@@ -147,26 +234,17 @@ namespace UnityEngine.Reflect
         internal void InvalidateToken()
         {
             RemovePersistentToken();
-            credentials.jwtToken = string.Empty;
-            tokenUpdated?.Invoke(string.Empty);
+            OnTokenUpdated(string.Empty);
         }
 
         public void Login()
         {
-            if (session == null)
-            {
-                session = new UserSession(this);
-            }
             authBackend.Login();
         }
 
         public void Logout()
         {
-            if (session != null)
-            {
-                authBackend.Logout();
-                session = null;
-            }
+            authBackend.Logout();
         }
 
         internal void StartSendLogoutEvent()
@@ -177,6 +255,7 @@ namespace UnityEngine.Reflect
             }
             m_StartSendLogoutEvent = StartCoroutine("SendLogoutEvent");
         }
+
         internal void StartGetUserInfo(System.Object data)
         {
             if (m_StartGetUserInfo != null)
@@ -192,10 +271,35 @@ namespace UnityEngine.Reflect
             {
                 yield return null;
             }
-
-            session.OnCompletedTask(task);
+            OnCompletedUnityUserTask(task);
         }
-        
+
+        internal void OnCompletedUnityUserTask(Task<UnityUser> task)
+        {
+            if (task.IsFaulted)
+            {
+                Debug.LogError($"Get User Info failed: {task.Exception}");
+                authenticationFailed?.Invoke(task.Exception.ToString());
+            }
+            else
+            {
+                var user = task.Result;
+
+                if (DateTime.UtcNow > user.SessionExpiry - s_SessionExpiryThreshold &&
+                    Application.internetReachability != NetworkReachability.NotReachable)
+                {
+                    Debug.LogWarning($"User token about to expire, force login");
+                    authenticationFailed?.Invoke("Token expired");
+                }
+                else
+                {
+                    m_User = user;
+                    userLoggedIn?.Invoke(m_User);
+                }
+            }
+            m_UnityUserTask = null;
+        }
+
         internal void SilentInvalidateTokenLogout(string logoutUrl)
         {
             if (m_SilentLogoutCoroutine != null)
@@ -228,10 +332,21 @@ namespace UnityEngine.Reflect
             userLoggedOut?.Invoke();
         }
 
-        public void onDeeplink(string deeplink)
+        public void onDeeplink(string deepLink)
         {
-            deepLinkingRequested?.Invoke(deeplink);
+            onDeepLink(deepLink);
+        }
+
+        public void onDeepLink(string deepLink, bool isStartUpLink = false)
+        {
+            if (UrlHelper.TryCreateUriAndValidate(deepLink, out var uri))
+            {
+                ProcessToken(uri.Query.Substring(AuthConfiguration.JwtParamName.Length));
+            }
+            if (!isStartUpLink && authBackend is IDeepLinkable authBackendDeepLinkable)
+            {
+                authBackendDeepLinkable.DeepLinkComplete();
+            }
         }
     }
 }
-#endif

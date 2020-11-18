@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace UnityEngine.Reflect.Pipeline.Samples
@@ -25,7 +25,7 @@ namespace UnityEngine.Reflect.Pipeline.Samples
         
         public MetadataFilterSettings settings;
         
-        protected override MetadataFilter Create(ISyncModelProvider provider, IExposedPropertyTable resolver)
+        protected override MetadataFilter Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
             var node = new MetadataFilter(settings, outputTrue, outputFalse);
             input.streamEvent = node.OnStreamInstanceEvent;
