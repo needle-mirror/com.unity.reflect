@@ -1,5 +1,6 @@
 ﻿using System;
 using Unity.Collections;
+using Unity.Reflect;
 using Unity.Reflect.Model;
 
 namespace UnityEngine.Reflect
@@ -28,13 +29,13 @@ namespace UnityEngine.Reflect
             // Nothing.
         }
 
-        protected override void ImportInternal(SyncTexture syncTexture, Texture2D texture, object settings)
-        {           
-            var data = syncTexture.Source;
+        protected override void ImportInternal(SyncedData<SyncTexture> syncTexture, Texture2D texture, object settings)
+        {
+            var data = syncTexture.data.Source;
 
             texture.LoadImage(data);
 
-            if (syncTexture.ConvertToNormalMap)
+            if (syncTexture.data.ConvertToNormalMap)
             {
                 ConvertToNormalMap(texture, k_NormalMapIntensity, false);
             }

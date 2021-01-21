@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Reflect;
 using Unity.Reflect.Model;
 using UnityEditor;
 using UnityEngine.Rendering;
@@ -16,7 +17,7 @@ namespace UnityEngine.Reflect
 
         Shader GetShader(SyncMaterial syncMaterial);
 
-        void SetMaterialProperties(SyncMaterial syncMaterial, Material material, ITextureCache textureCache);
+        void SetMaterialProperties(SyncedData<SyncMaterial> syncMaterial, Material material, ITextureCache textureCache);
     }
     
     class StandardPipelineMaterialConverter : IReflectMaterialConverter
@@ -29,7 +30,7 @@ namespace UnityEngine.Reflect
             return StandardShaderHelper.GetShader(syncMaterial);
         }
 
-        public void SetMaterialProperties(SyncMaterial syncMaterial, Material material, ITextureCache textureCache)
+        public void SetMaterialProperties(SyncedData<SyncMaterial> syncMaterial, Material material, ITextureCache textureCache)
         {
             StandardShaderHelper.ComputeMaterial(syncMaterial, material, textureCache);
         }
@@ -66,7 +67,7 @@ namespace UnityEngine.Reflect
             return currentRenderPipeline.defaultShader;
         }
         
-        public void SetMaterialProperties(SyncMaterial syncMaterial, Material material, ITextureCache textureCache)
+        public void SetMaterialProperties(SyncedData<SyncMaterial> syncMaterial, Material material, ITextureCache textureCache)
         {
             SetMaterialPropertiesInternal(syncMaterial, material, textureCache);
         }
@@ -82,13 +83,19 @@ namespace UnityEngine.Reflect
             }
         }
         
-        protected abstract void SetMaterialPropertiesInternal(SyncMaterial syncMaterial, Material material, ITextureCache textureCache);
+        protected abstract void SetMaterialPropertiesInternal(SyncedData<SyncMaterial> syncMaterial, Material material, ITextureCache textureCache);
 
         public Material defaultMaterial => currentRenderPipeline.defaultMaterial;
 
-        protected static void AssignMap(Material material, string id, SyncMap map, ITextureCache textureCache) // TODO Use int ID
+        protected static void AssignMap(Material material, string sourceId, string id, SyncMap map, ITextureCache textureCache) // TODO Use int ID
         {
-            var texture2D = map.TextureId != SyncId.None ? textureCache.GetTexture(map.TextureId) : null;
+            Texture2D texture2D = null;
+
+            if (map.TextureId != SyncId.None)
+            {
+                var textureKey = StreamKey.FromSyncId<SyncTexture>(sourceId, map.TextureId);
+                texture2D = textureCache.GetTexture(textureKey);
+            }
 
             material.SetTexture(id, texture2D);
 
@@ -117,8 +124,11 @@ namespace UnityEngine.Reflect
             }
         }
 
-        protected override void SetMaterialPropertiesInternal(SyncMaterial syncMaterial, Material material, ITextureCache textureCache)
+        protected override void SetMaterialPropertiesInternal(SyncedData<SyncMaterial> syncedMaterial, Material material, ITextureCache textureCache)
         {
+            var syncMaterial = syncedMaterial.data;
+            var sourceId = syncedMaterial.key.source;
+            
             var transparent = StandardShaderHelper.IsTransparent(syncMaterial);
 
             var tint = ImportersUtils.GetUnityColor(syncMaterial.Tint, false);
@@ -129,13 +139,13 @@ namespace UnityEngine.Reflect
             
             // Albedo
             material.SetColor("_BaseColor", tint);
-            AssignMap(material, "_BaseMap", syncMaterial.AlbedoMap, textureCache);
+            AssignMap(material, sourceId, "_BaseMap", syncMaterial.AlbedoMap, textureCache);
             
             // Metallic
             material.SetFloat("_Metallic", syncMaterial.Metallic);
             if (syncMaterial.MetallicMap.TextureId != SyncId.None)
             {
-                AssignMap(material, "_MetallicGlossMap", syncMaterial.NormalMap, textureCache);
+                AssignMap(material, sourceId, "_MetallicGlossMap", syncMaterial.NormalMap, textureCache);
                 material.EnableKeyword("_METALLICSPECGLOSSMAP");
             }
             
@@ -149,7 +159,7 @@ namespace UnityEngine.Reflect
             // Normal
             if (syncMaterial.NormalMap.TextureId != SyncId.None)
             {
-                AssignMap(material, "_BumpMap", syncMaterial.NormalMap, textureCache);
+                AssignMap(material, sourceId, "_BumpMap", syncMaterial.NormalMap, textureCache);
                 material.SetFloat("_BumpScale", syncMaterial.NormalScale);
                 material.EnableKeyword("_NORMALMAP");
                 material.EnableKeyword("_NORMALMAP_TANGENT_SPACE");
@@ -183,7 +193,7 @@ namespace UnityEngine.Reflect
 
                 if (syncMaterial.EmissionMap.TextureId != SyncId.None)
                 {
-                    AssignMap(material, "_EmissionMap", syncMaterial.EmissionMap, textureCache);
+                    AssignMap(material, sourceId, "_EmissionMap", syncMaterial.EmissionMap, textureCache);
                 }
                 
                 material.EnableKeyword("_EMISSION");
@@ -209,8 +219,11 @@ namespace UnityEngine.Reflect
             }
         }
 
-        protected override void SetMaterialPropertiesInternal(SyncMaterial syncMaterial, Material material, ITextureCache textureCache)
+        protected override void SetMaterialPropertiesInternal(SyncedData<SyncMaterial> syncedMaterial, Material material, ITextureCache textureCache)
         {
+            var syncMaterial = syncedMaterial.data;
+            var sourceId = syncedMaterial.key.source;
+            
             var transparent = StandardShaderHelper.IsTransparent(syncMaterial);
             var emission = syncMaterial.Emission != SyncColor.Black || syncMaterial.EmissionMap.TextureId != SyncId.None;
 
@@ -222,7 +235,7 @@ namespace UnityEngine.Reflect
             
             // Albedo
             material.SetColor("_BaseColor", tint);
-            AssignMap(material, "_BaseColorMap", syncMaterial.AlbedoMap, textureCache);
+            AssignMap(material, sourceId, "_BaseColorMap", syncMaterial.AlbedoMap, textureCache);
             
             // Metallic
             material.SetFloat("_Metallic", syncMaterial.Metallic);
@@ -241,7 +254,7 @@ namespace UnityEngine.Reflect
             // Normal
             if (syncMaterial.NormalMap.TextureId != SyncId.None)
             {
-                AssignMap(material, "_NormalMap", syncMaterial.NormalMap, textureCache);
+                AssignMap(material, sourceId, "_NormalMap", syncMaterial.NormalMap, textureCache);
                 material.SetFloat("_NormalScale", syncMaterial.NormalScale);
                 material.EnableKeyword("_NORMALMAP");
                 material.EnableKeyword("_NORMALMAP_TANGENT_SPACE");
@@ -277,7 +290,7 @@ namespace UnityEngine.Reflect
 
                 if (syncMaterial.EmissionMap.TextureId != SyncId.None)
                 {
-                    AssignMap(material, "_EmissiveColorMap", syncMaterial.EmissionMap, textureCache);
+                    AssignMap(material, sourceId, "_EmissiveColorMap", syncMaterial.EmissionMap, textureCache);
                 }
                 
                 material.SetInt("_UseEmissiveIntensity", 1);
@@ -335,10 +348,10 @@ namespace UnityEngine.Reflect
             }
         }
 
-        public static void ComputeMaterial(SyncMaterial syncMaterial, Material material, ITextureCache textureCache)
+        public static void ComputeMaterial(SyncedData<SyncMaterial> syncMaterial, Material material, ITextureCache textureCache)
         {
-            material.name = syncMaterial.Name;
-            material.shader = currentConverter.GetShader(syncMaterial);
+            material.name = syncMaterial.data.Name;
+            material.shader = currentConverter.GetShader(syncMaterial.data);
             currentConverter.SetMaterialProperties(syncMaterial, material, textureCache);
         }
         

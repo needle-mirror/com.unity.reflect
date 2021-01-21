@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.Reflect;
 using Unity.Reflect.Data;
 using Unity.Reflect.Model;
 
@@ -28,18 +29,6 @@ namespace UnityEngine.Reflect.Pipeline
         }
     }
 
-    public struct StreamKey
-    {
-        public readonly string source;
-        public readonly PersistentKey key;
-
-        public StreamKey(string sourceId, PersistentKey key)
-        {
-            this.key = key;
-            source = sourceId;
-        }
-    }
-    
     public class SyncObjectInstanceProvider : ReflectTaskNodeProcessor
     {
         struct DownloadResult

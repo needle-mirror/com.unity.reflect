@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Unity.Reflect;
 using Unity.Reflect.IO;
 using Unity.Reflect.Model;
 using UnityEditor.Experimental.AssetImporters;
@@ -22,9 +23,11 @@ namespace UnityEditor.Reflect
             Init(sceneElement.Name);
 
             var defaultMaterial = ReflectMaterialManager.defaultMaterial;
-
+            
+            var syncedData = new SyncedData<SyncObject>(StreamKey.FromSyncId<SyncObject>(EditorSourceId, sceneElement.Id), sceneElement);
+            
             var elementImporter = new SyncObjectImporter();
-            var root = elementImporter.Import(sceneElement,
+            var root = elementImporter.Import(syncedData,
                 new SyncObjectImportConfig
                 {
                     settings = new SyncObjectImportSettings { defaultMaterial = defaultMaterial, importLights = m_ImportLights }, materialCache = this, meshCache = this
@@ -58,14 +61,14 @@ namespace UnityEditor.Reflect
             }
         }
         
-        public Material GetMaterial(SyncId id)
+        public Material GetMaterial(StreamKey id)
         {
-            return GetReferencedAsset<Material>(id.Value);
+            return GetReferencedAsset<Material>(id.key.Name);
         }
 
-        public Mesh GetMesh(SyncId id)
+        public Mesh GetMesh(StreamKey id)
         {
-            return GetReferencedAsset<Mesh>(id.Value);
+            return GetReferencedAsset<Mesh>(id.key.Name);
         }
     }
 }

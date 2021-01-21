@@ -6,6 +6,7 @@
 #if !USE_ARRAY_SLICES
 using System.Collections.Generic;
 #endif
+using Unity.Reflect;
 using Unity.Reflect.Model;
 using UnityEngine.Rendering;
 
@@ -35,8 +36,9 @@ namespace UnityEngine.Reflect
             mesh.Clear();
         }
 
-        protected override void ImportInternal(SyncMesh syncMesh, Mesh mesh, object settings)
+        protected override void ImportInternal(SyncedData<SyncMesh> syncedMesh, Mesh mesh, object settings)
         {
+            var syncMesh = syncedMesh.data;
             var count = syncMesh.Vertices.Count;
             
             // expand capacity beforehand since count is known

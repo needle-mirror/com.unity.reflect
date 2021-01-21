@@ -33,9 +33,12 @@ namespace Unity.Reflect.Samples
             m_TransparentShader = transparentShader;
         }
 
-        protected override Material Import(SyncMaterial syncMaterial)
+        protected override Material Import(SyncedData<SyncMaterial> syncedMaterial)
         {
             Material material;
+
+            var syncMaterial = syncedMaterial.data;
+            var sourceId = syncedMaterial.key.source;
             
             if (syncMaterial.Alpha >= 1.0f)
             {
@@ -44,7 +47,8 @@ namespace Unity.Reflect.Samples
                 var map = syncMaterial.AlbedoMap;
                 if (map.TextureId != SyncId.None)
                 {
-                    material.SetTexture("_MainTex", m_TextureCache.GetTexture(map.TextureId));
+                    var textureKey = StreamKey.FromSyncId<SyncTexture>(sourceId, map.TextureId);
+                    material.SetTexture("_MainTex", m_TextureCache.GetTexture(textureKey));
 
                     var offset = map.Offset;
                     material.SetTextureOffset("_MainTex", new Vector2(offset.X, offset.Y));

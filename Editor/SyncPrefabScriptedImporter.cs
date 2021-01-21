@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Reflect;
 using Unity.Reflect.Model;
 using UnityEditor.Experimental.AssetImporters;
 using UnityEngine;
@@ -55,10 +56,18 @@ namespace UnityEditor.Reflect
             }
         }
 
-        public SyncObjectBinding CreateInstance(string key)
+        public SyncObjectBinding CreateInstance(StreamKey key)
         {
-            var prefab = GetReferencedAsset<GameObject>(key);
-            var gameObject = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            var prefab = GetReferencedAsset<GameObject>(key.key.Name);
+
+            if (prefab == null)
+                return null;
+            
+            var gameObject = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
+            
+            if (gameObject == null)
+                return null;
+            
             return gameObject.AddComponent<SyncObjectBinding>();
         }
                 

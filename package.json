@@ -1,7 +1,7 @@
 {
   "name": "com.unity.reflect",
   "displayName": "Unity Reflect",
-  "version": "2.0.0-preview.11",
+  "version": "2.0.1-preview.13",
   "unity": "2019.4",
   "description": "Unity Reflect importer used for Autodesk Revit to Unity and other AEC-Industial workflow. The package contains Reflect inhouse format support and other utilities for navigation and visualization",
   "host": "editor",
@@ -26,11 +26,11 @@
     }
   ],
   "upmCi": {
-    "footprint": "0dad6178e198e054f4cd5c24cd9653e4cdf00114"
+    "footprint": "030060b8b80d53d06070b2fe9bd51943ad3436ab"
   },
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/industrial.git",
     "type": "git",
-    "revision": "51a6cc250c4ecf1ef00077ea5d770b06c321efbb"
+    "revision": "0909a6dd27193022c3d5306641d22a4ef2b67446"
   }
 }

@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using Unity.Reflect;
 using UnityEngine.Events;
@@ -93,6 +94,9 @@ namespace UnityEngine.Reflect
 
         void Awake()
         {
+            // Called as soon as we can
+            SetupProxy();
+            
             if (tokenUpdated == null)
             {
                 tokenUpdated = new TokenEvent();
@@ -152,6 +156,88 @@ namespace UnityEngine.Reflect
             m_UnityUserTask = null;
 
             ProjectServer.Cleanup();
+        }
+
+        // Code (now highly modified) originally from 3.2 mono implementation
+        // https://github.com/mono/mono/blob/mono-3-2/mcs/class/System/System.Net/WebRequest.cs
+        // This is to workaround the broken implementation of WebRequest.GetSystemWebProxy() of the current Mono forked version of Unity
+        // If any http proxy is found, we refresh the grpc_proxy env variable value to enable grpc calls through Proxy
+        void SetupProxy()
+        {
+#if UNITY_STANDALONE_WIN
+            var envVarProxyAddress = Environment.GetEnvironmentVariable("HTTP_PROXY");
+            if (string.IsNullOrEmpty(envVarProxyAddress))
+            {
+                envVarProxyAddress = Environment.GetEnvironmentVariable("http_proxy");
+            }
+            if (string.IsNullOrEmpty(envVarProxyAddress))
+            {
+                envVarProxyAddress = Environment.GetEnvironmentVariable("HTTPS_PROXY");
+            }
+            if (string.IsNullOrEmpty(envVarProxyAddress))
+            {
+                envVarProxyAddress = Environment.GetEnvironmentVariable("https_proxy");
+            }
+            if (string.IsNullOrEmpty(envVarProxyAddress))
+            {
+                envVarProxyAddress = Environment.GetEnvironmentVariable("GRPC_PROXY");
+            }
+            if (string.IsNullOrEmpty(envVarProxyAddress))
+            {
+                envVarProxyAddress = Environment.GetEnvironmentVariable("grpc_proxy");
+            }
+            if (!string.IsNullOrEmpty(envVarProxyAddress))
+            {
+                return;
+            }
+
+            var registryHttpProxy = "";
+            try 
+            {
+                int isProxyEnable = (int)Microsoft.Win32.Registry.GetValue("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings", "ProxyEnable", 0);
+                if (isProxyEnable > 0)
+                {
+                    var strProxyServer = (string)Microsoft.Win32.Registry.GetValue("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings", "ProxyServer", null);
+                    if (!string.IsNullOrEmpty(strProxyServer))
+                    {
+                        if (strProxyServer.Contains("="))
+                        {
+                            foreach (var strEntry in strProxyServer.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                if (strEntry.StartsWith("http="))
+                                {
+                                    registryHttpProxy = strEntry.Substring(5);
+                                    break;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            registryHttpProxy = strProxyServer;
+                        }
+                    }
+                }
+            }
+            catch (System.Security.SecurityException se)
+            {
+                Debug.LogWarning($"Could not access HKCU proxy values. {se.Message}");
+            }
+            catch (IOException ioe)
+            {
+                Debug.LogWarning($"Could not access HKCU proxy values. {ioe.Message}");
+            }
+
+            // If found Proxy in Windows registry
+            if (!string.IsNullOrEmpty(registryHttpProxy))
+            {
+                if (!registryHttpProxy.StartsWith("http://")) 
+                {
+                    registryHttpProxy = $"http://{registryHttpProxy}";
+                }
+                Debug.Log($"Found Proxy in Registry: {registryHttpProxy}");
+                Environment.SetEnvironmentVariable("GRPC_PROXY", registryHttpProxy);
+            }
+#endif
         }
 
         private void OnApplicationPause(bool pauseStatus)

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.Reflect;
 using Unity.Reflect.Data;
 using Unity.Reflect.Model;
 
@@ -105,7 +106,7 @@ namespace UnityEngine.Reflect.Pipeline
         static readonly int k_MaxTaskSize = 10;
 
         EventHub.Handle m_HubHandle;
-        MemoryTracker.Handle<SyncId, Mesh> m_MeshesHandle;
+        MemoryTracker.Handle<StreamKey, Mesh> m_MeshesHandle;
         AsyncAutoResetEvent m_DownloadRequestEvent = new AsyncAutoResetEvent();
 
         public DataProvider(EventHub hub,
@@ -222,7 +223,7 @@ namespace UnityEngine.Reflect.Pipeline
                 foreach (var asset in meshes)
                 {
                     m_AddedModels.Add(asset.key);
-                    if (!m_MemTracker.ContainsKey(m_MeshesHandle, asset.asset.Id))
+                    if (!m_MemTracker.ContainsKey(m_MeshesHandle, asset.key))
                     {
                         Trace("        >> Sending " + asset.GetType().Name + " " + asset.asset.Name);
                         m_SyncMeshOutput.SendStreamAdded(new SyncedData<SyncMesh>(asset.key, asset.asset));

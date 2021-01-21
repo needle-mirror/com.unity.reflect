@@ -1,4 +1,5 @@
 ﻿using System;
+using Unity.Reflect;
 using Unity.Reflect.Model;
 
 namespace UnityEngine.Reflect
@@ -19,7 +20,7 @@ namespace UnityEngine.Reflect
             // Nothing
         }
 
-        protected override void ImportInternal(SyncMaterial syncMaterial, Material material, object settings)
+        protected override void ImportInternal(SyncedData<SyncMaterial> syncMaterial, Material material, object settings)
         {
             ReflectMaterialManager.ComputeMaterial(syncMaterial, material, settings as ITextureCache);
         }

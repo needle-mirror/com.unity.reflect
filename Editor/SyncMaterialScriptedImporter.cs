@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using Unity.Reflect;
 using Unity.Reflect.Model;
 using UnityEditor.Experimental.AssetImporters;
 using UnityEngine;
@@ -10,20 +11,22 @@ namespace UnityEditor.Reflect
 {
     [ScriptedImporter(1, "SyncMaterial", importQueueOffset:1)]
     public class SyncMaterialScriptedImporter : ReflectScriptedImporter, ITextureCache
-    {       
-        public virtual Texture2D GetTexture(SyncId id)
-        {           
-            return GetReferencedAsset<Texture2D>(id.Value);
+    {
+        public virtual Texture2D GetTexture(StreamKey key)
+        {
+            return GetReferencedAsset<Texture2D>(key.key.Name);
         }
         
         public override void OnImportAsset(AssetImportContext ctx)
-        {           
+        {
             var syncMaterial = PlayerFile.Load<SyncMaterial>(ctx.assetPath);
-            
+
             Init(syncMaterial.Name);
 
+            var syncedData = new SyncedData<SyncMaterial>(StreamKey.FromSyncId<SyncMaterial>(EditorSourceId, syncMaterial.Id), syncMaterial);
+            
             var materialImporter = new SyncMaterialImporter();
-            var material = materialImporter.Import(syncMaterial, this);
+            var material = materialImporter.Import(syncedData, this);
             
             material.name = Path.GetFileNameWithoutExtension(syncMaterial.Name);
 

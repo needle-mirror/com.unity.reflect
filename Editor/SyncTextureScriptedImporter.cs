@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using Unity.Reflect;
 using Unity.Reflect.Model;
 using UnityEditor.Experimental.AssetImporters;
 using UnityEngine;
@@ -14,9 +15,10 @@ namespace UnityEditor.Reflect
         public override void OnImportAsset(AssetImportContext ctx)
         {           
             var syncTexture = PlayerFile.Load<SyncTexture>(ctx.assetPath);
-     
+            var syncedData = new SyncedData<SyncTexture>(StreamKey.FromSyncId<SyncTexture>(ReflectScriptedImporter.EditorSourceId, syncTexture.Id), syncTexture);
+            
             var textureImporter = new SyncTextureImporter();
-            var texture = textureImporter.Import(syncTexture, null);
+            var texture = textureImporter.Import(syncedData, null);
 
             texture.name = Path.GetFileNameWithoutExtension(syncTexture.Name);
             

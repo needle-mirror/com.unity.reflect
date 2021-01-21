@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Unity.Reflect;
 using Unity.Reflect.Model;
 using UnityEngine.Rendering;
 
@@ -134,14 +135,17 @@ namespace UnityEngine.Reflect
             return GraphicsSettings.renderPipelineAsset != null;
         }
 
-        public static void ComputeMaterial(SyncMaterial syncMaterial, Material material, ITextureCache textureCache)
+        public static void ComputeMaterial(SyncedData<SyncMaterial> syncedMaterial, Material material, ITextureCache textureCache)
         {
+            var syncMaterial = syncedMaterial.data;
+            var sourceId = syncedMaterial.key.source;
+            
             // Tint
             material.AssignColor(k_IdTint, syncMaterial.Tint, false, true);
                 
             // Albedo
             material.AssignColor(k_IdAlbedoColor, syncMaterial.AlbedoColor, true, true);
-            material.AssignMap(k_IdMainTex, syncMaterial.AlbedoMap, textureCache);
+            material.AssignMap(sourceId, k_IdMainTex, syncMaterial.AlbedoMap, textureCache);
             material.SetFloat(k_IdMainTexFade, syncMaterial.AlbedoFade);
 
             var isTransparent = IsTransparent(syncMaterial);
@@ -153,28 +157,28 @@ namespace UnityEngine.Reflect
                 // Arbitrary adjustment of the alpha based on empirical visual experimentation.
                 var alpha = Mathf.Clamp01(syncMaterial.Alpha * 0.3f);
                 material.SetFloat(k_IdAlpha, alpha);
-                material.AssignMap(k_IdAlphaMap, syncMaterial.AlphaMap, textureCache);
+                material.AssignMap(sourceId, k_IdAlphaMap, syncMaterial.AlphaMap, textureCache);
             }
 
             if (syncMaterial.CutoutMap.TextureId != SyncId.None)
             {
-                material.AssignMap(k_IdCutoutMap, syncMaterial.CutoutMap, textureCache);
+                material.AssignMap(sourceId, k_IdCutoutMap, syncMaterial.CutoutMap, textureCache);
             }
                 
             // Normal
-            material.AssignMap(k_IdBumpMap, syncMaterial.NormalMap, textureCache);
+            material.AssignMap(sourceId, k_IdBumpMap, syncMaterial.NormalMap, textureCache);
             material.SetFloat(k_IdBumpScale, syncMaterial.NormalScale);
                 
             // Smoothness
             material.SetFloat(k_IdSmoothness, syncMaterial.Glossiness);
-            material.AssignMap(k_IdSmoothnessMap, syncMaterial.GlossinessMap, textureCache);
+            material.AssignMap(sourceId, k_IdSmoothnessMap, syncMaterial.GlossinessMap, textureCache);
             material.SetFloat(k_SuffixIds[k_IdSmoothnessMap].invert, 1.0f); // TODO should be determined from the exporter
 
             // Metallic
             if (!isTransparent) // TODO Fix transparent VS metallic issues
             {
                 material.SetFloat(k_IdMetallic, syncMaterial.Metallic);
-                material.AssignMap(k_IdMetallicMap, syncMaterial.MetallicMap, textureCache);
+                material.AssignMap(sourceId, k_IdMetallicMap, syncMaterial.MetallicMap, textureCache);
             }
 
             // Emission
@@ -182,7 +186,7 @@ namespace UnityEngine.Reflect
                 
             if (syncMaterial.EmissionMap.TextureId != SyncId.None)
             {
-                material.AssignMap(k_IdEmissionMap, syncMaterial.EmissionMap, textureCache);
+                material.AssignMap(sourceId, k_IdEmissionMap, syncMaterial.EmissionMap, textureCache);
                     
                 emissionMode = EmissionMode.Map;
             }
@@ -301,9 +305,15 @@ namespace UnityEngine.Reflect
             material.SetColor(id, finalColor);
         }
 
-        static void AssignMap(this Material material, int id, SyncMap map, ITextureCache textureCache)
+        static void AssignMap(this Material material, string sourceId, int id, SyncMap map, ITextureCache textureCache)
         {
-            var texture2D = map.TextureId != SyncId.None ? textureCache.GetTexture(map.TextureId) : null;
+            Texture2D texture2D = null;
+
+            if (map.TextureId != SyncId.None)
+            {
+                var textureKey = StreamKey.FromSyncId<SyncTexture>(sourceId, map.TextureId);
+                texture2D = textureCache.GetTexture(textureKey);
+            }
 
             material.SetTexture(id, texture2D);
 

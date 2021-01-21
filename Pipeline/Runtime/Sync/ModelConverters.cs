@@ -1,14 +1,16 @@
 using System;
 using System.Collections.Generic;
+using Unity.Reflect;
+using Unity.Reflect.Data;
 using Unity.Reflect.Model;
 
 namespace UnityEngine.Reflect.Pipeline
 {
     public class MemoryTrackerCacheCreatedEvent<TObject>
     {
-        public MemoryTracker.Handle<SyncId, TObject> handle;
+        public MemoryTracker.Handle<StreamKey, TObject> handle;
 
-        public MemoryTrackerCacheCreatedEvent(MemoryTracker.Handle<SyncId, TObject> handle)
+        public MemoryTrackerCacheCreatedEvent(MemoryTracker.Handle<StreamKey, TObject> handle)
         {
             this.handle = handle;
         }
@@ -19,7 +21,7 @@ namespace UnityEngine.Reflect.Pipeline
         readonly EventHub m_Hub;
         readonly MemoryTracker m_MemTracker;
 
-        MemoryTracker.Handle<SyncId, TObject> m_ObjectHandle;
+        MemoryTracker.Handle<StreamKey, TObject> m_ObjectHandle;
         readonly IOutput<SyncedData<TObject>> m_Output;
 
         public SyncModelConverter(EventHub hub, MemoryTracker memTracker, IOutput<SyncedData<TObject>> output)
@@ -30,11 +32,11 @@ namespace UnityEngine.Reflect.Pipeline
             m_Output = output;
         }
         
-        public TObject GetFromCache(SyncId id)
+        public TObject GetFromCache(StreamKey key)
         {
-            if (!m_MemTracker.TryGetValue(m_ObjectHandle, id, out var obj))
+            if (!m_MemTracker.TryGetValue(m_ObjectHandle, key, out var obj))
             {
-                Debug.LogWarning($"Key not found {id} {typeof(TObject)}");
+                Debug.LogWarning($"Key not found {key} {typeof(TObject)}");
                 return null;
             }
 
@@ -45,44 +47,44 @@ namespace UnityEngine.Reflect.Pipeline
         {
             if (streamEvent == StreamEvent.Added)
             {
-                var obj = Import(stream.data);
+                var obj = Import(stream);
 
-                if (m_MemTracker.ContainsKey(m_ObjectHandle, stream.data.Id))
+                if (m_MemTracker.ContainsKey(m_ObjectHandle, stream.key))
                 {
                     Debug.Log("Duplicate " + obj.name);
                 }
 
-                m_MemTracker.Set(m_ObjectHandle, stream.data.Id, obj);
+                m_MemTracker.Set(m_ObjectHandle, stream.key, obj);
 
                 m_Output.SendStreamAdded(new SyncedData<TObject>(stream.key, obj));
             }
             else if (streamEvent == StreamEvent.Changed)
             {
-                if (m_MemTracker.TryGetValue(m_ObjectHandle, stream.data.Id, out var obj))
+                if (m_MemTracker.TryGetValue(m_ObjectHandle, stream.key, out var obj))
                 {
-                    ReImport(stream.data, obj);
+                    ReImport(stream, obj);
                 }
                 else
                 {
                     // We may receive "Changed" for items that were
                     // loaded at some point, but are not in the cache anymore
-                    obj = Import(stream.data);
-                    m_MemTracker.Set(m_ObjectHandle, stream.data.Id, obj);
+                    obj = Import(stream);
+                    m_MemTracker.Set(m_ObjectHandle, stream.key, obj);
                 }
                 
                 m_Output.SendStreamChanged(new SyncedData<TObject>(stream.key, obj));
             }
         }
 
-        protected abstract TObject Import(TModel model);
+        protected abstract TObject Import(SyncedData<TModel> model);
         
-        protected abstract void ReImport(TModel model, TObject obj);
+        protected abstract void ReImport(SyncedData<TModel> model, TObject obj);
 
         protected abstract Action<TObject> GetDestructor();
 
         public void OnPipelineInitialized()
         {
-            m_ObjectHandle = m_MemTracker.CreateCache<SyncId, TObject>(GetDestructor());
+            m_ObjectHandle = m_MemTracker.CreateCache<StreamKey, TObject>(GetDestructor());
             m_Hub.Broadcast(new MemoryTrackerCacheCreatedEvent<TObject>(m_ObjectHandle));
         }
 
@@ -106,9 +108,9 @@ namespace UnityEngine.Reflect.Pipeline
             return p;
         }
 
-        public Mesh GetMesh(SyncId id)
+        public Mesh GetMesh(StreamKey key)
         {
-            return processor.GetFromCache(id);
+            return processor.GetFromCache(key);
         }
     }
 
@@ -121,12 +123,12 @@ namespace UnityEngine.Reflect.Pipeline
             m_MeshImporter = new SyncMeshImporter();
         }
 
-        protected override Mesh Import(SyncMesh syncMesh)
+        protected override Mesh Import(SyncedData<SyncMesh> syncMesh)
         {
             return m_MeshImporter.Import(syncMesh, null);
         }
 
-        protected override void ReImport(SyncMesh model, Mesh obj)
+        protected override void ReImport(SyncedData<SyncMesh> model, Mesh obj)
         {
             m_MeshImporter.Reimport(model, obj, null);
         }
@@ -152,9 +154,9 @@ namespace UnityEngine.Reflect.Pipeline
             return p;
         }
 
-        public virtual Texture2D GetTexture(SyncId id)
+        public virtual Texture2D GetTexture(StreamKey key)
         {
-            return processor.GetFromCache(id);
+            return processor.GetFromCache(key);
         }
     }
 
@@ -167,12 +169,12 @@ namespace UnityEngine.Reflect.Pipeline
             m_TextureImporter = new SyncTextureImporter();
         }
 
-        protected override Texture2D Import(SyncTexture syncTexture)
+        protected override Texture2D Import(SyncedData<SyncTexture> syncTexture)
         {
             return m_TextureImporter.Import(syncTexture, null);
         }
 
-        protected override void ReImport(SyncTexture model, Texture2D obj)
+        protected override void ReImport(SyncedData<SyncTexture>  model, Texture2D obj)
         {
             m_TextureImporter.Reimport(model, obj, null);
         }
@@ -203,9 +205,9 @@ namespace UnityEngine.Reflect.Pipeline
             return p;
         }
 
-        public virtual Material GetMaterial(SyncId id)
+        public virtual Material GetMaterial(StreamKey key)
         {
-            return processor.GetFromCache(id);
+            return processor.GetFromCache(key);
         }
     }
 
@@ -222,14 +224,14 @@ namespace UnityEngine.Reflect.Pipeline
             m_TextureCache = textureCache;
         }
 
-        protected override Material Import(SyncMaterial syncMaterial)
+        protected override Material Import(SyncedData<SyncMaterial> syncMaterial)
         {
             return m_Importer.Import(syncMaterial, m_TextureCache);
         }
 
-        protected override void ReImport(SyncMaterial model, Material obj)
+        protected override void ReImport(SyncedData<SyncMaterial> syncMaterial, Material obj)
         {
-            m_Importer.Reimport(model, obj, m_TextureCache);
+            m_Importer.Reimport(syncMaterial, obj, m_TextureCache);
         }
 
         protected override Action<Material> GetDestructor()
@@ -267,6 +269,9 @@ namespace UnityEngine.Reflect.Pipeline
         [SerializeField]
         ExposedReference<Transform> m_Root;
 
+        [SerializeField, Tooltip("If true, will create a parent GameObject for each Reflect model source.")]
+        bool m_GenerateSourceRoots = true;
+
         public void SetRoot(Transform root, IExposedPropertyTable resolver)
         {
             resolver.SetReferenceValue(m_Root.exposedName, root);
@@ -280,7 +285,8 @@ namespace UnityEngine.Reflect.Pipeline
                 root = new GameObject("root").transform;
             }
             
-            var node = new InstanceConverter(hook.services.eventHub, hook.services.memoryTracker, root, materialCacheParam.value, meshCacheParam.value, output);
+            var node = new InstanceConverter(hook.services.eventHub, hook.services.memoryTracker, root, m_GenerateSourceRoots,
+                materialCacheParam.value, meshCacheParam.value, output);
 
             input.streamBegin = output.SendBegin;
             input.streamEvent = node.OnStreamEvent;
@@ -312,17 +318,19 @@ namespace UnityEngine.Reflect.Pipeline
         readonly IMeshCache m_MeshCache;
 
         readonly Transform m_Root;
+        readonly Dictionary<string, Transform> m_SourceRoots;
 
-        readonly Dictionary<string, OriginalInstance> m_Originals;
-        readonly Dictionary<string, SyncObject> m_SyncObjects;
+        readonly Dictionary<StreamKey, OriginalInstance> m_Originals;
+        readonly Dictionary<StreamKey, SyncObject> m_SyncObjects;
         readonly Dictionary<StreamKey, SyncObjectBinding> m_Instances;
 
         DataOutput<GameObject> m_Output;
 
         EventHub.Group m_HubGroup;
-        MemoryTracker.Handle<SyncId, Mesh> m_MeshesHandle;
+        MemoryTracker.Handle<StreamKey, Mesh> m_MeshesHandle;
 
-        public InstanceConverter(EventHub hub, MemoryTracker memTracker, Transform root, IMaterialCache materialCache, IMeshCache meshCache, DataOutput<GameObject> output)
+        public InstanceConverter(EventHub hub, MemoryTracker memTracker, Transform root, bool generateSourceRoots,
+            IMaterialCache materialCache, IMeshCache meshCache, DataOutput<GameObject> output)
         {
             m_Hub = hub;
             m_MemTracker = memTracker;
@@ -330,11 +338,12 @@ namespace UnityEngine.Reflect.Pipeline
             m_MeshCache = meshCache;
             m_Output = output;
 
-            m_Originals = new Dictionary<string, OriginalInstance>();
+            m_Originals = new Dictionary<StreamKey, OriginalInstance>();
 
             m_Root = root;
+            m_SourceRoots = generateSourceRoots ? new Dictionary<string, Transform>() : null;
 
-            m_SyncObjects = new Dictionary<string, SyncObject>();
+            m_SyncObjects = new Dictionary<StreamKey, SyncObject>();
             m_Instances = new Dictionary<StreamKey, SyncObjectBinding>();
 
             m_HubGroup = m_Hub.CreateGroup();
@@ -344,7 +353,7 @@ namespace UnityEngine.Reflect.Pipeline
         
         protected virtual SyncObjectBinding ImportInstance(StreamInstance stream)
         {
-            var syncObjectBinding = SyncPrefabImporter.CreateInstance(m_Root, stream.instance, this);
+            var syncObjectBinding = SyncPrefabImporter.CreateInstance(GetInstanceRoot(stream.key.source), stream.key.source, stream.instance, this);
 #if UNITY_EDITOR
             var box = stream.boundingBox;
             var min = new Vector3(box.Min.X, box.Min.Y, box.Min.Z);
@@ -354,20 +363,39 @@ namespace UnityEngine.Reflect.Pipeline
             return syncObjectBinding;
         }
 
-        public SyncObjectBinding CreateInstance(string objectId)
+        Transform GetInstanceRoot(string source)
+        {
+            if (m_SourceRoots == null)
+                return m_Root;
+
+            if (!m_SourceRoots.TryGetValue(source, out var root))
+            {
+                root = new GameObject(source).transform;
+                root.parent = m_Root;
+                root.position = Vector3.zero;
+                root.rotation = Quaternion.identity;
+                root.localScale = Vector3.one;
+
+                m_SourceRoots[source] = root;
+            }
+
+            return root;
+        }
+
+        public SyncObjectBinding CreateInstance(StreamKey objectKey)
         {
             // Did we already instantiate an instance for the same?
-            if (m_Originals.TryGetValue(objectId, out var original) &&
+            if (m_Originals.TryGetValue(objectKey, out var original) &&
                 original.ObjectBinding != null)
             {
                 ++original.NbActiveInstances;
-                m_Originals[objectId] = original;
+                m_Originals[objectKey] = original;
                 TrackExistingDependencies(original.Dependencies);
                 return Object.Instantiate(original.ObjectBinding);
             }
             
             // Did we receive the SyncObject?
-            var syncObject = m_SyncObjects[objectId];
+            var syncObject = m_SyncObjects[objectKey];
 
             var configs = new SyncObjectImportConfig
             {
@@ -379,21 +407,23 @@ namespace UnityEngine.Reflect.Pipeline
             };
 
             var importer = new SyncObjectImporter();
-            var (dependencies, gameObject) = importer.ImportAndGetDependencies(syncObject, configs);
+            var (dependencies, gameObject) = importer.ImportAndGetDependencies(objectKey.source, syncObject, configs);
 
             var comp = gameObject.AddComponent<SyncObjectBinding>();
 
             TrackDependencies(dependencies);
-            m_Originals[objectId] = new OriginalInstance(1, comp, dependencies);
+            m_Originals[objectKey] = new OriginalInstance(1, comp, dependencies);
 
             return comp;
         }
 
         public void OnStreamEvent(SyncedData<StreamInstanceData> stream, StreamEvent streamEvent)
         {
+            var objectKey = new StreamKey(stream.key.source, PersistentKey.GetKey<SyncObject>(stream.data.syncObject.Id));
+            
             if (streamEvent == StreamEvent.Added)
             {
-                m_SyncObjects[stream.data.syncObject.Id.Value] = stream.data.syncObject;
+                m_SyncObjects[objectKey] = stream.data.syncObject;
                 var syncObjectBinding = ImportInstance(stream.data.instance);
 
                 var key = stream.data.instance.key;
@@ -422,18 +452,18 @@ namespace UnityEngine.Reflect.Pipeline
                 
                 m_Output.SendStreamRemoved(new SyncedData<GameObject>(key, syncObjectBinding.gameObject));
 
-                if (m_Originals.TryGetValue(stream.data.syncObject.Id.Value, out var original))
+                if (m_Originals.TryGetValue(objectKey, out var original))
                 {
                     UntrackDependencies(original.Dependencies);
 
                     if (original.NbActiveInstances == 1)
                     {
-                        m_Originals.Remove(stream.data.syncObject.Id.Value);
+                        m_Originals.Remove(objectKey);
                     }
                     else
                     {
                         --original.NbActiveInstances;
-                        m_Originals[stream.data.syncObject.Id.Value] = original;
+                        m_Originals[objectKey] = original;
                     }
                 }
 
@@ -462,7 +492,7 @@ namespace UnityEngine.Reflect.Pipeline
         {
             foreach (var item in dependencies.meshes)
             {
-                m_MemTracker.Acquire(m_MeshesHandle, item.Id);
+                m_MemTracker.Acquire(m_MeshesHandle, item.key);
             }
         }
 
@@ -470,7 +500,7 @@ namespace UnityEngine.Reflect.Pipeline
         {
             foreach (var item in dependencies.meshes)
             {
-                m_MemTracker.SetAndAcquire(m_MeshesHandle, item.Id, item.Mesh);
+                m_MemTracker.SetAndAcquire(m_MeshesHandle, item.key, item.Mesh);
             }
         }
 
@@ -478,7 +508,7 @@ namespace UnityEngine.Reflect.Pipeline
         {
             foreach (var item in dependencies.meshes)
             {
-                m_MemTracker.TryRelease(m_MeshesHandle, item.Id);
+                m_MemTracker.TryRelease(m_MeshesHandle, item.key);
             }
         }
 

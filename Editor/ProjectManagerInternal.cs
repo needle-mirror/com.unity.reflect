@@ -23,13 +23,8 @@ namespace UnityEditor.Reflect
         public event Action onProjectsRefreshBegin;
         public event Action onProjectsRefreshEnd;
 
-        public event Action<Project> onProjectAdded;
-        public event Action<Project> onProjectChanged;
-        public event Action<Project> onProjectRemoved;
-
         public event Action<Exception> onError;
-
-        public event Action onAuthenticationFailure;
+        
         public event Action<float, string> progressChanged;
         public event Action taskCompleted;
 
@@ -48,10 +43,6 @@ namespace UnityEditor.Reflect
             m_LocalStorage = new PlayerStorage(storageRoot, useServerFolder, useProjectNameAsRootFolder);
         }
 
-        public ProjectManagerInternal() : this(ProjectServer.ProjectDataPath, true, false)
-        {
-        }
-
         bool IsProjectAvailable(Project project) => m_Projects.ContainsKey(project.serverProjectId);
 
         public bool IsProjectAvailableOffline(Project project) => IsProjectAvailable(project) && m_LocalStorage.HasLocalData(project);
@@ -61,141 +52,6 @@ namespace UnityEditor.Reflect
         public string GetProjectFolder(Project project)
         {
             return m_LocalStorage.GetProjectFolder(project);
-        }
-
-        public string GetSourceProjectFolder(Project project, string sessionId)
-        {
-            return m_LocalStorage.GetSourceProjectFolder(project, sessionId);
-        }
-
-        public IEnumerable<SourceProject> LoadProjectManifests(Project project)
-        {
-            return m_LocalStorage.LoadProjectManifests(project);
-        }
-
-        public IEnumerator DownloadProjectLocally(Project project, bool incremental, Action<Exception> errorHandler)
-        {
-            Action<Exception> completeWithError = (ex) =>
-            {
-                onError?.Invoke(ex);
-                errorHandler?.Invoke(ex);
-            };
-
-            IPlayerClient client = null;
-            try
-            {
-                try
-                {
-                    client = Player.CreateClient(project, ProjectServer.UnityUser, ProjectServer.Client);
-                }
-                catch (ConnectionException ex)
-                {
-                    var unityProject = (UnityProject)project;
-                    string message;
-                    if (unityProject.Host == UnityProjectHost.LocalService)
-                    {
-                        message = "A connection with your local server could not be established. Make sure the Unity Reflect Service is running.";
-                    }
-                    else
-                    {
-                        if (unityProject.Host.ServerName == "Cloud")
-                        {
-                            message = $"A connection with Reflect Cloud could not be established.";
-                        }
-                        else
-                        {
-                            message = $"A connection with the server {unityProject.Host.ServerName} could not be established. This server may be outside your local network (LAN) or may not accept external connections due to firewall policies.";
-                        }
-                    }
-
-                    ex = new ConnectionException(message, ex);
-                    completeWithError(ex);
-                    throw ex;
-                }
-                catch (Exception ex)
-                {
-                    completeWithError(ex);
-                    throw;
-                }
-
-                ManifestAsset[] manifestEntries;
-                try
-                {
-                    // TODO: Use async service call and yield until completion
-                    manifestEntries = client.GetManifests().ToArray();
-                }
-                catch (Exception ex)
-                {
-                    completeWithError(ex);
-                    throw;
-                }
-
-                progressChanged?.Invoke(0.0f, k_Downloading);
-
-                var total = manifestEntries.Length;
-                var projectPercent = 1.0f / total;
-
-                var localManifests = new Dictionary<string, SyncManifest>();
-
-                if (incremental)
-                {
-                    IEnumerable<SourceProject> localSourceProjects = null;
-
-                    try
-                    {
-                        localSourceProjects = m_LocalStorage.LoadProjectManifests(project).ToArray();
-                    }
-                    catch (ReflectVersionException)
-                    {
-                        if (manifestEntries.Length == 0)
-                        {
-                            var ex = new Exception($"Cannot open project {project.name} because it has been exported with a different version of Unity Reflect.");
-                            completeWithError(ex);
-                            throw ex;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        completeWithError(ex);
-                        throw;
-                    }
-
-                    if (localSourceProjects != null)
-                    {
-                        foreach (var sourceProject in localSourceProjects)
-                        {
-                            localManifests.Add(sourceProject.sourceId, sourceProject.manifest);
-                        }
-                    }
-                }
-
-                m_LocalStorage.SaveProjectData(project);
-
-                for (int i = 0; i < total; ++i)
-                {
-                    var manifestEntry = manifestEntries[i];
-
-                    localManifests.TryGetValue(manifestEntry.SourceId, out var oldManifest);
-
-                    yield return DownloadSourceProjectLocally(project, manifestEntry.SourceId,
-                        oldManifest, manifestEntry.Manifest,
-                        client,
-                        p =>
-                        {
-                            var percent = (i + p) * projectPercent;
-                            progressChanged?.Invoke(percent, k_Downloading);
-                        }, errorHandler);
-                }
-
-                onProjectChanged?.Invoke(project);
-
-                progressChanged?.Invoke(1.0f, k_Downloading);
-            }
-            finally
-            {
-                client?.Dispose();
-                taskCompleted?.Invoke();
-            }
         }
 
         internal struct DownloadError
@@ -248,79 +104,6 @@ namespace UnityEditor.Reflect
                     m_Current += 1;
                 }
             }
-        }
-
-        DownloadProgress m_DownloadProgress = new DownloadProgress();
-
-        public IEnumerator DownloadSourceProjectLocally(Project project, string sourceId, SyncManifest oldManifest, SyncManifest newManifest, IPlayerClient client,
-            Action<float> onProgress, Action<Exception> errorHandler = null)
-        {
-            onProgress?.Invoke(0.0f);
-
-            var task = Task.Run(() => DownloadTask(client, oldManifest, newManifest, project, sourceId, m_DownloadProgress));
-
-            // Breath and let one frame render for UI feedback
-            yield return null;
-            
-            do
-            {
-                while (m_DownloadProgress.errors.TryDequeue(out var error))
-                {
-                    Debug.LogError($"Unable to download '{error.entry}' : {error.exception?.Message}");
-                }
-
-                onProgress?.Invoke(m_DownloadProgress.percent);
-
-                // Breath
-                yield return null;
-
-            } while (!task.IsCompleted || !m_DownloadProgress.errors.IsEmpty);
-
-            onProgress?.Invoke(1.0f);
-
-            if (task.IsFaulted)
-            {
-                var exception = task.Exception?.InnerException ?? task.Exception;
-                
-                Debug.LogError($"Error while downloading Source '{sourceId}' in Project '{project.name}' : {exception?.Message}");
-                onError?.Invoke(exception);
-                errorHandler?.Invoke(exception);
-            }
-        }
-
-        async Task DownloadTask(IPlayerClient client, SyncManifest oldManifest, SyncManifest newManifest,
-            UnityProject project, string sourceId, DownloadProgress progress)
-        {
-            List<ManifestEntry> entries;
-
-            if (oldManifest == null)
-            {
-                var content = newManifest.Content;
-                entries = content.Values.ToList();
-            }
-            else
-            {
-                oldManifest.ComputeDiff(newManifest, out var modified, out var deleted);
-                entries = modified.ToList();
-
-                // TODO Handle deleted models
-            }
-            
-            progress.SetTotal(entries.Count);
-
-            var destinationFolder = m_LocalStorage.GetSourceProjectFolder(project, sourceId);
-
-            var tasks = entries.Select(entry => DownloadAndStore(client, sourceId, entry, newManifest, destinationFolder, progress)).ToList();
-
-            // Don't forget the manifest itself
-            tasks.Add(RunFileIOOperation(() =>
-            {
-                newManifest.EditorSave(destinationFolder);
-                return Task.CompletedTask;
-            }));
-            
-            // Wait for all download to finish
-            await Task.WhenAll(tasks);
         }
 
         internal static async Task DownloadAndStore(IPlayerClient client, string sourceId, ManifestEntry entry, SyncManifest newManifest,
@@ -474,54 +257,15 @@ namespace UnityEditor.Reflect
             return path;
         }
 
-        public IEnumerator DeleteProjectLocally(Project project)
-        {
-            var projectFolderPath = m_LocalStorage.GetProjectFolder(project);
-            if (!Directory.Exists(projectFolderPath))
-            {
-                Debug.LogWarning($"Cannot delete locally stored project '{project.projectId}'");
-                yield break;
-            }
-
-            const string kDeleting = "Deleting";
-
-            progressChanged?.Invoke(0.0f, kDeleting);
-
-            // Deleting each file individually is slow. Instead, get all leaf directories and delete them one after the other.
-            var projectDirectories = Directory.EnumerateDirectories(projectFolderPath, "*.*", SearchOption.AllDirectories)
-                .Where(f => !Directory.EnumerateDirectories(f, "*.*", SearchOption.TopDirectoryOnly).Any()).ToList();
-
-            var folderCount = projectDirectories.Count;
-
-            for (int i = 0; i < projectDirectories.Count; ++i)
-            {
-                Directory.Delete(projectDirectories[i], true);
-
-                progressChanged?.Invoke((float)i / folderCount, kDeleting);
-                yield return null;
-            }
-
-            Directory.Delete(projectFolderPath, true);
-
-            progressChanged?.Invoke(1.0f, kDeleting);
-            yield return null;
-
-            UpdateProjectInternal(project, false);
-
-            taskCompleted?.Invoke();
-        }
-
         void UpdateProjectInternal(Project project, bool canAddProject)
         {
             if (m_Projects.ContainsKey(project.serverProjectId))
             {
                 m_Projects[project.serverProjectId] = project;
-                onProjectChanged?.Invoke(project);
             }
             else if (canAddProject)
             {
                 m_Projects[project.serverProjectId] = project;
-                onProjectAdded?.Invoke(project);
             }
         }
 
@@ -530,7 +274,6 @@ namespace UnityEditor.Reflect
             if (m_Projects.TryGetValue(serverProjectId, out var project))
             {
                 m_Projects.Remove(serverProjectId);
-                onProjectRemoved?.Invoke(project);
             }
         }
 
@@ -565,7 +308,6 @@ namespace UnityEditor.Reflect
                 var result = listTask.Result;
                 if (result.Status == UnityProjectCollection.StatusOption.AuthenticationError)
                 {
-                    onAuthenticationFailure?.Invoke();
                     // NOTE: Keep on going, we may be able to display offline data
                 }
                 else if (result.Status == UnityProjectCollection.StatusOption.ComplianceError)

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Unity.Reflect;
 using Unity.Reflect.Model;
 
 namespace UnityEngine.Reflect
@@ -13,9 +14,9 @@ namespace UnityEngine.Reflect
 
     public class ObjectDependencies
     {
-        public List<(SyncId Id, Mesh Mesh)> meshes;
+        public List<(StreamKey key, Mesh Mesh)> meshes;
 
-        public ObjectDependencies(List<(SyncId, Mesh)> meshes)
+        public ObjectDependencies(List<(StreamKey, Mesh)> meshes)
         {
             this.meshes = meshes;
         }
@@ -35,11 +36,11 @@ namespace UnityEngine.Reflect
             return new GameObject(syncElement.Name);
         }
 
-        public (ObjectDependencies Dependencies, GameObject GameObject) ImportAndGetDependencies(SyncObject model, object settings)
+        public (ObjectDependencies Dependencies, GameObject GameObject) ImportAndGetDependencies(string sourceId, SyncObject model, object settings)
         {
             var asset = CreateNew(model, settings);
 
-            var dependencies = Import(model, asset, (SyncObjectImportConfig)settings);
+            var dependencies = Import(sourceId, model, asset, (SyncObjectImportConfig)settings);
 
             return (dependencies, asset);
         }
@@ -61,22 +62,23 @@ namespace UnityEngine.Reflect
             }
         }
 
-        protected override void ImportInternal(SyncObject syncObject, GameObject gameObject, object settings)
+        protected override void ImportInternal(SyncedData<SyncObject> syncObject, GameObject gameObject, object settings)
         {
-            Import(syncObject, gameObject, (SyncObjectImportConfig)settings);
+            Import(syncObject.key.source, syncObject.data, gameObject, (SyncObjectImportConfig)settings);
         }
 
-        static ObjectDependencies Import(SyncObject syncObject, GameObject gameObject, SyncObjectImportConfig config)
+        static ObjectDependencies Import(string sourceId, SyncObject syncObject, GameObject gameObject, SyncObjectImportConfig config)
         {
-            var meshes = new List<(SyncId, Mesh)>();
+            var meshes = new List<(StreamKey, Mesh)>();
 
             if (syncObject.MeshId != SyncId.None)
             {
-                var mesh = config.meshCache.GetMesh(syncObject.MeshId);
+                var meshKey = StreamKey.FromSyncId<SyncMesh>(sourceId, syncObject.MeshId);
+                var mesh = config.meshCache.GetMesh(meshKey);
 
                 if (mesh != null)
                 {
-                    meshes.Add((syncObject.MeshId, mesh));
+                    meshes.Add((meshKey, mesh));
 
                     var meshFilter = gameObject.AddComponent<MeshFilter>();
                     meshFilter.sharedMesh = mesh;
@@ -97,7 +99,8 @@ namespace UnityEngine.Reflect
 
                             if (materialId != SyncId.None)
                             {
-                                material = config.materialCache.GetMaterial(materialId);
+                                var materialKey = StreamKey.FromSyncId<SyncMaterial>(sourceId, materialId);
+                                material = config.materialCache.GetMaterial(materialKey);
                             }
                         }
 
@@ -115,7 +118,7 @@ namespace UnityEngine.Reflect
             
             if (syncObject.Rpc != null)
             {
-                ImportRPC(syncObject.Rpc, gameObject);
+                // TODO
             }
             
             if (syncObject.Camera != null)
@@ -135,7 +138,7 @@ namespace UnityEngine.Reflect
                     childObject.transform.parent = gameObject.transform;
                     ImportersUtils.SetTransform(childObject.transform, child.Transform);
                     
-                    Import(child, childObject, config);
+                    Import(sourceId, child, childObject, config);
                 }
             }
 
@@ -185,8 +188,8 @@ namespace UnityEngine.Reflect
                 range = (float)Math.Sqrt(intensity / intensityAtRange);
             }
 
-           // TODO Investigate why Light.UseColorTemperature is not exposed to C# and let the light do this calculation
-           var cct = ImportersUtils.ColorFromTemperature(syncLight.Temperature);
+            // TODO Investigate why Light.UseColorTemperature is not exposed to C# and let the light do this calculation
+            var cct = ImportersUtils.ColorFromTemperature(syncLight.Temperature);
 
             var filter = new Color(syncLight.Color.R, syncLight.Color.G, syncLight.Color.B);
             
@@ -222,10 +225,6 @@ namespace UnityEngine.Reflect
                 }
                 break;
             }
-        }
-
-        static void ImportRPC(SyncRPC syncRPC, GameObject parent)
-        {
         }
 
         static void ImportCamera(SyncCamera syncCamera, GameObject parent)

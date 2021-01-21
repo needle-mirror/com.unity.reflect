@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using Unity.Reflect;
 using Unity.Reflect.Model;
 using UnityEditor.Experimental.AssetImporters;
 using UnityEngine;
@@ -17,9 +18,10 @@ namespace UnityEditor.Reflect
         public override void OnImportAsset(AssetImportContext ctx)
         {
             var syncMesh = PlayerFile.Load<SyncMesh>(ctx.assetPath);
+            var syncedData = new SyncedData<SyncMesh>(StreamKey.FromSyncId<SyncMesh>(ReflectScriptedImporter.EditorSourceId, syncMesh.Id), syncMesh);
             
             var meshImporter = new SyncMeshImporter();
-            var mesh = meshImporter.Import(syncMesh, null);
+            var mesh = meshImporter.Import(syncedData, null);
 
             if (m_GenerateLightmapUVs)
             {

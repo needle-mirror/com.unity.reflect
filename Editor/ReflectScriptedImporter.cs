@@ -12,6 +12,8 @@ namespace UnityEditor.Reflect
         string m_AssetName;
         Dictionary<SourceAssetIdentifier, Object> m_Remaps;
 
+        public static readonly string EditorSourceId = "dummy";
+
         protected T GetReferencedAsset<T>(string path) where T : Object
         {
             if (string.IsNullOrEmpty(path))

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Unity.Reflect.Model;
 using System.Reflection;
+using Unity.Reflect;
 
 namespace UnityEngine.Reflect.Pipeline
 {
@@ -156,19 +157,7 @@ namespace UnityEngine.Reflect.Pipeline
     public abstract class DataInput<T> : Input<SyncedData<T>>
     {
     }
-    
-    public struct SyncedData<T>
-    {
-        public readonly StreamKey key;
-        public readonly T data;
 
-        public SyncedData(StreamKey key, T data)
-        {
-            this.key = key;
-            this.data = data;
-        }
-    }
-    
     [Serializable]
     public class SyncMaterialInput : DataInput<SyncMaterial> { }
 
