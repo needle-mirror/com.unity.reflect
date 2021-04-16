@@ -12,6 +12,8 @@ namespace UnityEngine.Reflect.Pipeline
         IList<IReflectNode> m_Nodes;
         IList<IReflectNodeProcessor> m_Processors;
         IUpdateDelegate m_UpdateDelegate;
+        
+        public event Action<Exception> onException; 
 
         public IEnumerable<IReflectNodeProcessor> processors => m_Processors;
 
@@ -53,6 +55,7 @@ namespace UnityEngine.Reflect.Pipeline
                 if (n is ReflectTask task)
                 {
                     task.SetUpdateDelegate(updateDelegate);
+                    task.onException += onException;
                 }
 
                 m_Processors.Add(n);

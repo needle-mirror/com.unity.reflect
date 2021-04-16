@@ -29,10 +29,32 @@ namespace UnityEngine.Reflect
                 return;
             
             s_Initialized = true;
-            Provider = LocaleUtils.GetProvider();
             
-            ProjectDataPath = Path.Combine(Application.persistentDataPath, "ProjectData");
-            Client = new ProjectServerClient(Provider, appId, ProjectDataPath);
+            var environmentInfo = LocaleUtils.GetEnvironmentInfo();
+            Provider = environmentInfo.provider;
+
+            var projectDataSuffix = string.Empty;
+            string projectServerAddress;
+            if (PlayerPrefs.HasKey(LocaleUtils.SettingsKeys.CloudEnvironment) && environmentInfo.cloudEnvironment == CloudEnvironment.Other)
+            {
+                projectServerAddress = environmentInfo.customUrl;
+                projectDataSuffix = $"-{projectServerAddress.MD5Hash()}";
+            }
+            else
+            {
+                projectServerAddress = ProjectServerClient.ProjectServerAddress(environmentInfo.provider, environmentInfo.cloudEnvironment);
+                                
+                if (environmentInfo.cloudEnvironment != CloudEnvironment.Production)
+                {
+                    projectDataSuffix = $"-{environmentInfo.provider}-{environmentInfo.cloudEnvironment}";
+                }
+                // else: No suffix for prod since real users already have data stored in their ProjectData folder
+            }
+
+            ProjectDataPath = Path.Combine(Application.persistentDataPath, $"ProjectData{projectDataSuffix}");
+            Directory.CreateDirectory(ProjectDataPath);
+            
+            Client = new ProjectServerClient(projectServerAddress, appId, ProjectDataPath);
         }
 
         public static void Cleanup()

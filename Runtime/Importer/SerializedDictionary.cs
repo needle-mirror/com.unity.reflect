@@ -4,16 +4,15 @@ using System.Collections.Generic;
 namespace UnityEngine.Reflect
 {
     [Serializable]
-    public abstract class SerializedDictionary<TKey, TValue> : ISerializationCallbackReceiver
+    public class SerializedDictionary<TKey, TValue> : Dictionary<TKey, TValue>, ISerializationCallbackReceiver
     {
         [SerializeField] List<TKey> m_Keys = new List<TKey>();
         [SerializeField] List<TValue> m_Values = new List<TValue>();
 
-        readonly Dictionary<TKey, TValue> m_Dictionary = new Dictionary<TKey, TValue>();
-
         public Dictionary<TKey, TValue> dictionary
         {
-            get { return m_Dictionary; }
+            // To not breaking backward compatibility, before the dictionary was a field instead of inheriting
+            get { return this; }
         }
 
         public void OnBeforeSerialize()
@@ -21,7 +20,7 @@ namespace UnityEngine.Reflect
             m_Keys.Clear();
             m_Values.Clear();
 
-            foreach (var keyPair in m_Dictionary)
+            foreach (var keyPair in this)
             {
                 m_Keys.Add(keyPair.Key);
                 m_Values.Add(keyPair.Value);
@@ -30,10 +29,10 @@ namespace UnityEngine.Reflect
 
         public void OnAfterDeserialize()
         {
-            m_Dictionary.Clear();
+            Clear();
 
             for (int i = 0; i < m_Keys.Count; ++i)
-                m_Dictionary.Add(m_Keys[i], m_Values[i]);
+                Add(m_Keys[i], m_Values[i]);
         }
     }
 }

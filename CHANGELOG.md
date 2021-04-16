@@ -1,34 +1,259 @@
-## [2.0.1-preview.13] - 2021-01-21
+## [2.1.0-preview.104] - 2021-04-16
+- RC Candidate
 
-## [2.0.1-preview.12] - 2021-01-21
+## [2.1.0-preview.103] - 2021-04-09
+- CI Version Bump
 
-## [2.0.1-preview.11] - 2021-01-20
+## [2.1.0-preview.102] - 2021-04-09
+- CI Version Bump
 
-## [2.0.1-preview.10] - 2021-01-20
+## [2.1.0-preview.101] - 2021-04-08
+- CI Version Bump
 
-## [2.0.1-preview.9] - 2021-01-18
+## [2.1.0-preview.100] - 2021-04-07
+- CI Version Bump
 
-## [2.0.1-preview.8] - 2021-01-16
+## [2.1.0-preview.99] - 2021-04-01
+- CI Version Bump
 
-## [2.0.1-preview.7] - 2021-01-15
+## [2.1.0-preview.98] - 2021-04-01
+- CI Version Bump
 
-## [2.0.1-preview.6] - 2021-01-14
+## [2.1.0-preview.97] - 2021-03-31
+- CI Version Bump
 
-## [2.0.1-preview.5] - 2021-01-12
+## [2.1.0-preview.96] - 2021-03-30
+- CI Version Bump
 
-## [2.0.1-preview.4] - 2021-01-07
+## [2.1.0-preview.95] - 2021-03-29
+- CI Version Bump
 
-## [2.0.1-preview.3] - 2021-01-04
+## [2.1.0-preview.94] - 2021-03-29
+- CI Version Bump
 
-## [2.0.1-preview.2] - 2020-12-19
+## [2.1.0-preview.93] - 2021-03-29
+- CI Version Bump
 
-## [2.0.1-preview.1] - 2020-12-18
+## [2.1.0-preview.92] - 2021-03-25
+- CI Version Bump
 
-## [2.0.0-preview.19] - 2020-11-27
+## [2.1.0-preview.91] - 2021-03-24
+- CI Version Bump
 
-## [2.0.0-preview.18] - 2020-11-27
+## [2.1.0-preview.90] - 2021-03-23
+- CI Version Bump
 
-## [2.0.0-preview.17] - 2020-11-27
+## [2.1.0-preview.89] - 2021-03-22
+- CI Version Bump
+
+## [2.1.0-preview.88] - 2021-03-21
+- CI Version Bump
+
+## [2.1.0-preview.87] - 2021-03-20
+- CI Version Bump
+
+## [2.1.0-preview.86] - 2021-03-19
+- CI Version Bump
+
+## [2.1.0-preview.85] - 2021-03-18
+- CI Version Bump
+
+## [2.1.0-preview.84] - 2021-03-18
+- CI Version Bump
+
+## [2.1.0-preview.83] - 2021-03-17
+- CI Version Bump
+
+## [2.1.0-preview.82] - 2021-03-15
+- CI Version Bump
+
+## [2.1.0-preview.81] - 2021-03-15
+- CI Version Bump
+
+## [2.1.0-preview.80] - 2021-03-14
+- CI Version Bump
+
+## [2.1.0-preview.79] - 2021-03-13
+- CI Version Bump
+
+## [2.1.0-preview.78] - 2021-03-12
+- CI Version Bump
+
+## [2.1.0-preview.77] - 2021-03-12
+- CI Version Bump
+
+## [2.1.0-preview.76] - 2021-03-12
+- Added public link sharing API
+- Added Unity organization information to the UnityProject class
+
+## [2.1.0-preview.75] - 2021-03-12
+- CI Version Bump
+
+## [2.1.0-preview.74] - 2021-03-11
+- CI Version Bump
+
+## [2.1.0-preview.73] - 2021-03-11
+- CI Version Bump
+
+## [2.1.0-preview.72] - 2021-03-10
+- CI Version Bump
+
+## [2.1.0-preview.71] - 2021-03-10
+- CI Version Bump
+
+## [2.1.0-preview.70] - 2021-03-07
+- CI Version Bump
+
+## [2.1.0-preview.69] - 2021-03-06
+- CI Version Bump
+
+## [2.1.0-preview.68] - 2021-03-05
+- CI Version Bump
+
+## [2.1.0-preview.67] - 2021-03-04
+- CI Version Bump
+
+## [2.1.0-preview.66] - 2021-03-04
+- CI Version Bump
+
+## [2.1.0-preview.65] - 2021-03-03
+- CI Version Bump
+
+## [2.1.0-preview.64] - 2021-03-02
+- CI Version Bump
+
+## [2.1.0-preview.63] - 2021-03-01
+- CI Version Bump
+
+## [2.1.0-preview.62] - 2021-02-28
+- CI Version Bump
+
+## [2.1.0-preview.61] - 2021-02-27
+- CI Version Bump
+
+## [2.1.0-preview.60] - 2021-02-25
+
+## [2.1.0-preview.59] - 2021-02-23
+
+## [2.1.0-preview.58] - 2021-02-22
+
+## [2.1.0-preview.57] - 2021-02-19
+
+## [2.1.0-preview.56] - 2021-02-17
+- Point com.unity.reflect.runtime to 1.3.0-preview.18
+
+## [2.1.0-preview.55] - 2021-02-17
+
+## [2.1.0-preview.54] - 2021-02-16
+
+## [2.1.0-preview.53] - 2021-02-15
+- Point com.unity.reflect.runtime to 1.3.0-preview.17
+
+## [2.1.0-preview.52] - 2021-02-15
+
+## [2.1.0-preview.51] - 2021-02-14
+
+## [2.1.0-preview.50] - 2021-02-13
+
+## [2.1.0-preview.49] - 2021-02-12
+
+## [2.1.0-preview.48] - 2021-02-11
+
+## [2.1.0-preview.47] - 2021-02-10
+
+## [2.1.0-preview.46] - 2021-02-09
+
+## [2.1.0-preview.45] - 2021-02-08
+
+## [2.1.0-preview.44] - 2021-02-07
+
+## [2.1.0-preview.43] - 2021-02-06
+
+## [2.1.0-preview.42] - 2021-02-05
+
+## [2.1.0-preview.41] - 2021-02-04
+
+## [2.1.0-preview.40] - 2021-02-01
+
+## [2.1.0-preview.39] - 2021-01-31
+
+## [2.1.0-preview.38] - 2021-01-30
+
+## [2.1.0-preview.37] - 2021-01-29
+
+## [2.1.0-preview.36] - 2021-01-28
+
+## [2.1.0-preview.35] - 2021-01-27
+
+## [2.1.0-preview.34] - 2021-01-26
+
+## [2.1.0-preview.33] - 2021-01-25
+
+## [2.1.0-preview.32] - 2021-01-24
+
+## [2.1.0-preview.31] - 2021-01-24
+
+## [2.1.0-preview.30] - 2021-01-23
+
+## [2.1.0-preview.29] - 2021-01-22
+
+## [2.1.0-preview.28] - 2021-01-21
+
+## [2.1.0-preview.27] - 2021-01-19
+
+## [2.1.0-preview.26] - 2021-01-18
+# Features
+- This package requires Unity 2020.2
+
+## [2.1.0-preview.25] - 2021-01-15
+
+## [2.1.0-preview.24] - 2021-01-14
+
+## [2.1.0-preview.23] - 2021-01-13
+
+## [2.1.0-preview.22] - 2021-01-12
+
+## [2.1.0-preview.21] - 2021-01-11
+
+## [2.1.0-preview.20] - 2021-01-10
+
+## [2.1.0-preview.19] - 2021-01-09
+
+## [2.1.0-preview.18] - 2021-01-08
+
+## [2.1.0-preview.17] - 2021-01-07
+
+## [2.1.0-preview.16] - 2021-01-05
+
+## [2.1.0-preview.15] - 2020-12-18
+
+## [2.1.0-preview.14] - 2020-12-17
+
+## [2.1.0-preview.13] - 2020-12-16
+
+## [2.1.0-preview.12] - 2020-12-15
+
+## [2.1.0-preview.11] - 2020-12-13
+
+## [2.1.0-preview.10] - 2020-12-12
+
+## [2.1.0-preview.9] - 2020-12-11
+
+## [2.1.0-preview.8] - 2020-12-10
+
+## [2.1.0-preview.7] - 2020-12-09
+
+## [2.1.0-preview.6] - 2020-12-08
+
+## [2.1.0-preview.5] - 2020-12-05
+
+## [2.1.0-preview.4] - 2020-12-04
+
+## [2.1.0-preview.3] - 2020-12-03
+
+## [2.1.0-preview.2] - 2020-12-02
+
+## [2.1.0-preview.1] - 2020-12-01
 
 ## [2.0.0-preview.16] - 2020-11-25
 

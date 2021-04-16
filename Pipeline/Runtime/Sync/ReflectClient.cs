@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -32,6 +32,9 @@ namespace UnityEngine.Reflect.Pipeline
 
         public void Dispose()
         {
+            if (client == null)
+                return;
+            
             client.ManifestUpdated -= OnManifestUpdated;
             client.ConnectionStatusChanged -= OnConnectionStatusChanged;
             client.Dispose();
@@ -109,15 +112,11 @@ namespace UnityEngine.Reflect.Pipeline
 
         ClientListener m_Listener;
 
-        string m_CacheRoot;
-
-        public ReflectClient(IUpdateDelegate updateDelegate, UnityUser user, IReflectStorage storage, UnityProject project)
+        public ReflectClient(IUpdateDelegate updateDelegate, UnityUser user, PlayerStorage storage, UnityProject project)
         {
             m_Project = project;
             m_User = user;
-            m_Storage = storage as PlayerStorage;
-
-            m_CacheRoot = Path.Combine(Application.persistentDataPath, "ProjectData");
+            m_Storage = storage;
 
             InitializeProjectClientListener();
 
@@ -252,8 +251,7 @@ namespace UnityEngine.Reflect.Pipeline
         
         string GetSourceProjectFolder(string sourceId)
         {
-            var folder = Path.Combine(m_Project.ProjectId, sourceId);
-            return Path.Combine(m_CacheRoot, m_Project.Host.ServerName, folder);
+            return Path.Combine(m_Storage.GetProjectFolder(m_Project), sourceId);
         }
 
         void InitializeProjectClientListener()
@@ -268,7 +266,7 @@ namespace UnityEngine.Reflect.Pipeline
             {
                 var unityProject = m_Project;
                 string message;
-                if (unityProject.Host == UnityProjectHost.LocalService)
+                if (unityProject.Host.IsLocalService)
                 {
                     message = "A connection with your local server could not be established. Make sure the Unity Reflect Service is running.";
                 }

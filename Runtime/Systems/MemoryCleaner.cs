@@ -56,7 +56,7 @@ namespace UnityEngine.Reflect
     {
         static long k_Megabytes = 1024L * 1024L;
 
-        long[] m_CriticalSafeGuard = new long[64 * k_Megabytes];
+        byte[] m_CriticalSafeGuard = new byte[64 * k_Megabytes];
         
         IUnityStatic m_Static;
         Clock.Proxy m_Clock;
@@ -150,7 +150,7 @@ namespace UnityEngine.Reflect
             m_Hub.Broadcast(new MemoryLevelChanged{ Level = MemoryLevel.Critical });
             m_CurrentLevel = MemoryLevel.Critical;
             GC.Collect();
-            m_CriticalSafeGuard = new long[64 * k_Megabytes];
+            m_CriticalSafeGuard = new byte[64 * k_Megabytes];
         }
 
         MemoryLevel GetCurrentLevel()

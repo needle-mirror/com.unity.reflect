@@ -1,10 +1,13 @@
 ﻿#if UNITY_IOS
 
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.iOS.Xcode;
+using UnityEditor.Reflect;
 using UnityEngine;
 
 class XCodePostProcessBuild : IPostprocessBuildWithReport
@@ -61,6 +64,18 @@ class XCodePostProcessBuild : IPostprocessBuildWithReport
     public void OnPostprocessBuild(BuildReport report)
     {
         OnPostprocessBuild(report.summary.platform, report.summary.outputPath);
+    }
+
+    static ProjectCapabilityManager GenerateAppLinksEntitlements(string projectPath, IEnumerable<string> domains)
+    {
+	    var entitlements = new ProjectCapabilityManager(
+		    projectPath,
+		    "com.unity.reflect.entitlements",
+		    "Unity-iPhone");
+	    var appLinks = domains.Select(domain => $"applinks:{domain}").ToArray();
+	    entitlements.AddAssociatedDomains(appLinks);
+	    
+	    return entitlements;
     }
 }
 #endif

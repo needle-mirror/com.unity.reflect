@@ -45,11 +45,9 @@ namespace UnityEngine.Reflect
 
             if (syncObject == null)
             {
-                Debug.LogWarning($"Unable to instantiate instance '{instance.Id}' for SyncObject '{instance.ObjectId}'");
+                Debug.LogWarning("Unable to instantiate SyncObject '" + instance.ObjectId + "'");
                 return null;
             }
-
-            syncObject.identifier = new SyncObjectBinding.Identifier(instance);
 
             var gameObject = syncObject.gameObject;
             

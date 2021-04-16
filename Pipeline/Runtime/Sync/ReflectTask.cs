@@ -18,6 +18,8 @@ namespace UnityEngine.Reflect.Pipeline
         protected CancellationTokenSource m_TokenSource;
         protected CancellationToken m_Token;
 
+        public event Action<Exception> onException; 
+
         public void SetUpdateDelegate(IUpdateDelegate value) => value.update += Update;
         public void RemoveUpdateDelegate(IUpdateDelegate value) => value.update -= Update;
         
@@ -30,8 +32,11 @@ namespace UnityEngine.Reflect.Pipeline
             
             if (m_Task != null && m_Task.IsFaulted)
             {
-                Debug.LogException(m_Task.Exception); // TODO Call delegate
+                var exception = m_Task.Exception;
                 m_Task = null;
+                
+                Debug.LogException(exception);
+                onException?.Invoke(exception);
             }
 
             UpdateInternal(unscaledDeltaTime);

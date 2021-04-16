@@ -13,7 +13,7 @@ namespace UnityEngine.Reflect
 
         public override Texture2D CreateNew(SyncTexture syncTexture, object settings)
         {
-            var linear = syncTexture.ConvertToNormalMap || QualitySettings.activeColorSpace == ColorSpace.Linear;
+            var linear = syncTexture.ConvertToNormalMap;
             var texture = new Texture2D(1, 1, TextureFormat.RGBA32, Texture.GenerateAllMips, linear)
             {
                 name = syncTexture.Name,

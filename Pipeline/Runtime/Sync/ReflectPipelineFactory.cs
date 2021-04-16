@@ -130,8 +130,7 @@ namespace UnityEngine.Reflect.Pipeline
         public static bool HasLocalData(Project project)
         {
             //TODO Need to find other way to get playerStorage or move this method to other 
-            var storage = new PlayerStorage();
-            storage.SetEnvironment(ProjectServer.ProjectDataPath, true, false);
+            var storage = new PlayerStorage(UnityEngine.Reflect.ProjectServer.ProjectDataPath, true, false);
             return storage.HasLocalData(project);
         }
     }

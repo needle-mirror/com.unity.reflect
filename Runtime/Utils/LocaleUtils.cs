@@ -1,4 +1,6 @@
+using System;
 using System.Runtime.InteropServices;
+using Unity.Reflect;
 using Unity.Reflect.Utils;
 #if UNITY_EDITOR
 using UnityEditorInternal;
@@ -6,18 +8,18 @@ using UnityEditorInternal;
 
 namespace UnityEngine.Reflect
 {
+    public struct EnvironmentInfo
+    {
+        public RegionUtils.Provider provider;
+        public CloudEnvironment cloudEnvironment;
+        public string customUrl;
+    }
+
     public static class LocaleUtils
     {
 #if UNITY_IOS && !UNITY_EDITOR
-        private const string k_DefaultSetting = "Default";
-        private static readonly string k_AutoSetting = "Auto";
-        private static readonly string k_ChinaSetting = "China (中国)";
-        
         [DllImport("__Internal")]
         private static extern string GetUserLocale();
-
-        [DllImport("__Internal")]
-        private static extern string GetRegionalSettings();
 #endif
 #if UNITY_EDITOR
         private static readonly string k_ChinaBranch = "china";
@@ -26,17 +28,82 @@ namespace UnityEngine.Reflect
         private static readonly string k_DefaultLocale = "us";
 #endif
 
+        public class SettingsKeys
+        {
+            public static string Provider => "Cloud_Provider";
+            public static string CloudEnvironment => "Cloud_Environment";
+            public static string CustomURL => "Cloud_CustomUrl";
+        }
+
+        public static EnvironmentInfo GetEnvironmentInfo()
+        {
+            EnvironmentInfo info = new EnvironmentInfo();
+            info.provider = GetProvider();
+            info.cloudEnvironment = GetCloudEnvironment();
+            info.customUrl = GetCustomUrl();
+            return info;
+        }
+        
+        public static void SaveEnvironmentInfo(EnvironmentInfo info)
+        {
+            SetProvider(info.provider);
+            SetCloudEnvironment(info.cloudEnvironment);
+            SetCustomUrl(info.customUrl);
+        }
+
+        public static void DeleteCloudEnvironmentSetting()
+        {
+            PlayerPrefs.DeleteKey( SettingsKeys.CloudEnvironment);
+        }
+
         public static RegionUtils.Provider GetProvider()
         {
-            return
+            if (PlayerPrefs.HasKey(SettingsKeys.Provider))
+            {
+                return (RegionUtils.Provider) System.Enum.Parse(typeof(RegionUtils.Provider),
+                    PlayerPrefs.GetString(SettingsKeys.Provider));
+            }
+            
+            return GetDefaultProvider();
+        }
+
+        private static void SetProvider(RegionUtils.Provider infoProvider)
+        {
+            PlayerPrefs.SetString(SettingsKeys.Provider, infoProvider.ToString());
+        }
+
+        private static CloudEnvironment GetCloudEnvironment()
+        {
+            if (PlayerPrefs.HasKey(SettingsKeys.CloudEnvironment))
+            {
+                return (CloudEnvironment) System.Enum.Parse(typeof(CloudEnvironment),
+                    PlayerPrefs.GetString(SettingsKeys.CloudEnvironment));
+            }
+
+            return CloudConfiguration.GetEnvironment();
+        }
+        
+        private static void SetCloudEnvironment(CloudEnvironment infoCloudEnvironment)
+        {
+            PlayerPrefs.SetString(SettingsKeys.CloudEnvironment, infoCloudEnvironment.ToString());
+        }
+
+        private static string GetCustomUrl()
+        {
+            return PlayerPrefs.GetString(SettingsKeys.CustomURL);
+        }
+        
+        private static void SetCustomUrl(string infoCustomUrl)
+        {
+            PlayerPrefs.SetString(SettingsKeys.CustomURL, infoCustomUrl);
+        }
+        
+
+        private static RegionUtils.Provider GetDefaultProvider()
+        {
+            return 
 #if UNITY_IOS && !UNITY_EDITOR
                 GetiOSProvider();
-#elif UNITY_ANDROID && !UNITY_EDITOR
-                RegionUtils.Provider.GCP; // Android app is not available in China
-#elif UNITY_STANDALONE_WIN && !UNITY_EDITOR
-                GetWindowsProvider();
-#elif UNITY_STANDALONE_OSX && !UNITY_EDITOR
-                RegionUtils.Provider.GCP; // macOS Viewer is not available in China
 #elif UNITY_EDITOR
                 GetEditorProvider();
 #else
@@ -47,33 +114,8 @@ namespace UnityEngine.Reflect
 #if UNITY_IOS && !UNITY_EDITOR
         private static RegionUtils.Provider GetiOSProvider()
         {
-            var userRegionalSetting = GetRegionalSettings();
-            string locale;
-            if (userRegionalSetting == k_AutoSetting)
-            {
-                locale = GetUserLocale();
-            }
-
-            else if (userRegionalSetting == k_DefaultSetting)
-            {
-                locale = k_DefaultLocale;
-            }
-
-            else if (userRegionalSetting == k_ChinaSetting)
-            {
-                locale = k_ChinaLocale;
-            }
-            else
-            {
-                locale = k_DefaultLocale;
-            }
-
+            string locale = GetUserLocale();
             return locale.ToLower().EndsWith(k_ChinaLocale) ? RegionUtils.Provider.Tencent : RegionUtils.Provider.GCP;
-        }
-#elif UNITY_STANDALONE_WIN && !UNITY_EDITOR
-        private static RegionUtils.Provider GetWindowsProvider()
-        {
-            return RegionUtils.GetProvider();
         }
 #elif UNITY_EDITOR
         private static RegionUtils.Provider GetEditorProvider()

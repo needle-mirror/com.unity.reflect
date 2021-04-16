@@ -1,0 +1,5 @@
+{
+	"displayName":"Actor System API",
+	"description": "Samples for the Reflect Actor System API demonstrating how to customize a Reflect Model import into Unity at runtime.",
+	"createSeparatePackage": false
+}

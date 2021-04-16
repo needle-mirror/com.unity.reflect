@@ -1,10 +1,11 @@
-﻿using Grpc.Core;
+using Grpc.Core;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Unity.Reflect;
 using UnityEngine.Events;
@@ -20,16 +21,26 @@ namespace UnityEngine.Reflect
 
     [Serializable]
     public class FailureEvent : UnityEvent<string> {}
+    
+    [Serializable]
+    public class LinkSharingEvent : UnityEvent<string> { }
+
+    [Serializable]
+    public class OpenInViewerEvent : UnityEvent<OpenInViewerInfo> { }
+
 
     public enum DeepLinkRoute
     {
         none,
         implicitcallbacklogin,
-        openprojectrequest
+        openprojectrequest,
+        opensharelink
     };
 
     internal static class UrlHelper
     {
+        static Regex s_AllowedDomainsRegex = new Regex(@"reflect\.unity(3d)?\.(com|cn)$");
+
         internal static bool TryCreateUriAndValidate(string uriString, out Uri uriResult)
         {
             return Uri.TryCreate(uriString, UriKind.Absolute, out uriResult) &&
@@ -44,13 +55,25 @@ namespace UnityEngine.Reflect
             args = new List<string>();
             if (Uri.TryCreate(deepLinkUrlString, UriKind.Absolute, out var uriResult))
             {
-                token = uriResult.Query.Substring(AuthConfiguration.JwtParamName.Length);
+                if (uriResult.Query.Length > 0) 
+                {
+                    token = uriResult.Query.Substring(AuthConfiguration.JwtParamName.Length);
+                }
+
                 var knownRoute = Enum.TryParse(uriResult.Host, out DeepLinkRoute deepLink);
                 // Make special case of implicit/callback/login as implicit is a keyword in C#
                 if (!knownRoute) 
                 {
-                    knownRoute = uriResult.Host.Equals("implicit") && uriResult.AbsolutePath.StartsWith("/callback/login");
-                    deepLink = DeepLinkRoute.implicitcallbacklogin;
+                    if (uriResult.Host.Equals("implicit") && uriResult.AbsolutePath.StartsWith("/callback/login"))
+                    {
+                        knownRoute = true;
+                        deepLink = DeepLinkRoute.implicitcallbacklogin;
+                    }
+                    else if (s_AllowedDomainsRegex.IsMatch(uriResult.Host))
+                    {
+                        knownRoute = true;
+                        deepLink = DeepLinkRoute.opensharelink;
+                    }
                 }
 
                 if (knownRoute) 
@@ -59,8 +82,7 @@ namespace UnityEngine.Reflect
                     args = uriResult.AbsolutePath.Split('/').ToList();
                     args.RemoveAt(0);
                 }
-                return knownRoute && uriResult.Scheme.Equals(AuthConfiguration.UriScheme, StringComparison.OrdinalIgnoreCase) &&
-                   uriResult.Query.StartsWith(AuthConfiguration.JwtParamName);
+                return knownRoute && uriResult.Scheme.Equals(AuthConfiguration.UriScheme, StringComparison.OrdinalIgnoreCase);
             }
             else
             {
@@ -78,6 +100,8 @@ namespace UnityEngine.Reflect
         public TokenEvent tokenUpdated;
         public UnityUserUnityEvent userLoggedIn;
         public UnityEvent userLoggedOut;
+        public LinkSharingEvent linkSharingDetected;
+        public OpenInViewerEvent openInViewerDetected;
 
         private IAuthenticatable authBackend;
         private IInteropable m_Interop = null;
@@ -87,16 +111,13 @@ namespace UnityEngine.Reflect
         private Coroutine m_StartGetUserInfo;
         private Coroutine m_StartSendLogoutEvent;
 
-        public DeepLinkRoute deepLinkRoute = DeepLinkRoute.none;
-        public List<string> deepLinkArgs = new List<string>();
-
         static readonly TimeSpan s_SessionExpiryThreshold = TimeSpan.FromDays(5);
 
         void Awake()
         {
             // Called as soon as we can
             SetupProxy();
-            
+
             if (tokenUpdated == null)
             {
                 tokenUpdated = new TokenEvent();
@@ -113,21 +134,23 @@ namespace UnityEngine.Reflect
             {
                 userLoggedOut = new UnityEvent();
             }
+            if (linkSharingDetected == null)
+            {
+                linkSharingDetected = new LinkSharingEvent();
+            }
+            if (openInViewerDetected == null)
+            {
+                openInViewerDetected = new OpenInViewerEvent();
+            }
 
             ProjectServer.Init();
-#if UNITY_EDITOR
-            authBackend = new UnityEditorAuthBackend(this);
-#elif UNITY_STANDALONE_OSX
-            authBackend = new OSXStandaloneAuthBackend(this);
-#elif UNITY_STANDALONE_WIN
-            authBackend = new WindowsStandaloneAuthBackend(this);
-            m_Interop = new WindowsStandaloneInterop(this);
+
+            authBackend = new AuthBackend(this);
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+            m_Interop = new Interop(this);
             m_Interop.Start();
-#elif UNITY_IOS
-            authBackend = new IOSAuthBackend(this);
-#elif UNITY_ANDROID
-            authBackend = new AndroidAuthBackend(this);
 #endif
+
             m_TokenPersistentPath = Path.Combine(Application.persistentDataPath, AuthConfiguration.JwtTokenFileName);
         }
 
@@ -226,7 +249,7 @@ namespace UnityEngine.Reflect
             {
                 Debug.LogWarning($"Could not access HKCU proxy values. {ioe.Message}");
             }
-
+            
             // If found Proxy in Windows registry
             if (!string.IsNullOrEmpty(registryHttpProxy))
             {
@@ -270,16 +293,49 @@ namespace UnityEngine.Reflect
 
         internal void ProcessDeepLink(string token, DeepLinkRoute route, List<string> args) 
         {
-            deepLinkRoute = route;
-            deepLinkArgs = args;
-            switch (deepLinkRoute) 
+            switch (route) 
             {
                 case DeepLinkRoute.openprojectrequest:
-                    InvalidateToken();
-                    ProcessToken(token);
+                    // /ServerId is first arg, ProjectId is the third
+                    if (args.Count >= 4)
+                    {
+                        Debug.Log($"ProcessDeepLink, detected openprojectrequest Route request to open '{args[3]}' referenced project.");
+                        // TODO : use sourceId param to filter visible sources
+                        var sourceId = args.Count >= 6 ? args[5] : string.Empty;
+                        // last args following projectId or sourceId is the intended viewerId target, it can also be omitted.
+                        var viewerId = string.Empty;
+                        switch (args.Count) 
+                        {
+                            case 5:
+                                viewerId = args[4];
+                                break;
+                            case 7:
+                                viewerId = args[6];
+                                break;
+                        }
+                        // Automation request can have token attached
+                        if (!string.IsNullOrEmpty(token))
+                        {
+                            ResetToken(token);
+                        }
+                        openInViewerDetected?.Invoke(new OpenInViewerInfo(args[1], args[3], sourceId, viewerId));
+                    }
                     break;
                 case DeepLinkRoute.implicitcallbacklogin:
                     ProcessToken(token);
+                    break;
+                case DeepLinkRoute.opensharelink:
+                    // Second argument is the UID reference to be used to query cloud for ProjectId/ServerId 
+                    if (args.Count >= 2) 
+                    {
+                        // Automation request can have token attached
+                        if (!string.IsNullOrEmpty(token))
+                        {
+                            ResetToken(token);
+                        }
+                        Debug.Log($"ProcessDeepLink, detected opensharelink Route request to open '{args[1]}' referenced project.");
+                        linkSharingDetected?.Invoke(args[1]);
+                    }
                     break;
             }
         }
@@ -316,7 +372,17 @@ namespace UnityEngine.Reflect
                 File.Delete(m_TokenPersistentPath);
             }
         }
-        
+
+        internal void ResetToken(string token) 
+        {
+            if (m_StartGetUserInfo != null)
+            {
+                StopCoroutine(m_StartGetUserInfo);
+            }
+            InvalidateToken();
+            ProcessToken(token);
+        }
+
         internal void InvalidateToken()
         {
             RemovePersistentToken();
@@ -418,6 +484,8 @@ namespace UnityEngine.Reflect
             userLoggedOut?.Invoke();
         }
 
+        // Android still calls directly this gameobject function from java context
+        // TODO make Android support deeplink from Unity API
         public void onDeeplink(string deepLink)
         {
             onDeepLink(deepLink);
@@ -425,9 +493,9 @@ namespace UnityEngine.Reflect
 
         public void onDeepLink(string deepLink, bool isStartUpLink = false)
         {
-            if (UrlHelper.TryCreateUriAndValidate(deepLink, out var uri))
-            {
-                ProcessToken(uri.Query.Substring(AuthConfiguration.JwtParamName.Length));
+            if (UrlHelper.TryParseDeepLink(deepLink, out var token, out var deepLinkRoute, out var deepLinkArgs))
+            {   
+                ProcessDeepLink(token, deepLinkRoute, deepLinkArgs);
             }
             if (!isStartUpLink && authBackend is IDeepLinkable authBackendDeepLinkable)
             {

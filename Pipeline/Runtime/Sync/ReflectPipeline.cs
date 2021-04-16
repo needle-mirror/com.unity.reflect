@@ -9,10 +9,10 @@ namespace UnityEngine.Reflect.Pipeline
     public class ReflectPipeline : MonoBehaviour, IUpdateDelegate, IExposedPropertyTable, ILogReceiver
     {
 #pragma warning disable CS0649
-        [SerializeField, HideInInspector]
-        ReflectBootstrapperBehavior m_Hook;
+        [SerializeField]
+        RuntimeReflectBootstrapper m_Reflect;
 #pragma warning restore CS0649
-
+        
         public PipelineAsset pipelineAsset;
 
         public event Action<float> update;
@@ -24,6 +24,8 @@ namespace UnityEngine.Reflect.Pipeline
         // Use this event to access newly created node processors. Do not use this callback to change the pipeline. 
         public event Action afterInitialize;
         
+        public event Action<Exception> onException;
+        
         [SerializeField, HideInInspector]
         ExposedReferenceLookUp m_ExposedReferenceLookUp = new ExposedReferenceLookUp();
 
@@ -31,11 +33,6 @@ namespace UnityEngine.Reflect.Pipeline
 
         void Awake()
         {
-            if (m_Hook == null)
-            {
-                m_Hook = gameObject.AddComponent<ReflectBootstrapperBehavior>();
-            }
-            
             // Register to Logs coming from the Reflect core assembly
             Unity.Reflect.Utils.Logger.AddReceiver(this);
         }
@@ -65,10 +62,17 @@ namespace UnityEngine.Reflect.Pipeline
                 Debug.LogError("Unable start pipeline. Please assign a Pipeline Asset.");
                 return;
             }
-
+            
             beforeInitialize?.Invoke();
 
-            m_PipelineRunner = new PipelineRunner(m_Hook.Hook);
+            if (m_Reflect == null)
+                m_Reflect = FindObjectOfType<RuntimeReflectBootstrapper>();
+
+            if (m_Reflect == null)
+                m_Reflect = gameObject.AddComponent<RuntimeReflectBootstrapper>();
+
+            m_PipelineRunner = new PipelineRunner(m_Reflect.Hook);
+            m_PipelineRunner.onException += onException;
             
             m_PipelineRunner.CreateProcessors(this, provider);
             

@@ -23,11 +23,4 @@ extern "C"
     NSString *countryCode = [currentLocale objectForKey: NSLocaleCountryCode];
     return convertNSStringToCString(countryCode);
   }
-  
-  char* GetRegionalSettings()
-  {
-    NSDictionary *serverPreference = [[NSUserDefaults standardUserDefaults] valueForKey:@"server_preferences"];
-    NSString *value = (NSString *)serverPreference;
-    return convertNSStringToCString(value);
-  }
 }

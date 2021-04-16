@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Reflect;
 using Unity.Reflect.Model;
-using UnityEditor.Experimental.AssetImporters;
+using UnityEditor.AssetImporters;
 using UnityEngine;
 using UnityEngine.Reflect;
 using Unity.Reflect.IO;
@@ -59,16 +59,12 @@ namespace UnityEditor.Reflect
         public SyncObjectBinding CreateInstance(StreamKey key)
         {
             var prefab = GetReferencedAsset<GameObject>(key.key.Name);
-
-            if (prefab == null)
-                return null;
-            
-            var gameObject = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
-            
-            if (gameObject == null)
-                return null;
-            
-            return gameObject.AddComponent<SyncObjectBinding>();
+            if (prefab != null)
+            {
+                var gameObject = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                return gameObject.AddComponent<SyncObjectBinding>();
+            }
+            return null;
         }
                 
         void RemapMaterials(Transform root)

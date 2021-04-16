@@ -34,18 +34,21 @@ namespace UnityEditor.Reflect
 
         static readonly string k_Downloading = "Downloading";
 
+        readonly string k_StorageRoot;
+
         const int k_FileIOAttempts = 3;
 
         const int k_FileIORetryDelayMS = 1000;
 
         public ProjectManagerInternal(string storageRoot, bool useServerFolder, bool useProjectNameAsRootFolder)
         {
+            k_StorageRoot = storageRoot;
             m_LocalStorage = new PlayerStorage(storageRoot, useServerFolder, useProjectNameAsRootFolder);
         }
 
         bool IsProjectAvailable(Project project) => m_Projects.ContainsKey(project.serverProjectId);
 
-        public bool IsProjectAvailableOffline(Project project) => IsProjectAvailable(project) && m_LocalStorage.HasLocalData(project);
+        public bool IsProjectAvailableOffline(Project project) => Directory.Exists(k_StorageRoot) && IsProjectAvailable(project) && m_LocalStorage.HasLocalData(project);
 
         public bool IsProjectAvailableOnline(Project project) => IsProjectAvailable(project) && project.isAvailableOnline;
 

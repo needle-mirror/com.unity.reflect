@@ -19,15 +19,21 @@ namespace UnityEngine.Reflect
     {
         readonly UnityProject m_UnityProject;
 
-        public static Project Empty { get; } = new Project(new UnityProject(UnityProjectHost.LocalService, string.Empty, string.Empty));
+        public static Project Empty { get; } = new Project(new UnityProject(string.Empty, string.Empty));
         public string serverProjectId => $"{m_UnityProject.Host.ServerId}:{m_UnityProject.ProjectId}";
         public string projectId => m_UnityProject.ProjectId;
         public string name => m_UnityProject.Name;
         public UnityProjectHost host => m_UnityProject.Host;
         public string description => m_UnityProject.Host.ServerName;
         public bool isAvailableOnline => m_UnityProject.Source == UnityProject.SourceOption.ProjectServer;
+        public UnityProject UnityProject => m_UnityProject;
 
         public DateTime lastPublished => m_UnityProject.LastPublished;
+
+        public void SetLocal(bool isLocal)
+        {
+            m_UnityProject.IsLocalProject  = isLocal;
+        }
 
         public Project(UnityProject unityProject)
         {

@@ -31,6 +31,10 @@ class ReflectProjectDownloader
     public IEnumerator Download(Project project)
     {
         IPlayerClient client = null;
+        if (!Directory.Exists(m_Folder))
+        {
+            Directory.CreateDirectory(m_Folder);
+        }
         try
         {
             client = Player.CreateClient(project, ProjectServer.UnityUser, ProjectServer.Client);
@@ -39,7 +43,7 @@ class ReflectProjectDownloader
         {
             var unityProject = (UnityProject)project;
             string message;
-            if (unityProject.Host == UnityProjectHost.LocalService)
+            if (unityProject.Host.IsLocalService)
             {
                 message = "A connection with your local server could not be established. Make sure the Unity Reflect Service is running.";
             }

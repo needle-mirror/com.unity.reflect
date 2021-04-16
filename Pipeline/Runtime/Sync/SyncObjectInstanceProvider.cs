@@ -17,7 +17,7 @@ namespace UnityEngine.Reflect.Pipeline
         
         protected override SyncObjectInstanceProvider Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
-            var node = new SyncObjectInstanceProvider(provider, output);
+            var node = new SyncObjectInstanceProvider(hook.services.eventHub, provider, output);
 
             input.streamBegin = node.OnStreamInstanceBegin;
             input.streamEvent = node.OnStreamInstanceEvent;
@@ -35,13 +35,17 @@ namespace UnityEngine.Reflect.Pipeline
         {
             public readonly StreamAsset streamAsset;
             public readonly SyncObjectInstance streamInstance;
+            public Exception exception;
 
-            public DownloadResult(StreamAsset streamAsset, SyncObjectInstance streamInstance)
+            public DownloadResult(StreamAsset streamAsset, SyncObjectInstance streamInstance, Exception exception)
             {
                 this.streamAsset = streamAsset;
                 this.streamInstance = streamInstance;
+                this.exception = exception;
             }
         }
+
+        EventHub m_Hub;
 
         AsyncAutoResetEvent m_DownloadRequestEvent = new AsyncAutoResetEvent();
 
@@ -59,8 +63,9 @@ namespace UnityEngine.Reflect.Pipeline
         
         static readonly int k_MaxTaskSize = 10;
 
-        public SyncObjectInstanceProvider(ISyncModelProvider client, DataOutput<StreamInstance> instanceDataOutput)
+        public SyncObjectInstanceProvider(EventHub hub, ISyncModelProvider client, DataOutput<StreamInstance> instanceDataOutput)
         {
+            m_Hub = hub;
             m_Client = client;
 
             m_InstanceDataOutput = instanceDataOutput;
@@ -149,6 +154,12 @@ namespace UnityEngine.Reflect.Pipeline
         {
             while (m_DownloadResults.TryDequeue(out var result))
             {
+                if (result.exception != null)
+                {
+                    m_Hub.Broadcast(new StreamingErrorEvent(result.streamAsset.key, result.streamAsset.boundingBox, result.exception));
+                    continue;
+                }
+
                 var streamInstance = new StreamInstance(result.streamAsset.key,
                     result.streamInstance, result.streamAsset.boundingBox);
 
@@ -210,8 +221,6 @@ namespace UnityEngine.Reflect.Pipeline
             
             while (!token.IsCancellationRequested)
             {
-                tasks.Clear();
-                
                 while (!token.IsCancellationRequested && m_DownloadRequests.TryDequeue(out var request))
                 {
                     tasks.Add(DownloadInstance(request, token));
@@ -223,17 +232,40 @@ namespace UnityEngine.Reflect.Pipeline
                 }
 
                 if (tasks.Count > 0)
-                    await Task.WhenAll(tasks);
+                {
+                    Task task = null;
+                    try
+                    {
+                        task = await Task.WhenAny(tasks);
+                    }
+                    catch (Exception)
+                    {
+                        // Do nothing, the instance query will manage the errors
+                    }
+                    finally
+                    {
+                        tasks.Remove(task);
+                    }
+                }
                 else
                     await m_DownloadRequestEvent.WaitAsync(token);
             }
-        }
 
+            await Task.WhenAll(tasks);
+        }
+        
         async Task DownloadInstance(StreamAsset request, CancellationToken token)
         {
-            var instance = (SyncObjectInstance) await m_Client.GetSyncModelAsync(request.key, request.hash); // TODO Cancellation Token
-
-            var result = new DownloadResult(request, instance);
+            DownloadResult result;
+            try
+            {
+                var instance = (SyncObjectInstance)await m_Client.GetSyncModelAsync(request.key, request.hash); // TODO Cancellation Token
+                result = new DownloadResult(request, instance, null);
+            }
+            catch (Exception ex)
+            {
+                result = new DownloadResult(request, null, ex);
+            }
 
             m_DownloadResults.Enqueue(result);
         }

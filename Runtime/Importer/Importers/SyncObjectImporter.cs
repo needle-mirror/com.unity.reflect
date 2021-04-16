@@ -10,6 +10,7 @@ namespace UnityEngine.Reflect
         public IMeshCache meshCache;
         public IMaterialCache materialCache;
         public SyncObjectImportSettings settings;
+        public ISyncLightImporter lightImport;
     }
 
     public class ObjectDependencies
@@ -113,7 +114,7 @@ namespace UnityEngine.Reflect
 
             if (config.settings.importLights && syncObject.Light != null)
             {
-                ImportLight(syncObject.Light, gameObject);
+                (config.lightImport ?? new SyncLightImporter()).Import(syncObject.Light, gameObject); 
             }
             
             if (syncObject.Rpc != null)
@@ -163,68 +164,6 @@ namespace UnityEngine.Reflect
                 return false;
 
             return true;
-        }
-
-        static void ImportLight(SyncLight syncLight, GameObject parent)
-        {
-            // Conversion parameters
-            const float defaultIntensity = 1.0f;
-            const double intensityExponent = 0.25;
-            const double intensityMultiplier = 0.2;
-            const float intensityAtRange = 0.02f;
-
-            // Convert syncLight intensity to unity light intensity
-            var intensity = defaultIntensity;
-            if (syncLight.Intensity > 0)
-            {
-                intensity = ImportersUtils.GetCandelasIntensity(syncLight.Intensity, syncLight.IntensityUnit, syncLight.Type, syncLight.SpotAngle);
-                intensity = (float)(intensityMultiplier * Math.Pow(intensity, intensityExponent));
-            }
-
-            // Compute the range if not provided
-            var range = syncLight.Range;
-            if (range <= 0)
-            {
-                range = (float)Math.Sqrt(intensity / intensityAtRange);
-            }
-
-            // TODO Investigate why Light.UseColorTemperature is not exposed to C# and let the light do this calculation
-            var cct = ImportersUtils.ColorFromTemperature(syncLight.Temperature);
-
-            var filter = new Color(syncLight.Color.R, syncLight.Color.G, syncLight.Color.B);
-            
-            var light = parent.AddComponent<Light>();
-            
-            light.color =  cct * filter;
-            light.colorTemperature = syncLight.Temperature;
-            
-            switch (syncLight.Type)
-            {
-                case SyncLightType.Spot:
-                {
-                    light.spotAngle = syncLight.SpotAngle;
-                    light.shadows = LightShadows.Hard;
-                    light.range = range;
-                    light.type = LightType.Spot;
-                    light.intensity = intensity;
-                }
-                break;
-
-                case SyncLightType.Point:
-                {
-                    light.type = LightType.Point;
-                    light.range = range;
-                    light.intensity = intensity;
-                }
-                break;
-
-                case SyncLightType.Directional:
-                {
-                    light.type = LightType.Directional;
-                    light.intensity = intensity;
-                }
-                break;
-            }
         }
 
         static void ImportCamera(SyncCamera syncCamera, GameObject parent)

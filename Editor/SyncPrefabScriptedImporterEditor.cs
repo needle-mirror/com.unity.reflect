@@ -1,5 +1,5 @@
-﻿using System;
-using UnityEditor.Experimental.AssetImporters;
+using System;
+using UnityEditor.AssetImporters;
 using UnityEngine;
 
 namespace UnityEditor.Reflect

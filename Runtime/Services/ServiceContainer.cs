@@ -1,4 +1,4 @@
-﻿namespace UnityEngine.Reflect
+namespace UnityEngine.Reflect
 {
     /// <summary>
     ///     References all services that must be exposed to the unity scripts and systems.

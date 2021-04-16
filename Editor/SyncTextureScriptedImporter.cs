@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.IO;
 using Unity.Reflect;
 using Unity.Reflect.Model;
-using UnityEditor.Experimental.AssetImporters;
+using UnityEditor.AssetImporters;
 using UnityEngine;
 using UnityEngine.Reflect;
 using Unity.Reflect.IO;

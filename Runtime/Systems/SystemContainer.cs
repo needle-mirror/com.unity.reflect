@@ -1,5 +1,4 @@
-﻿using System;
-using System.Diagnostics;
+using Unity.Reflect;
 
 namespace UnityEngine.Reflect
 {
@@ -7,15 +6,16 @@ namespace UnityEngine.Reflect
     {
         MemoryCleaner m_MemoryCleaner;
         MemoryCleaner.Proxy m_MemoryCleanerProxy;
-
-        TimeSpan m_LastTime;
+        ActorRunner m_ActorRunner;
+        ActorRunner.Proxy m_ActorRunnerProxy;
 
         public SystemContainer(HelperContainer.Proxy helpers, ServiceContainer services)
         {
             m_MemoryCleaner = new MemoryCleaner();
             m_MemoryCleanerProxy = new MemoryCleaner.Proxy(m_MemoryCleaner);
-
-            m_LastTime = TimeSpan.FromTicks(Stopwatch.GetTimestamp());
+            m_ActorRunner = new ActorRunner();
+            m_ActorRunnerProxy = new ActorRunner.Proxy(m_ActorRunner);
+            
             m_MemoryCleaner.Initialize(helpers.unityStatic, helpers.clock, helpers.memoryStats, services.eventHub);
         }
 
@@ -27,23 +27,26 @@ namespace UnityEngine.Reflect
         public void Tick()
         {
             m_MemoryCleaner.Tick();
+            m_ActorRunner.Tick();
         }
 
         public void Shutdown()
         {
+            m_ActorRunner.Shutdown();
             m_MemoryCleaner.Shutdown();
         }
 
         public struct Proxy
         {
-            SystemContainer m_Container;
+            SystemContainer m_Self;
 
-            public Proxy(SystemContainer container)
+            public Proxy(SystemContainer self)
             {
-                m_Container = container;
+                m_Self = self;
             }
 
-            public MemoryCleaner.Proxy memoryCleaner => m_Container.m_MemoryCleanerProxy;
+            public MemoryCleaner.Proxy memoryCleaner => m_Self.m_MemoryCleanerProxy;
+            public ActorRunner.Proxy ActorRunner => m_Self.m_ActorRunnerProxy;
         }
     }
 }

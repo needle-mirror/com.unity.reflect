@@ -56,6 +56,7 @@ namespace UnityEngine.Reflect.Pipeline
     {
         struct DownloadResult
         {
+            public Exception exception;
             public StreamInstanceData instanceData;
             public List<AssetEntry<ISyncModel>> downloadedDependencies; // TODO Fix order mismatch that might happen with Texture / Material
 
@@ -67,6 +68,12 @@ namespace UnityEngine.Reflect.Pipeline
             
             public IEnumerable<AssetEntry<SyncMaterial>> downloadedMaterials =>
                 downloadedDependencies.Where(d => d.asset is SyncMaterial).Select(d => new AssetEntry<SyncMaterial>(d.key, (SyncMaterial)d.asset));
+        }
+
+        struct ObjectDownloadResult
+        {
+            public AssetEntry<ISyncModel> assetEntry;
+            public Exception exception;
         }
 
         class StreamCache
@@ -88,7 +95,7 @@ namespace UnityEngine.Reflect.Pipeline
 
         readonly ConcurrentQueue<IStream> m_DownloadRequests;
         readonly ConcurrentQueue<DownloadResult> m_DownloadedInstances;
-        readonly ConcurrentQueue<AssetEntry<ISyncModel>> m_DownloadedModels;
+        readonly ConcurrentQueue<ObjectDownloadResult> m_DownloadedModels;
 
         readonly Dictionary<StreamKey, StreamCache> m_StreamCaches;
         readonly Dictionary<StreamKey, StreamInstanceData> m_InstanceCache;
@@ -130,7 +137,7 @@ namespace UnityEngine.Reflect.Pipeline
             
             m_DownloadRequests = new ConcurrentQueue<IStream>();
             m_DownloadedInstances = new ConcurrentQueue<DownloadResult>();
-            m_DownloadedModels = new ConcurrentQueue<AssetEntry<ISyncModel>>();
+            m_DownloadedModels = new ConcurrentQueue<ObjectDownloadResult>();
             
             m_StreamCaches = new Dictionary<StreamKey, StreamCache>();
             m_InstanceCache = new Dictionary<StreamKey, StreamInstanceData>();
@@ -208,13 +215,20 @@ namespace UnityEngine.Reflect.Pipeline
         {
             //Debug.Log(msg);
         }
-
+        
         protected override void UpdateInternal(float unscaledDeltaTime)
         {
-            while (m_DownloadedInstances.TryDequeue(out var result))
+            // Postponing instances if there are available models (in order to update model caches first)
+            while (m_DownloadedModels.Count == 0 && m_DownloadedInstances.TryDequeue(out var result))
             {
-                Trace(">>>>>> SENDING " + result.instanceData.instance.instance.Name);
+                if (result.exception != null)
+                {
+                    m_Hub.Broadcast(new StreamingErrorEvent(result.instanceData.instance.key, result.instanceData.instance.boundingBox, result.exception));
+                    continue;
+                }
 
+                Trace(">>>>>> SENDING " + result.instanceData.instance.instance.Name);
+                
                 // TODO Have type dependencies inside the result
                 var meshes = result.downloadedMeshes;
                 var textures = result.downloadedTextures;
@@ -266,9 +280,13 @@ namespace UnityEngine.Reflect.Pipeline
 
             while (m_DownloadedModels.TryDequeue(out var result))
             {
-                TrySendAddedOrChanged(result, m_SyncTextureOutput);
-                TrySendAddedOrChanged(result, m_SyncMeshOutput);
-                TrySendAddedOrChanged(result, m_SyncMaterialOutput);
+                // Skip without broadcasting error. Errors are broadcasted for each SyncInstance, not for SyncObject or each sub-resource
+                if (result.exception != null)
+                    continue;
+
+                TrySendAddedOrChanged(result.assetEntry, m_SyncTextureOutput);
+                TrySendAddedOrChanged(result.assetEntry, m_SyncMeshOutput);
+                TrySendAddedOrChanged(result.assetEntry, m_SyncMaterialOutput);
             }
 
             if (m_State == State.WaitingToFinish && m_DownloadRequests.IsEmpty && m_DownloadedModels.IsEmpty)
@@ -305,8 +323,6 @@ namespace UnityEngine.Reflect.Pipeline
             
             while (!token.IsCancellationRequested)
             {
-                tasks.Clear();
-                
                 while (!token.IsCancellationRequested && m_DownloadRequests.TryDequeue(out var request))
                 {
                     if (request is StreamInstance instance)
@@ -325,32 +341,67 @@ namespace UnityEngine.Reflect.Pipeline
                 }
 
                 if (tasks.Count > 0)
-                    await Task.WhenAll(tasks);
+                {
+                    Task task = null;
+                    try
+                    {
+                        task = await Task.WhenAny(tasks);
+                    }
+                    catch (Exception)
+                    {
+                        // Do nothing, the instance query will manage the errors
+                    }
+                    finally
+                    {
+                        tasks.Remove(task);
+                    }
+                }
                 else
                     await m_DownloadRequestEvent.WaitAsync(token);
             }
+
+            await Task.WhenAll(tasks);
         }
 
         Dictionary<SyncId, Task<DownloadResult>> m_Tasks = new Dictionary<SyncId, Task<DownloadResult>>();
 
         async Task DownloadSyncModel(StreamAsset streamAsset, CancellationToken token)
         {
-            var syncModel = await DownloadSyncModel(streamAsset.key, streamAsset.hash, token);
-
+            var result = new ObjectDownloadResult();
+            try
+            {
+                result.assetEntry = await DownloadSyncModel(streamAsset.key, streamAsset.hash, token);
+            }
+            catch (Exception ex)
+            {
+                result.exception = ex;
+                m_DownloadedModels.Enqueue(result);
+                return;
+            }
+            
             var tasks = new List<Task<AssetEntry<ISyncModel>>>();
-            if (syncModel.asset is SyncMaterial syncMaterial)
+            if (result.assetEntry.asset is SyncMaterial syncMaterial)
             {
                 DownloadTextures(streamAsset.key.source, syncMaterial, ref tasks, token);
             }
 
-            await Task.WhenAll(tasks);
-            
-            foreach (var task in tasks)
+            try
             {
-                m_DownloadedModels.Enqueue(task.Result);
-            }
+                await Task.WhenAll(tasks);
 
-            m_DownloadedModels.Enqueue(syncModel);
+                foreach (var task in tasks)
+                    m_DownloadedModels.Enqueue(new ObjectDownloadResult { assetEntry = task.Result });
+
+                m_DownloadedModels.Enqueue(new ObjectDownloadResult { assetEntry = result.assetEntry });
+            }
+            catch (Exception ex)
+            {
+                foreach(var task in tasks)
+                    m_DownloadedModels.Enqueue(new ObjectDownloadResult { exception = task.Exception });
+
+                result.exception = ex;
+                m_DownloadedModels.Enqueue(result);
+            }
         }
         
         async Task DownloadSyncObjectInstance(StreamInstance streamInstance, CancellationToken token)
@@ -369,6 +420,7 @@ namespace UnityEngine.Reflect.Pipeline
 
                 downloadResult = new DownloadResult
                 {
+                    exception = result.exception,
                     instanceData = new StreamInstanceData(streamInstance, result.instanceData.syncObject),
                     downloadedDependencies = result.downloadedDependencies
                 };
@@ -390,29 +442,40 @@ namespace UnityEngine.Reflect.Pipeline
 
         async Task<DownloadResult> DownloadSyncInstanceDependencies(StreamInstance streamInstance, CancellationToken token)
         {
-            var sourceId = streamInstance.key.source;
-            
-            var result = await DownloadSyncModel<SyncObject>(sourceId, streamInstance.instance.ObjectId, token);
-
-            var syncObject = (SyncObject)result.asset;
-
-            var tasks = new List<Task<AssetEntry<ISyncModel>>>();
-                
-            DownloadMeshes(sourceId, syncObject, ref tasks, token);
-
-            DownloadMaterials(sourceId, syncObject, ref tasks, token);
-
-            token.ThrowIfCancellationRequested();
-            
-            await Task.WhenAll(tasks);
-
-            var downloadResult = new DownloadResult
+            try
             {
-                instanceData = new StreamInstanceData(streamInstance, syncObject),
-                downloadedDependencies = tasks.Select(r => r.Result).ToList()
-            };
+                var sourceId = streamInstance.key.source;
 
-            return downloadResult;
+                var result = await DownloadSyncModel<SyncObject>(sourceId, streamInstance.instance.ObjectId, token);
+
+                var syncObject = (SyncObject)result.asset;
+
+                var tasks = new List<Task<AssetEntry<ISyncModel>>>();
+
+                DownloadMeshes(sourceId, syncObject, ref tasks, token);
+
+                DownloadMaterials(sourceId, syncObject, ref tasks, token);
+
+                token.ThrowIfCancellationRequested();
+
+                await Task.WhenAll(tasks);
+
+                var downloadResult = new DownloadResult
+                {
+                    instanceData = new StreamInstanceData(streamInstance, syncObject),
+                    downloadedDependencies = tasks.Select(r => r.Result).ToList()
+                };
+
+                return downloadResult;
+            }
+            catch (Exception ex)
+            {
+                return new DownloadResult
+                {
+                    exception = ex,
+                    instanceData = new StreamInstanceData(streamInstance, null)
+                };
+            }
         }
 
         async Task<AssetEntry<ISyncModel>> DownloadSyncModel(StreamKey streamKey, string hash, CancellationToken token)
@@ -453,7 +516,6 @@ namespace UnityEngine.Reflect.Pipeline
             token.ThrowIfCancellationRequested();
             
             var syncModel = await task;
-
             if (isTaskOwner)
             {
                 lock (cache)

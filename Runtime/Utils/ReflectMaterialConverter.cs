@@ -85,6 +85,20 @@ namespace UnityEngine.Reflect
         
         protected abstract void SetMaterialPropertiesInternal(SyncedData<SyncMaterial> syncMaterial, Material material, ITextureCache textureCache);
 
+        protected void ExtractBasicMaterialInfo(SyncMaterial syncMaterial, out bool transparent, out bool emission, out Color color)
+        {
+            transparent = StandardShaderHelper.IsTransparent(syncMaterial);
+            emission = syncMaterial.Emission != SyncColor.Black || syncMaterial.EmissionMap.TextureId != SyncId.None;
+
+            var tint = ImportersUtils.GetUnityColor(syncMaterial.Tint, false);
+            color = tint * ImportersUtils.GetUnityColor(syncMaterial.AlbedoColor, false);
+            
+            if (transparent)
+            {
+                color.a = syncMaterial.Alpha;
+            }
+        }
+
         public Material defaultMaterial => currentRenderPipeline.defaultMaterial;
 
         protected static void AssignMap(Material material, string sourceId, string id, SyncMap map, ITextureCache textureCache) // TODO Use int ID
@@ -129,16 +143,10 @@ namespace UnityEngine.Reflect
             var syncMaterial = syncedMaterial.data;
             var sourceId = syncedMaterial.key.source;
             
-            var transparent = StandardShaderHelper.IsTransparent(syncMaterial);
-
-            var tint = ImportersUtils.GetUnityColor(syncMaterial.Tint, false);
-            if (transparent)
-            {
-                tint.a = syncMaterial.Alpha;
-            }
+            ExtractBasicMaterialInfo(syncMaterial, out var transparent, out var emission, out var color);
             
             // Albedo
-            material.SetColor("_BaseColor", tint);
+            material.SetColor("_BaseColor", color);
             AssignMap(material, sourceId, "_BaseMap", syncMaterial.AlbedoMap, textureCache);
             
             // Metallic
@@ -168,7 +176,7 @@ namespace UnityEngine.Reflect
             // Transparency
             if (transparent)
             {
-                material.SetColor("_Color", tint);
+                material.SetColor("_Color", color);
                 material.SetFloat("_Surface", 1);
                 material.SetFloat("_BlendMode", 0);
                 material.SetFloat("_DstBlend",10);
@@ -187,7 +195,7 @@ namespace UnityEngine.Reflect
             // TODO Not supported?
 
             // Emission
-            if (syncMaterial.Emission != SyncColor.Black || syncMaterial.EmissionMap.TextureId != SyncId.None)
+            if (emission)
             {
                 material.SetColor("_EmissionColor", ImportersUtils.GetUnityColor(syncMaterial.Emission));
 
@@ -224,17 +232,10 @@ namespace UnityEngine.Reflect
             var syncMaterial = syncedMaterial.data;
             var sourceId = syncedMaterial.key.source;
             
-            var transparent = StandardShaderHelper.IsTransparent(syncMaterial);
-            var emission = syncMaterial.Emission != SyncColor.Black || syncMaterial.EmissionMap.TextureId != SyncId.None;
-
-            var tint = ImportersUtils.GetUnityColor(syncMaterial.Tint, false);
-            if (transparent)
-            {
-                tint.a = syncMaterial.Alpha;
-            }
+            ExtractBasicMaterialInfo(syncMaterial, out var transparent, out var emission, out var color);
             
             // Albedo
-            material.SetColor("_BaseColor", tint);
+            material.SetColor("_BaseColor", color);
             AssignMap(material, sourceId, "_BaseColorMap", syncMaterial.AlbedoMap, textureCache);
             
             // Metallic
@@ -263,7 +264,7 @@ namespace UnityEngine.Reflect
             // Transparency
             if (!emission && transparent)
             {
-                material.SetColor("_Color", tint);
+                material.SetColor("_Color", color);
                 material.SetFloat("_SurfaceType", 1);
                 material.SetFloat("_BlendMode", 0);
                 material.SetFloat("_DstBlend",10);
@@ -282,7 +283,7 @@ namespace UnityEngine.Reflect
             // TODO Not supported?
 
             // Emission
-            if (syncMaterial.Emission != SyncColor.Black || syncMaterial.EmissionMap.TextureId != SyncId.None)
+            if (emission)
             {
                 var emissionColor = ImportersUtils.GetUnityColor(syncMaterial.Emission);
                 material.SetColor("_EmissiveColor", emissionColor);

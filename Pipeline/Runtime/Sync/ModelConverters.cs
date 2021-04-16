@@ -316,6 +316,7 @@ namespace UnityEngine.Reflect.Pipeline
         readonly MemoryTracker m_MemTracker;
         readonly IMaterialCache m_MaterialCache;
         readonly IMeshCache m_MeshCache;
+        readonly ISyncLightImporter m_SyncLightImporter;
 
         readonly Transform m_Root;
         readonly Dictionary<string, Transform> m_SourceRoots;
@@ -331,12 +332,19 @@ namespace UnityEngine.Reflect.Pipeline
 
         public InstanceConverter(EventHub hub, MemoryTracker memTracker, Transform root, bool generateSourceRoots,
             IMaterialCache materialCache, IMeshCache meshCache, DataOutput<GameObject> output)
+        : this(hub, memTracker, root, generateSourceRoots, materialCache, meshCache, null, output)
+        {
+        }
+        
+        public InstanceConverter(EventHub hub, MemoryTracker memTracker, Transform root, bool generateSourceRoots,
+            IMaterialCache materialCache, IMeshCache meshCache, ISyncLightImporter lightImporter, DataOutput<GameObject> output)
         {
             m_Hub = hub;
             m_MemTracker = memTracker;
             m_MaterialCache = materialCache;
             m_MeshCache = meshCache;
             m_Output = output;
+            m_SyncLightImporter = lightImporter;
 
             m_Originals = new Dictionary<StreamKey, OriginalInstance>();
 
@@ -350,7 +358,9 @@ namespace UnityEngine.Reflect.Pipeline
             m_Hub.Subscribe<PeriodicMemoryEvent>(m_HubGroup, OnPeriodicMemoryEvent);
             m_Hub.Subscribe<MemoryTrackerCacheCreatedEvent<Mesh>>(m_HubGroup, e => m_MeshesHandle = e.handle);
         }
-        
+
+        public bool TryGetInstance(StreamKey key, out SyncObjectBinding value) => m_Instances.TryGetValue(key, out value);
+
         protected virtual SyncObjectBinding ImportInstance(StreamInstance stream)
         {
             var syncObjectBinding = SyncPrefabImporter.CreateInstance(GetInstanceRoot(stream.key.source), stream.key.source, stream.instance, this);
@@ -403,7 +413,7 @@ namespace UnityEngine.Reflect.Pipeline
                 {
                     defaultMaterial = ReflectMaterialManager.defaultMaterial, importLights = true
                 },
-                materialCache = m_MaterialCache, meshCache = m_MeshCache
+                materialCache = m_MaterialCache, meshCache = m_MeshCache, lightImport = m_SyncLightImporter
             };
 
             var importer = new SyncObjectImporter();
@@ -428,17 +438,19 @@ namespace UnityEngine.Reflect.Pipeline
 
                 var key = stream.data.instance.key;
                 m_Instances[key] = syncObjectBinding;
-                
+                syncObjectBinding.streamKey = key;
+
                 m_Output.SendStreamAdded(new SyncedData<GameObject>(key, syncObjectBinding.gameObject));
             }
             else if (streamEvent == StreamEvent.Changed)
             {
                 var key = stream.data.instance.key;
-                // The instance either moved, or the metadata changed.
+                // The instance moved, or the name/metadata changed.
                 var syncObjectBinding = m_Instances[key];
                 
                 ImportersUtils.SetTransform(syncObjectBinding.transform, stream.data.instance.instance.Transform);
                 ImportersUtils.SetMetadata(syncObjectBinding.gameObject, stream.data.instance.instance.Metadata);
+                syncObjectBinding.gameObject.name = stream.data.instance.instance.Name;
 
                 m_Output.SendStreamChanged(new SyncedData<GameObject>(key, syncObjectBinding.gameObject));
             }

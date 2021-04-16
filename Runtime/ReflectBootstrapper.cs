@@ -1,23 +1,20 @@
-﻿namespace UnityEngine.Reflect
+using System;
+
+namespace UnityEngine.Reflect
 {
     /// <summary>
     ///     The base class to access h.s.s. modules.
-    ///     Inherits from <see cref="ReflectBootstrapperBehavior"/> and from <see cref="ReflectBootstrapper"/> to add new h.s.s modules.
     /// </summary>
-    public class ReflectBootstrapper
+    public class ReflectBootstrapper : IUpdateDelegate
     {
         HelperContainer m_Helpers;
         SystemContainer m_Systems;
-        IUpdateDelegate m_Update;
-
+        
         public HelperContainer.Proxy helpers { get; private set; }
         public ServiceContainer services { get; private set; }
         public SystemContainer.Proxy systems { get; private set; }
 
-        public ReflectBootstrapper(IUpdateDelegate update)
-        {
-            m_Update = update;
-        }
+        public event Action<float> update;
 
         public virtual void Initialize()
         {
@@ -38,18 +35,18 @@
         public virtual void Start()
         {
             m_Systems.Start();
-            m_Update.update += Tick;
         }
 
         public virtual void Stop()
         {
-            m_Update.update -= Tick;
         }
 
-        protected virtual void Tick(float unscaledDeltaTime)
+        public virtual void Tick()
         {
             m_Helpers.Tick();
             m_Systems.Tick();
+
+            update?.Invoke(0.0f);
         }
     }
 }

@@ -1,8 +1,10 @@
 ﻿#if UNITY_ANDROID
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Xml;
 using UnityEditor.Android;
+using UnityEditor.Reflect;
 
 /// <summary>
 /// See https://stackoverflow.com/a/54894488 for more info
@@ -11,7 +13,7 @@ public class AndroidBuildPostProcess : IPostGenerateGradleAndroidProject
 {
     public void OnPostGenerateGradleAndroidProject(string basePath)
     {
-        AndroidXmlDocument androidManifest = new AndroidXmlDocument(GetManifestPath(basePath));
+        var androidManifest = new AndroidXmlDocument(GetManifestPath(basePath));
         androidManifest.ApplyReflectChanges();
         androidManifest.Save();
     }
@@ -33,10 +35,9 @@ public class AndroidBuildPostProcess : IPostGenerateGradleAndroidProject
         return _manifestFilePath;
     }
 }
-
 internal class AndroidXmlDocument : XmlDocument
 {
-    private string m_Path;
+    string m_Path;
     protected XmlNamespaceManager nsMgr;
     public readonly string AndroidXmlNamespace = "http://schemas.android.com/apk/res/android";
 
@@ -60,7 +61,7 @@ internal class AndroidXmlDocument : XmlDocument
             Save(writer);
         }
     }
-
+    
     internal XmlElement CreateElementWithAttribute(string elementName, string attributeName, string attributeValue)
     {
         XmlElement element = CreateElement(elementName);
@@ -70,10 +71,23 @@ internal class AndroidXmlDocument : XmlDocument
         return element;
     }
 
+    internal XmlElement CreateElementWithAttributes(string elementName, Dictionary<string, string> attributes)
+    {
+        var element = CreateElement(elementName);
+        foreach (var attribute in attributes)
+        {
+            var androidAttribute = CreateAttribute("android", attribute.Key, AndroidXmlNamespace);
+            androidAttribute.Value = attribute.Value;
+            element.SetAttributeNode(androidAttribute);
+        }
+
+        return element;
+    }
+
     internal XmlNode GetActivityWithLaunchIntent()
     {
         return SelectSingleNode("/manifest/application/activity[intent-filter/action/@android:name='android.intent.action.MAIN' and " +
-                "intent-filter/category/@android:name='android.intent.category.LAUNCHER']", nsMgr);
+                                "intent-filter/category/@android:name='android.intent.category.LAUNCHER']", nsMgr);
     }
 
     internal XmlNode RenameActivityForDeepLink(XmlNode mainActivity)
@@ -81,20 +95,51 @@ internal class AndroidXmlDocument : XmlDocument
         mainActivity.Attributes.GetNamedItem("android:name").Value = "com.unity.reflect.viewer.ReflectUnityPlayerActivity";
         return mainActivity;
     }
-
-    internal void AddReflectScheme(XmlNode mainActivity)
-    {
-        XmlElement intentNode = CreateElement("intent-filter");
-        intentNode.AppendChild(CreateElementWithAttribute("data", "scheme", "reflect"));
-        intentNode.AppendChild(CreateElementWithAttribute("action", "name", "android.intent.action.VIEW"));
-        intentNode.AppendChild(CreateElementWithAttribute("category", "name", "android.intent.category.DEFAULT"));
-        intentNode.AppendChild(CreateElementWithAttribute("category", "name", "android.intent.category.BROWSABLE"));
-        mainActivity.AppendChild(intentNode);
-    }
-
+    
     internal void ApplyReflectChanges()
     {
-        AddReflectScheme(RenameActivityForDeepLink(GetActivityWithLaunchIntent()));
+        AddReflectIntents(RenameActivityForDeepLink(GetActivityWithLaunchIntent()));
+    }
+
+    internal void AddReflectIntents(XmlNode mainActivity)
+    {
+
+        var reflectSchemeIntent = CreateReflectIntent();
+        mainActivity.AppendChild(reflectSchemeIntent);
+    }
+
+    internal XmlElement CreateReflectIntent()
+    {
+        var intentNode = CreateElement("intent-filter");
+        var scheme = CreateElementWithAttribute("data", "scheme", "reflect");
+        intentNode.AppendChild(scheme);
+        AppendIntentAttributes(intentNode);
+
+        return intentNode;
+    }
+    
+    internal XmlElement CreateAppLinkIntent(string domain)
+    {
+        var appLinkAttributes = new Dictionary<string, string>()
+        {
+            {"scheme", "https"},
+            {"host", domain},
+            {"pathPrefix", "/p"}
+        };
+        var intentNode = CreateElement("intent-filter");
+        var scheme = CreateElementWithAttributes("data", appLinkAttributes);
+        intentNode.AppendChild(scheme);
+        AppendIntentAttributes(intentNode);
+        
+        return intentNode;
+    }
+
+    internal void AppendIntentAttributes(XmlElement element)
+    {
+        element.AppendChild(CreateElementWithAttribute("action", "name", "android.intent.action.VIEW"));
+        element.AppendChild(CreateElementWithAttribute("category", "name", "android.intent.category.DEFAULT"));
+        element.AppendChild(CreateElementWithAttribute("category", "name", "android.intent.category.BROWSABLE"));
     }
 }
+
 #endif
