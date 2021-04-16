@@ -312,7 +312,7 @@
     "Unity.Reflect.Utils/2.1.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-5f8etJ3l85wInu5+ZUOJfrItLtvWB7D4zWv6zqxitauaJFnDDrEoJQKG0d8JhBq+M8CwLYU1Uk8b4z4ADMQRFg==",
+      "sha512": "sha512-sYrZgK0WV96cM9XjXEn99cRKlkheRR5rN01BFAWHqfcjzq+IAHLM1ygcrEM8kFHZ7xB/1I8eo1gR/BngP/qvqA==",
       "path": "unity.reflect.utils/2.1.0",
       "hashPath": "unity.reflect.utils.2.1.0.nupkg.sha512"
     }

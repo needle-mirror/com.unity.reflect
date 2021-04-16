@@ -1,7 +1,7 @@
 {
   "name": "com.unity.reflect",
   "displayName": "Unity Reflect",
-  "version": "2.1.0-preview.104",
+  "version": "2.1.0-preview.106",
   "unity": "2020.2",
   "description": "Unity Reflect importer used for Autodesk Revit to Unity and other AEC-Industial workflow. The package contains Reflect inhouse format support and other utilities for navigation and visualization",
   "host": "editor",
@@ -22,15 +22,20 @@
       "displayName": "Pipeline API",
       "description": "Samples for the Reflect Pipeline API demonstrating how to customize a Reflect Model import into Unity at runtime.",
       "path": "Samples~/PipelineApi"
+    },
+    {
+      "displayName": "Actor System",
+      "description": "Samples to show example workflows for the Actor System",
+      "path": "Samples~/PipelineApi"
     }
   ],
   "changelogUrl": "https://docs.unity3d.com/reflect/changelog.html",
   "upmCi": {
-    "footprint": "ad65f56465ac87ba4a0b5d07a2d8e807f7064cbf"
+    "footprint": "a54308f358801a88353dff0cddd5686830063243"
   },
   "repository": {
     "url": "https://github.cds.internal.unity3d.com/unity/industrial.git",
     "type": "git",
-    "revision": "ec559409605f8b919be6e5edfa0d80cad3b1ab8f"
+    "revision": "5cbca97b4451fdce0607ff7120c19716fbe9c572"
   }
 }
