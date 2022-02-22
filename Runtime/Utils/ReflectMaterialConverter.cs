@@ -1,10 +1,68 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Reflect;
 using Unity.Reflect.Model;
 using UnityEditor;
+using UnityEngine;
+using UnityEngine.Reflect;
 using UnityEngine.Rendering;
+
+namespace Unity.Reflect.ActorFramework
+{
+    public interface IReflectMaterialConverter
+    {
+        string Name { get; }
+        bool IsAvailable { get; }
+
+        Material DefaultMaterial { get; }
+
+        Material ConstructMaterial(SyncedData<SyncMaterial> syncMaterial, ITextureCache textureCache);
+    }
+    
+    [Serializable]
+    public class ReflectMaterialConverter : IReflectMaterialConverter
+    {
+#pragma warning disable CS0649
+        [SerializeField]
+        Material m_DefaultMaterial;
+
+        [SerializeField]
+        Material m_OpaqueMaterial;
+
+        [SerializeField]
+        Material m_TransparentMaterial;
+
+        [SerializeField]
+        Material m_DoubleOpaqueMaterial;
+
+        [SerializeField]
+        Material m_DoubleTransparentMaterial;
+#pragma warning restore CS0649
+        
+        public string Name => "Reflect Universal RP";
+
+        public bool IsAvailable => true;
+
+        public Material ConstructMaterial(SyncedData<SyncMaterial> syncMaterial, ITextureCache textureCache)
+        {
+            var syncMat = syncMaterial.data;
+            Material original;
+            var transparent = StandardShaderHelper.IsTransparent(syncMat);
+            if (syncMat.IsDoubleSided)
+                original = transparent ? m_DoubleTransparentMaterial : m_DoubleOpaqueMaterial;
+            else
+                original = transparent ? m_TransparentMaterial : m_OpaqueMaterial;
+
+            var material = new Material(original) { enableInstancing = true };
+
+            StandardShaderHelper.ComputeMaterial(syncMaterial, material, textureCache);
+            return material;
+        }
+
+        public Material DefaultMaterial => m_DefaultMaterial;
+    }
+}
 
 namespace UnityEngine.Reflect
 {
@@ -57,7 +115,7 @@ namespace UnityEngine.Reflect
         }
     }
     
-    abstract class SRPMaterialConverter : IReflectMaterialConverter
+    public abstract class SRPMaterialConverter : IReflectMaterialConverter
     {
         public abstract string name { get; }
         public abstract bool IsAvailable { get; }
@@ -121,7 +179,7 @@ namespace UnityEngine.Reflect
         }
     }
 
-    class UniversalRenderPipelineMaterialConverter : SRPMaterialConverter
+    public class UniversalRenderPipelineMaterialConverter : SRPMaterialConverter
     {
         public override string name => "Universal RenderPipeline";
 

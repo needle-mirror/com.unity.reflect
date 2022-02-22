@@ -9,13 +9,9 @@ namespace UnityEngine.Reflect
 {
     public class SyncPrefabImporter
     {
-        public SyncPrefabImporter(bool importLights, params string[] sources)
-        {
-        }
-
         public static Transform Import(SyncPrefab syncPrefab, IObjectCache objectCache)
         {
-            var root = CreateSyncPrefab(null, syncPrefab);
+            var root = CreateSyncPrefab(null, syncPrefab.Name);
 
             foreach (var instance in syncPrefab.Instances)
             {
@@ -25,15 +21,15 @@ namespace UnityEngine.Reflect
             return root;
         }
         
-        public static Transform CreateSyncPrefab(Transform parent, SyncPrefab syncPrefab)
+        static Transform CreateSyncPrefab(Transform parent, string source)
         {                
-            var root = new GameObject(syncPrefab.Name);
+            var root = new GameObject(source);
 
             if (parent != null)
                 root.transform.parent = parent;
             
             var prefabComponent = root.AddComponent<SyncPrefabBinding>();
-            prefabComponent.key = syncPrefab.Id.Value;
+            prefabComponent.sourceId = source;
 
             return root.transform;
         }
@@ -49,6 +45,8 @@ namespace UnityEngine.Reflect
                 return null;
             }
 
+            syncObject.streamKey = new StreamKey(source, PersistentKey.GetKey<SyncObjectInstance>(instance.Id));
+            
             var gameObject = syncObject.gameObject;
             
             gameObject.name = instance.Name;

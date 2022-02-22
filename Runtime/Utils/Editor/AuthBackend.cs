@@ -33,7 +33,15 @@ namespace UnityEngine.Reflect
 
         public void Login()
         {
-            m_Manager.ProcessToken(UnityEditor.CloudProjectSettings.accessToken, false);
+            if (string.IsNullOrEmpty(UnityEditor.CloudProjectSettings.accessToken))
+            {
+                Debug.LogWarning("Missing Unity User Access Token. Please restart the Unity Hub and sign in. "
+                    + "If you are already signed in, relaunch the Unity Hub to enable Authentication Service.");
+            }
+            else
+            {
+                m_Manager.ProcessToken(UnityEditor.CloudProjectSettings.accessToken, false);
+            }
         }
 
         public void Logout()

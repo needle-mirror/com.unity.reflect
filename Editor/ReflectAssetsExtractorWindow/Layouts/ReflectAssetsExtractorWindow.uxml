@@ -1,0 +1,45 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="True">
+    <Style src="/Packages/com.unity.reflect/Editor/ReflectAssetsExtractorWindow/Styles/ReflectAssetsExtractor.uss" />
+    <uie:ObjectField label="SyncPrefab" name="syncPrefab-field" style="-unity-font-style: normal;" />
+    <ui:ScrollView style="margin-left: 5px; margin-right: 5px; background-color: rgba(255, 255, 255, 0.05); margin-top: 5px; flex-grow: 1;">
+        <uie:EnumField label="Prefab Mode" value="Center" name="prefab-mode" style="margin-top: 5px;" />
+        <uie:IntegerField label="Min Occurence" name="nested-prefabs-min-occurence" tooltip="The minimum number of time that a SyncObject must appear for it to be converted into a nested prefab. " class="indent_depth_1" />
+        <uie:EnumField label="Material Mode" value="Center" name="material-mode" class="sub_settings" />
+        <ui:Toggle label="Remap SyncPrefab" name="material-remap" tooltip="if checked, generated materials will be set as Remapped Materials for this SyncPrefab. Already remapped materials will not be changed." class="indent_depth_1" />
+        <uie:EnumField label="Texture Mode" value="Center" name="texture-mode" class="indent_depth_1" />
+        <uie:EnumField label="Mesh Mode" value="Center" name="mesh-mode" class="sub_settings" />
+        <ui:Foldout text="Advanced" value="false" class="sub_settings" style="margin-bottom: 5px;">
+            <ui:Toggle label="Override Existing" name="override-existing" tooltip="if checked, extracted assets will override any existing asset that have the same name." />
+            <ui:Label text="Extraction Folders" display-tooltip-when-elided="true" style="margin-left: 3px; -unity-font-style: bold; margin-top: 3px;" />
+            <ui:VisualElement>
+                <ui:VisualElement name="prefab-path-selector" style="flex-direction: row; justify-content: space-between; flex-grow: 0; width: auto; height: 20px; flex-shrink: 1;">
+                    <ui:TextField picking-mode="Ignore" label="Prefab" name="path" class="indent_depth_2" style="flex-grow: 1; white-space: nowrap; flex-shrink: 1;" />
+                    <ui:Button text="Select" display-tooltip-when-elided="true" name="select-folder-button" />
+                </ui:VisualElement>
+                <ui:VisualElement name="nested-prefabs-path-selector" style="flex-direction: row; justify-content: space-between; flex-grow: 0; width: auto; height: 20px;">
+                    <ui:TextField picking-mode="Ignore" label="Nested Prefabs" name="path" class="indent_depth_2" style="flex-grow: 1; flex-shrink: 1;" />
+                    <ui:Button text="Select" display-tooltip-when-elided="true" name="select-folder-button" />
+                </ui:VisualElement>
+                <ui:VisualElement name="materials-path-selector" style="flex-direction: row; justify-content: space-between; flex-grow: 0; width: auto; height: 20px;">
+                    <ui:TextField picking-mode="Ignore" label="Materials" name="path" class="indent_depth_2" style="flex-grow: 1; flex-shrink: 1;" />
+                    <ui:Button text="Select" display-tooltip-when-elided="true" name="select-folder-button" />
+                </ui:VisualElement>
+                <ui:VisualElement name="textures-path-selector" style="flex-direction: row; justify-content: space-between; flex-grow: 0; width: auto; height: 20px;">
+                    <ui:TextField picking-mode="Ignore" label="Textures" name="path" class="indent_depth_2" style="flex-grow: 1; flex-shrink: 1;" />
+                    <ui:Button text="Select" display-tooltip-when-elided="true" name="select-folder-button" />
+                </ui:VisualElement>
+                <ui:VisualElement name="meshes-path-selector" style="flex-direction: row; justify-content: space-between; flex-grow: 0; width: auto; height: 20px;">
+                    <ui:TextField picking-mode="Ignore" label="Meshes" name="path" class="indent_depth_2" style="flex-grow: 1; flex-shrink: 1;" />
+                    <ui:Button text="Select" display-tooltip-when-elided="true" name="select-folder-button" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:Foldout>
+    </ui:ScrollView>
+    <ui:VisualElement style="background-color: rgba(0, 0, 0, 0.05); flex-shrink: 0;">
+        <ui:HelpBox message-type="Error" name="error-message" style="min-height: 50px; display: none;" />
+        <ui:HelpBox message-type="Warning" name="warn-message" style="min-height: 50px; display: none;" />
+    </ui:VisualElement>
+    <ui:VisualElement class="sub_settings" style="align-items: flex-end; height: 30px; flex-shrink: 0;">
+        <ui:Button text="Extract" display-tooltip-when-elided="true" name="extract-button" style="width: 120px; align-items: flex-end; height: 25px; margin-right: 5px;" />
+    </ui:VisualElement>
+</ui:UXML>

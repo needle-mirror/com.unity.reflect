@@ -17,6 +17,18 @@ namespace UnityEngine.Reflect
         [DllImport("user32.dll")]
         public static extern IntPtr FindWindow(string className, string windowName);
 
+        [DllImport("user32.dll")]
+        static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        static readonly IntPtr HWND_TOP = new IntPtr(0);
+        const UInt32 SWP_NOSIZE = 0x0001;
+        const UInt32 SWP_NOMOVE = 0x0002;
+        const UInt32 SWP_SHOWWINDOW = 0x0040;
+        
+        bool TopMostSate = false;
+        
         private LoginManager m_Manager;
         
         IntPtr m_HWnd;
@@ -25,33 +37,22 @@ namespace UnityEngine.Reflect
         {
             m_Manager = loginManager;
             Application.focusChanged += OnApplicationFocus;
-        }
-
-        void SetLoginUrlWithWindowPtr()
-        {
             m_HWnd = GetWindowHandle();
         }
 
         void OnApplicationFocus(bool hasFocus)
         {
-            if (hasFocus)
+            if (TopMostSate)
             {
-                SetLoginUrlWithWindowPtr();
+                // Remove temporary topmost state
+                SetWindowPos(m_HWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                TopMostSate = false;
             }
         }
 
         public void Start()
         {
             m_Manager.ReadPersistentToken();
-
-            string[] args = Environment.GetCommandLineArgs();
-            if (args.Length > 0 && File.Exists(args[0])) 
-            {
-                // First argument is always the absolute path to the viewer .exe
-                RegisterViewerPath(args[0]);
-            }
-
-            SetLoginUrlWithWindowPtr();
         }
 
         public void Update()
@@ -71,6 +72,10 @@ namespace UnityEngine.Reflect
         {   
             Debug.Log($"Sign out using: {AuthConfiguration.LogoutUrl}");
             m_Manager.InvalidateToken();
+            
+            // Make temporary topmost window so logout navigatio occurs behind viewer
+            SetWindowPos(m_HWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            TopMostSate = true;
             // This will deliberately unfocus the viewer application
             Application.OpenURL(AuthConfiguration.LogoutUrl);
         }
@@ -90,8 +95,8 @@ namespace UnityEngine.Reflect
 
         string GetResolverPath() 
         {
-            var appDomainLocation = typeof(AppDomain).Assembly.Location;
-            var subPath = appDomainLocation.Substring(0, appDomainLocation.LastIndexOf("_Data\\Managed\\"));
+            var appDomainLocation = Application.dataPath.Replace("/", "\\");
+            var subPath = appDomainLocation.Substring(0, appDomainLocation.LastIndexOf("_Data"));
             var lastFolderIndex = subPath.LastIndexOf("\\");
             var exePathRoot = subPath.Substring(0, lastFolderIndex + 1);
             var exeAppName = subPath.Substring(lastFolderIndex + 1);
@@ -110,15 +115,6 @@ namespace UnityEngine.Reflect
                 {
                     commandKey.SetValue("", "\"" + resolverLocation + "\" \"%1\"");
                 }
-            }
-        }
-
-        // Register current viewer .exe path for reflect deeplink resolver
-        void RegisterViewerPath(string exePath)
-        {
-            using (var reflectKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey("SOFTWARE\\Unity Reflect\\Apps\\" + Application.productName))
-            {
-                reflectKey.SetValue("StartPath", exePath);
             }
         }
     }

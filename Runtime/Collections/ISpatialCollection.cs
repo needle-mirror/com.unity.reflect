@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Reflect.Actors;
 using UnityEngine;
 
 namespace Unity.Reflect.Collections
@@ -10,10 +11,11 @@ namespace Unity.Reflect.Collections
         int Depth { get; }
         Bounds Bounds { get; }
 
-        void Search<T>(Func<TObject, bool> predicate,
-            Func<TObject, float> prioritizer,
-            int maxResultsCount,
-            ICollection<T> results) where T : TObject;
+        void Search<T>(Predicate<ISpatialObject> predicate,
+            Func<ISpatialObject, float> prioritizer,
+            Action<T> onObjectMatch,
+            int maxResultsCount = int.MaxValue,
+            float nodePriorityThreshold = float.MaxValue) where T : TObject;
 
         void Add(TObject obj);
         void Remove(TObject obj);
@@ -24,7 +26,8 @@ namespace Unity.Reflect.Collections
 
     public interface ISpatialObject : IDisposable
     {
-        Guid Id { get; }
+        DynamicGuid Id { get; }
+        EntryData Entry { get; }
         Vector3 Min { get; }
         Vector3 Max { get; }
         Vector3 Center { get; }
@@ -33,10 +36,19 @@ namespace Unity.Reflect.Collections
         GameObject LoadedObject { get; set; }
     }
 
-    public interface IDelayedSpatialPicker<T>
+    [Obsolete("Please use `ISpatialPickerAsync<T>` instead.")]
+    public interface ISpatialPicker<T>
     {
-        void DelayedPick(Ray ray, Action<List<T>> callback);
-        void DelayedPick(Vector3[] samplePoints, int samplePointCount, Action<List<T>> callback);
-        void DelayedPick(int distance, Action<List<T>> callback);
+        void Pick(Ray ray, List<T> results, string[] flagsExcluded = null);
+        void VRPick(Ray ray, List<T> results, string[] flagsExcluded = null);
+        void Pick(Vector3[] samplePoints, int samplePointCount, List<T> results, string[] flagsExcluded = null);
+        void Pick(float distance, List<T> results, Transform origin, string[] flagsExcluded = null);
+    }
+
+    public interface ISpatialPickerAsync<T>
+    {
+        void Pick(Ray ray, Action<List<T>> callback, string[] flagsExcluded = null);
+        void Pick(Vector3[] samplePoints, int samplePointCount, Action<List<T>> callback, string[] flagsExcluded = null);
+        void Pick(Vector3 origin, float distance, Action<List<T>> callback, string[] flagsExcluded = null);
     }
 }

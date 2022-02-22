@@ -1,0 +1,21 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <ui:VisualElement style="margin-left: 2px; margin-right: 2px; margin-top: 2px; margin-bottom: 5px; background-color: rgba(0, 0, 0, 0.3); padding-left: 5px; padding-right: 5px; padding-top: 5px; padding-bottom: 5px; border-top-left-radius: 5px; border-bottom-left-radius: 5px; border-top-right-radius: 5px; border-bottom-right-radius: 5px;">
+        <ui:VisualElement style="padding-left: 5px;">
+            <ui:Label text="NAME" display-tooltip-when-elided="true" name="name" style="-unity-font-style: bold; padding-left: 0; font-size: 14px; padding-right: 0; padding-top: 0; padding-bottom: 0;" />
+            <ui:Label text="DESCRIPTION" name="description" />
+            <ui:VisualElement style="flex-direction: row; padding-top: 5px;">
+                <ui:Label text="Last Modified:" style="font-size: 10px;" />
+                <ui:Label text="DATE" name="last-modified" style="font-size: 10px;" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement>
+            <ui:VisualElement name="non-imported-btn-set">
+                <ui:Button text="Import" name="import-btn" style="overflow: visible; display: flex;" />
+            </ui:VisualElement>
+            <ui:VisualElement name="imported-btn-set" style="flex-direction: row; justify-content: space-between; overflow: visible; visibility: visible;">
+                <ui:Button text="Update" name="update-btn" style="flex-grow: 1; flex-shrink: 1;" />
+                <uie:ToolbarMenu name="toolbar-actions" text="Actions" style="min-width: 100px; max-width: 150px; border-top-left-radius: 3px; border-bottom-left-radius: 3px; border-top-right-radius: 3px; border-bottom-right-radius: 3px; margin-bottom: 2px; margin-top: 2px; flex-grow: 1; flex-shrink: 0; margin-right: 3px; margin-left: 0;" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

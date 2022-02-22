@@ -13,7 +13,7 @@ namespace Unity.Reflect.Samples
         
         protected override MaterialConverter Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
-            var converter = new SampleMaterialConverter(hook.services.eventHub, hook.services.memoryTracker, textureCacheParam.value, output, opaqueShader, transparentShader);
+            var converter = new SampleMaterialConverter(hook.Services.EventHub, hook.Services.MemoryTracker, textureCacheParam.value, output, opaqueShader, transparentShader);
 
             input.streamEvent = converter.OnStreamEvent;
 

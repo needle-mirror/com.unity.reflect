@@ -1,0 +1,25 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="True">
+    <ui:VisualElement style="min-height: 60px; padding-left: 5px; padding-right: 5px; padding-top: 5px; padding-bottom: 5px;">
+        <ui:VisualElement style="flex-direction: row; justify-content: space-between;">
+            <ui:Label text="Projects" style="-unity-font-style: bold;" />
+            <ui:Button text="Refresh" name="refresh-button" style="width: 100px;" />
+        </ui:VisualElement>
+        <uie:Toolbar name="toolbar" style="justify-content: space-between; flex-grow: 0;">
+            <uie:ToolbarMenu name="toolbarSort" style="min-width: 100px; max-width: 150px; flex-basis: 50%;" />
+            <uie:ToolbarSearchField name="toolbarSearch" focusable="true" style="flex-shrink: 1; flex-grow: 0; min-width: 100px; max-width: 200px; justify-content: flex-end; flex-basis: 50%;" />
+        </uie:Toolbar>
+    </ui:VisualElement>
+    <ui:HelpBox message-type="Error" name="error-message" style="min-height: 50px; display: none;">
+        <ui:Button text="Learn more" name="learn-more-btn" style="align-items: flex-end;" />
+    </ui:HelpBox>
+    <ui:HelpBox message-type="Info" name="info-message" style="min-height: 50px; display: none;" />
+    <ui:VisualElement name="searching-indicator" style="margin-left: 5px;">
+        <ui:Label text="Fetching..." />
+    </ui:VisualElement>
+    <ui:VisualElement style="flex-grow: 1;">
+        <ui:ScrollView name="projects-list" focusable="true" selection-type="None" show-vertical-scroller="true" style="flex-grow: 1; background-color: rgb(70, 70, 70);" />
+    </ui:VisualElement>
+    <ui:VisualElement style="min-height: 20px;">
+        <uie:ProgressBar name="progress-bar" high-value="1" style="display: flex; visibility: hidden;" />
+    </ui:VisualElement>
+</ui:UXML>

@@ -54,31 +54,31 @@ namespace UnityEditor.Reflect
 
         void FindProperties(MaterialProperty[] props)
         {
-            m_Tint = FindProperty("_Tint", props);
-            m_AlbedoMap = new MapProperties("_MainTex", props);
-            m_AlbedoColor = FindProperty("_AlbedoColor", props);
-            m_AlbedoFade = FindProperty("_MainTex_Fade", props);
+            m_Tint = FindProperty("_Reflect_Tint", props);
+            m_AlbedoMap = new MapProperties("_Reflect_MainTex", props);
+            m_AlbedoColor = FindProperty("_Reflect_AlbedoColor", props);
+            m_AlbedoFade = FindProperty("_Reflect_MainTex_Fade", props);
         
-            m_BumpScale = FindProperty("_BumpScale", props);
-            m_BumpMap = new MapProperties("_BumpMap", props);
+            m_BumpScale = FindProperty("_Reflect_NormalScale", props);
+            m_BumpMap = new MapProperties("_Reflect_NormalMap", props);
         
-            m_Smoothness = FindProperty("_Smoothness", props);
-            m_SmoothnessMap = new MapProperties("_SmoothnessMap", props);
+            m_Smoothness = FindProperty("_Reflect_Smoothness", props);
+            m_SmoothnessMap = new MapProperties("_Reflect_SmoothnessMap", props);
         
-            m_Metallic = FindProperty("_Metallic", props);
-            m_MetallicMap = new MapProperties("_MetallicMap", props);
+            m_Metallic = FindProperty("_Reflect_Metallic", props);
+            m_MetallicMap = new MapProperties("_Reflect_MetallicMap", props);
         
-            m_EmissionMode = FindProperty("_EmissionMode", props);
-            m_Emission = FindProperty("_Emission", props);
-            m_EmissionMap = new MapProperties("_EmissionMap", props);
+            m_EmissionMode = FindProperty("_Reflect_EmissionMode", props);
+            m_Emission = FindProperty("_Reflect_Emission", props);
+            m_EmissionMap = new MapProperties("_Reflect_EmissionMap", props);
 
-            m_CutoutThreshold = FindProperty("_CutoutThreshold", props, false);
+            m_CutoutThreshold = FindProperty("_Reflect_CutoutThreshold", props, false);
             if (m_CutoutThreshold != null)
-                m_CutoutMap = new MapProperties("_CutoutMap", props);
+                m_CutoutMap = new MapProperties("_Reflect_CutoutMap", props);
             
-            m_Alpha = FindProperty("_Alpha", props, false);
+            m_Alpha = FindProperty("_Reflect_Alpha", props, false);
             if (m_Alpha != null)
-                m_AlphaMap = new MapProperties("_AlphaMap", props);
+                m_AlphaMap = new MapProperties("_Reflect_AlphaMap", props);
         }
 
         public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] props)

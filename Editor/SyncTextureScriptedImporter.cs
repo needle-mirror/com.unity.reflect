@@ -15,12 +15,8 @@ namespace UnityEditor.Reflect
         public override void OnImportAsset(AssetImportContext ctx)
         {           
             var syncTexture = PlayerFile.Load<SyncTexture>(ctx.assetPath);
-            var syncedData = new SyncedData<SyncTexture>(StreamKey.FromSyncId<SyncTexture>(ReflectScriptedImporter.EditorSourceId, syncTexture.Id), syncTexture);
-            
-            var textureImporter = new SyncTextureImporter();
-            var texture = textureImporter.Import(syncedData, null);
 
-            texture.name = Path.GetFileNameWithoutExtension(syncTexture.Name);
+            var texture = Import(syncTexture, new SyncTextureImporter());
             
             ctx.AddObjectToAsset("texture", texture);
             
@@ -28,6 +24,17 @@ namespace UnityEditor.Reflect
 
             ctx.AddObjectToAsset("root", root, AssetPreview.GetMiniThumbnail(texture));
             ctx.SetMainObject(root);
+        }
+        
+        public static Texture2D Import(SyncTexture syncTexture, SyncTextureImporter importer)
+        {
+            var syncedData = new SyncedData<SyncTexture>(StreamKey.FromSyncId<SyncTexture>(ReflectScriptedImporter.EditorSourceId, syncTexture.Id), syncTexture);
+            
+            var texture = importer.Import(syncedData, null);
+            
+            texture.name = Path.GetFileNameWithoutExtension(syncTexture.Name);
+
+            return texture;
         }
     }
 }

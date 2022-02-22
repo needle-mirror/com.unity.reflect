@@ -106,6 +106,11 @@ internal class AndroidXmlDocument : XmlDocument
 
         var reflectSchemeIntent = CreateReflectIntent();
         mainActivity.AppendChild(reflectSchemeIntent);
+        foreach (var supportedDomain in AppLinksHelper.SupportedDomains)
+        {
+            var appLinksIntent = CreateAppLinkIntent(supportedDomain);
+            mainActivity.AppendChild(appLinksIntent);
+        }
     }
 
     internal XmlElement CreateReflectIntent()

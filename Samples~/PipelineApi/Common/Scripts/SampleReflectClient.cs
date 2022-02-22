@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.Reflect.Data;
 using Unity.Reflect.IO;
@@ -17,7 +18,8 @@ namespace Unity.Reflect.Samples
 
         public SampleSyncModelProvider()
         {
-            m_DataFolder = Directory.EnumerateDirectories(Application.dataPath, ".SampleData", SearchOption.AllDirectories).FirstOrDefault();
+            // moving one step up from Assets folder allows us to also find the .SampleData directly in the package for testing purposes
+            m_DataFolder = Directory.EnumerateDirectories(Application.dataPath.Replace(@"/Assets", ""), ".SampleData", SearchOption.AllDirectories).FirstOrDefault();
 
             if (m_DataFolder == null)
             {
@@ -25,17 +27,18 @@ namespace Unity.Reflect.Samples
             }
         }
 
-        public async Task<IEnumerable<SyncManifest>> GetSyncManifestsAsync()
+        public async Task<IEnumerable<SyncManifest>> GetSyncManifestsAsync(CancellationToken token)
         {
             var syncManifestPath = Directory.EnumerateFiles(m_DataFolder, "*.manifest").FirstOrDefault();
-            var syncManifest = await PlayerFile.LoadManifestAsync(syncManifestPath);
+            var syncManifest = await PlayerFile.LoadManifestAsync(syncManifestPath, token);
 
             return new [] { syncManifest };
         }
 
-        public async Task<ISyncModel> GetSyncModelAsync(StreamKey streamKey, string hash)
+        public async Task<ISyncModel> GetSyncModelAsync(StreamKey streamKey, string hash, CancellationToken token)
         {
-            return await PlayerFile.LoadSyncModelAsync(m_DataFolder, streamKey.key, hash);
+            var fullPath = Path.Combine(m_DataFolder, hash + PlayerFile.PersistentKeyToExtension(streamKey.key));
+            return await PlayerFile.LoadSyncModelAsync(fullPath, streamKey.key, token);
         }
     }
 }

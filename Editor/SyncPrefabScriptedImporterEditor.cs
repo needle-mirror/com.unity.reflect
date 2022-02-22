@@ -12,6 +12,8 @@ namespace UnityEditor.Reflect
 
         public override void OnInspectorGUI()
         {
+            serializedObject.Update();
+            
             if (m_MaterialRemapsProperty == null)
             {
                 m_MaterialRemapsProperty = serializedObject.FindProperty("m_MaterialRemaps");
@@ -20,6 +22,12 @@ namespace UnityEditor.Reflect
             if (s_BoldStyle == null)
             {
                 s_BoldStyle = new GUIStyle("Foldout") { fontStyle = FontStyle.Bold };
+            }
+
+            if (GUILayout.Button(new GUIContent("Extract Assets", "Generate editable assets from this SyncPrefab.")))
+            {
+                var assetPath = ((ScriptedImporter)target).assetPath;
+                ReflectAssetsExtractorWindow.ShowWindow(AssetDatabase.LoadAssetAtPath<GameObject>(assetPath));
             }
             
             m_MaterialRemapsProperty.isExpanded = EditorGUILayout.Foldout(m_MaterialRemapsProperty.isExpanded , "Remapped Materials", s_BoldStyle);
@@ -40,6 +48,8 @@ namespace UnityEditor.Reflect
             }
 
             EditorGUILayout.Space();
+
+            serializedObject.ApplyModifiedProperties();
             ApplyRevertGUI();
         }
     }

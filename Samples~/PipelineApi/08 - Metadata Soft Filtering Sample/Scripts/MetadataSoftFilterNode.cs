@@ -23,7 +23,7 @@ namespace Unity.Reflect.Samples
     }
         
     
-    class MetadataSoftFilter : IReflectNodeProcessor
+    public class MetadataSoftFilter : IReflectNodeProcessor
     {
         class FilterData
         {

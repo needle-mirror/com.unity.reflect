@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -40,7 +40,7 @@ namespace UnityEngine.Reflect
         public void Set()
         {
             TaskCompletionSource<bool> tcs = null;
-            CancellationTokenRegistration registration;
+            var registration = new CancellationTokenRegistration();
 
             lock (m_Waits)
             {

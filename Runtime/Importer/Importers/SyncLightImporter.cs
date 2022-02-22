@@ -1,6 +1,5 @@
 using System;
 using Unity.Reflect.Model;
-using UnityEngine;
 
 namespace UnityEngine.Reflect
 {
@@ -9,28 +8,31 @@ namespace UnityEngine.Reflect
         void Import(SyncLight syncLight, GameObject parent);
     }
     
+    [Serializable]
     public class SyncLightImporter: ISyncLightImporter
     {
-        const float k_DefaultIntensity = 1.0f;
-        const double k_IntensityExponent = 0.25;
-        const double k_IntensityMultiplier = 0.2;
-        const float k_IntensityAtRange = 0.02f;
+#pragma warning disable CS0649
+        [SerializeField] float m_DefaultIntensity = 1.0f;
+        [SerializeField] float m_IntensityExponent = 0.25f;
+        [SerializeField] float m_IntensityMultiplier = 0.2f;
+        [SerializeField] float m_IntensityAtRange = 0.02f;
+#pragma warning restore CS0649
         
         public void Import(SyncLight syncLight, GameObject parent)
         {
             // Convert syncLight intensity to unity light intensity
-            var intensity = k_DefaultIntensity;
+            var intensity = m_DefaultIntensity;
             if (syncLight.Intensity > 0)
             {
                 intensity = ImportersUtils.GetCandelasIntensity(syncLight.Intensity, syncLight.IntensityUnit, syncLight.Type, syncLight.SpotAngle);
-                intensity = (float)(k_IntensityMultiplier * Math.Pow(intensity, k_IntensityExponent));
+                intensity = (float)(m_IntensityMultiplier * Math.Pow(intensity, m_IntensityExponent));
             }
 
             // Compute the range if not provided
             var range = syncLight.Range;
             if (range <= 0)
             {
-                range = (float)Math.Sqrt(intensity / k_IntensityAtRange);
+                range = (float)Math.Sqrt(intensity / m_IntensityAtRange);
             }
 
             // TODO Investigate why Light.UseColorTemperature is not exposed to C# and let the light do this calculation

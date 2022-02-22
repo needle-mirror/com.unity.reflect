@@ -1,0 +1,8 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="True">
+    <ui:VisualElement style="flex-direction: row; justify-content: space-between; flex-grow: 0; width: auto; height: 20px;">
+        <ui:TextField picking-mode="Ignore" label="Folder" name="path" style="flex-grow: 1;" />
+        <ui:Button text="Select" display-tooltip-when-elided="true" name="select_folder_button" />
+    </ui:VisualElement>
+    <uie:EnumField label="Extract mode" value="Center" name="extract_mode" />
+    <ui:Toggle label="Override existing" />
+</ui:UXML>

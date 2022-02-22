@@ -1,19 +1,19 @@
 fileFormatVersion: 2
-guid: 549b58f2bab0fa749ab4a729eb804abd
+guid: 5de3ccdf31de740fe99f7b498af47c7e
 ModelImporter:
-  serializedVersion: 28
+  serializedVersion: 20200
   internalIDToNameTable: []
   externalObjects:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: Bark
-    second: {fileID: 2100000, guid: d8088c16bf195244ab4b96a98b30d27c, type: 2}
+    second: {fileID: 2100000, guid: 2eb3469d23ebe8747bc1d621954fc073, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: Leaves
-    second: {fileID: 2100000, guid: 879166d51864e384daa6acad57e1a114, type: 2}
+    second: {fileID: 2100000, guid: 048412268693a483ea7798aa8a815c45, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
@@ -62,11 +62,13 @@ ModelImporter:
     importBlendShapes: 1
     importCameras: 1
     importLights: 1
+    fileIdsGeneration: 1
     swapUVChannels: 0
     generateSecondaryUV: 0
     useFileUnits: 1
     keepQuads: 0
     weldVertices: 1
+    bakeAxisConversion: 0
     preserveHierarchy: 0
     skinWeightsMode: 0
     maxBonesPerVertex: 4
@@ -76,6 +78,9 @@ ModelImporter:
     secondaryUVAngleDistortion: 8
     secondaryUVAreaDistortion: 15.000001
     secondaryUVHardAngle: 88
+    secondaryUVMarginMethod: 0
+    secondaryUVMinLightmapResolution: 40
+    secondaryUVMinObjectScale: 1
     secondaryUVPackMargin: 4
     useFileScale: 1
   tangentSpace:
@@ -105,9 +110,11 @@ ModelImporter:
     hasExtraRoot: 0
     skeletonHasParents: 1
   lastHumanDescriptionAvatarSource: {instanceID: 0}
+  autoGenerateAvatarMappingIfUnspecified: 1
   animationType: 2
   humanoidOversampling: 1
   avatarSetup: 0
+  addHumanoidExtraRootOnlyWhenUsingAvatar: 0
   additionalBone: 0
   userData: 
   assetBundleName: 

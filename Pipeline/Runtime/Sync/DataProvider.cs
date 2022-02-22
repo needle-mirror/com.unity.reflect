@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,7 +26,7 @@ namespace UnityEngine.Reflect.Pipeline
         
         protected override DataProvider Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
-            var p = new DataProvider(hook.services.eventHub, hook.services.memoryTracker, provider, hashCacheParam.value,
+            var p = new DataProvider(hook.Services.EventHub, hook.Services.MemoryTracker, provider, hashCacheParam.value,
                 syncMeshOutput, syncMaterialOutput, syncTextureOutput, instanceDataOutput);
 
             instanceInput.streamBegin = p.OnStreamInstanceBegin;
@@ -49,6 +50,36 @@ namespace UnityEngine.Reflect.Pipeline
         {
             this.key = key;
             this.asset = asset;
+        }
+    }
+    
+    
+    struct StreamHash : IEquatable<StreamHash>
+    {
+        public readonly StreamKey streamKey;
+        public readonly string hash;
+        public StreamHash(StreamKey streamKey, string hash)
+        {
+            this.streamKey = streamKey;
+            this.hash = hash;
+        }
+
+        public bool Equals(StreamHash other)
+        {
+            return streamKey.Equals(other.streamKey) && hash == other.hash;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is StreamHash other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return (streamKey.GetHashCode() * 397) ^ (hash != null ? hash.GetHashCode() : 0);
+            }
         }
     }
 
@@ -76,20 +107,6 @@ namespace UnityEngine.Reflect.Pipeline
             public Exception exception;
         }
 
-        class StreamCache
-        {
-            public readonly StreamKey streamKey;
-
-            public ISyncModel model;
-            public Task<ISyncModel> task;
-            public string hash;
-
-            public StreamCache(StreamKey streamKey)
-            {
-                this.streamKey = streamKey;
-            }
-        }
-
         readonly EventHub m_Hub;
         readonly MemoryTracker m_MemTracker;
 
@@ -97,7 +114,8 @@ namespace UnityEngine.Reflect.Pipeline
         readonly ConcurrentQueue<DownloadResult> m_DownloadedInstances;
         readonly ConcurrentQueue<ObjectDownloadResult> m_DownloadedModels;
 
-        readonly Dictionary<StreamKey, StreamCache> m_StreamCaches;
+        readonly Dictionary<StreamHash, Task<DownloadResult>> m_SyncTasks;
+        readonly Dictionary<StreamHash, Task<ISyncModel>> m_StreamTasks;
         readonly Dictionary<StreamKey, StreamInstanceData> m_InstanceCache;
 
         readonly HashSet<StreamKey> m_AddedModels;
@@ -109,8 +127,12 @@ namespace UnityEngine.Reflect.Pipeline
         readonly DataOutput<SyncMaterial> m_SyncMaterialOutput;
         readonly DataOutput<SyncTexture> m_SyncTextureOutput;
         readonly DataOutput<StreamInstanceData> m_InstanceDataOutput;
-        
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        static readonly int k_MaxTaskSize = 5;
+#else
         static readonly int k_MaxTaskSize = 10;
+#endif
 
         EventHub.Handle m_HubHandle;
         MemoryTracker.Handle<StreamKey, Mesh> m_MeshesHandle;
@@ -139,7 +161,8 @@ namespace UnityEngine.Reflect.Pipeline
             m_DownloadedInstances = new ConcurrentQueue<DownloadResult>();
             m_DownloadedModels = new ConcurrentQueue<ObjectDownloadResult>();
             
-            m_StreamCaches = new Dictionary<StreamKey, StreamCache>();
+            m_SyncTasks = new Dictionary<StreamHash, Task<DownloadResult>>();
+            m_StreamTasks = new Dictionary<StreamHash, Task<ISyncModel>>();
             m_InstanceCache = new Dictionary<StreamKey, StreamInstanceData>();
             
             m_AddedModels = new HashSet<StreamKey>();
@@ -327,14 +350,14 @@ namespace UnityEngine.Reflect.Pipeline
                 {
                     if (request is StreamInstance instance)
                     {
-                        tasks.Add(DownloadSyncObjectInstance(instance, token));
+                        tasks.Add(DownloadSyncObjectInstance(instance, token)); 
                     }
-                    else
+                    else if(request is StreamAsset asset)
                     {
-                        tasks.Add(DownloadSyncModel((StreamAsset)request, token));
+                        tasks.Add(DownloadSyncModel(asset, token));
                     }
 
-                    if (tasks.Count > k_MaxTaskSize)
+                    if (tasks.Count >= k_MaxTaskSize)
                     {
                         break;
                     }
@@ -363,7 +386,6 @@ namespace UnityEngine.Reflect.Pipeline
             await Task.WhenAll(tasks);
         }
 
-        Dictionary<SyncId, Task<DownloadResult>> m_Tasks = new Dictionary<SyncId, Task<DownloadResult>>();
 
         async Task DownloadSyncModel(StreamAsset streamAsset, CancellationToken token)
         {
@@ -408,13 +430,18 @@ namespace UnityEngine.Reflect.Pipeline
         {
             DownloadResult downloadResult;
             Task<DownloadResult> task;
+            
+            var key = new StreamKey(streamInstance.key.source, PersistentKey.GetKey<SyncObject>(streamInstance.instance.ObjectId.Value));
+            var hash = m_HashProvider.GetHash(key);
 
-            lock (m_Tasks)
+            var streamHash = new StreamHash(key, hash);
+
+            lock (m_SyncTasks)
             {
-                m_Tasks.TryGetValue(streamInstance.instance.ObjectId, out task);
+                m_SyncTasks.TryGetValue(streamHash, out task);
             }
             
-            if (task != null && !task.IsCompleted)
+            if (task != null)
             {
                 var result = await task;
 
@@ -427,11 +454,11 @@ namespace UnityEngine.Reflect.Pipeline
             }
             else
             {
-                lock (m_Tasks)
+                lock (m_SyncTasks)
                 {
                     task = DownloadSyncInstanceDependencies(streamInstance, token);
 
-                    m_Tasks[streamInstance.instance.ObjectId] = task;
+                    m_SyncTasks[streamHash] = task;
                 }
                 
                 downloadResult = await task;
@@ -439,6 +466,7 @@ namespace UnityEngine.Reflect.Pipeline
 
             m_DownloadedInstances.Enqueue(downloadResult);
         }
+
 
         async Task<DownloadResult> DownloadSyncInstanceDependencies(StreamInstance streamInstance, CancellationToken token)
         {
@@ -480,51 +508,28 @@ namespace UnityEngine.Reflect.Pipeline
 
         async Task<AssetEntry<ISyncModel>> DownloadSyncModel(StreamKey streamKey, string hash, CancellationToken token)
         {
-            StreamCache cache;
+            Task<ISyncModel> task;
 
-            lock (m_StreamCaches)
+            var streamHash = new StreamHash(streamKey, hash);
+            
+            lock (m_StreamTasks)
             {
-                if (!m_StreamCaches.TryGetValue(streamKey, out cache))
+                m_StreamTasks.TryGetValue(streamHash, out task);
+            }
+
+            if (task == null)
+            {
+                lock (m_StreamTasks)
                 {
-                    m_StreamCaches[streamKey] = cache = new StreamCache(streamKey);
+                    task = m_Client.GetSyncModelAsync(streamKey, hash, token);
+                    
+                    m_StreamTasks[streamHash] = task;
                 }
             }
             
-            Task<ISyncModel> task;
-            var isTaskOwner = false;
-
-            lock (cache)
-            {
-                if (cache.model != null && cache.hash == hash)
-                {
-                    return new AssetEntry<ISyncModel>(streamKey, cache.model);
-                }
-                
-                if (cache.task != null)
-                {
-                    task = cache.task;
-                }
-                else
-                {
-                    isTaskOwner = true;
-                    cache.model = null;
-                    cache.hash = hash;
-                    cache.task = task = m_Client.GetSyncModelAsync(cache.streamKey, cache.hash); // TODO Cancellation Token
-                }
-            }
-
             token.ThrowIfCancellationRequested();
             
             var syncModel = await task;
-            if (isTaskOwner)
-            {
-                lock (cache)
-                {
-                    cache.model = syncModel;
-                    cache.task = null;
-                }
-            }
-
             return new AssetEntry<ISyncModel>(streamKey, syncModel);
         }
         

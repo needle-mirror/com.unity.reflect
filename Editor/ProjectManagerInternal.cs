@@ -15,47 +15,11 @@ using UnityEngine.Reflect;
 
 namespace UnityEditor.Reflect
 {
-    
-    class ProjectManagerInternal : IProgressTask
+    class ProjectManagerInternal
     {
-        readonly Dictionary<string, Project> m_Projects = new Dictionary<string, Project>();
-
-        public event Action onProjectsRefreshBegin;
-        public event Action onProjectsRefreshEnd;
-
-        public event Action<Exception> onError;
-        
-        public event Action<float, string> progressChanged;
-        public event Action taskCompleted;
-
-        readonly PlayerStorage m_LocalStorage;
-
-        public IEnumerable<Project> Projects => m_Projects.Values;
-
-        static readonly string k_Downloading = "Downloading";
-
-        readonly string k_StorageRoot;
-
         const int k_FileIOAttempts = 3;
 
         const int k_FileIORetryDelayMS = 1000;
-
-        public ProjectManagerInternal(string storageRoot, bool useServerFolder, bool useProjectNameAsRootFolder)
-        {
-            k_StorageRoot = storageRoot;
-            m_LocalStorage = new PlayerStorage(storageRoot, useServerFolder, useProjectNameAsRootFolder);
-        }
-
-        bool IsProjectAvailable(Project project) => m_Projects.ContainsKey(project.serverProjectId);
-
-        public bool IsProjectAvailableOffline(Project project) => Directory.Exists(k_StorageRoot) && IsProjectAvailable(project) && m_LocalStorage.HasLocalData(project);
-
-        public bool IsProjectAvailableOnline(Project project) => IsProjectAvailable(project) && project.isAvailableOnline;
-
-        public string GetProjectFolder(Project project)
-        {
-            return m_LocalStorage.GetProjectFolder(project);
-        }
 
         internal struct DownloadError
         {
@@ -258,84 +222,6 @@ namespace UnityEditor.Reflect
             }
 
             return path;
-        }
-
-        void UpdateProjectInternal(Project project, bool canAddProject)
-        {
-            if (m_Projects.ContainsKey(project.serverProjectId))
-            {
-                m_Projects[project.serverProjectId] = project;
-            }
-            else if (canAddProject)
-            {
-                m_Projects[project.serverProjectId] = project;
-            }
-        }
-
-        void RemoveProjectInternal(string serverProjectId)
-        {
-            if (m_Projects.TryGetValue(serverProjectId, out var project))
-            {
-                m_Projects.Remove(serverProjectId);
-            }
-        }
-
-        public IEnumerator RefreshProjectListCoroutine()
-        {
-            onProjectsRefreshBegin?.Invoke();
-
-            m_Projects.Clear();
-            ProjectServer.Init();
-
-            var user = ProjectServer.UnityUser;
-            var projects = new List<Project>();
-
-            if (user != null)
-            {
-                // Use ContinueWith to make sure the task doesn't throw
-                var task = Task.Run(() => ProjectServer.Client.ListProjects(user, m_LocalStorage)).ContinueWith(t => t);
-                while (!task.IsCompleted)
-                {
-                    yield return null;
-                }
-
-                var listTask = task.Result;
-                if (listTask.IsFaulted)
-                {
-                    Debug.LogException(listTask.Exception);
-                    onError?.Invoke(listTask.Exception);
-                    onProjectsRefreshEnd?.Invoke();
-                    yield break;
-                }
-
-                var result = listTask.Result;
-                if (result.Status == UnityProjectCollection.StatusOption.AuthenticationError)
-                {
-                    // NOTE: Keep on going, we may be able to display offline data
-                }
-                else if (result.Status == UnityProjectCollection.StatusOption.ComplianceError)
-                {
-                    onError?.Invoke(new ProjectListRefreshException(result.ErrorMessage, result.Status));
-                    // NOTE: Keep on going, we may be able to display offline data
-                }                
-                else if (result.Status != UnityProjectCollection.StatusOption.Success)
-                {
-                    // Log error with details but report simplified message in `onError` event
-                    Debug.LogError($"Project list refresh failed: {result.ErrorMessage}");
-                    onError?.Invoke(new ProjectListRefreshException($"Could not connect to Reflect cloud service, check your internet connection.", result.Status));
-                    // NOTE: Keep on going, we may be able to display offline data
-                }
-
-                projects.AddRange(listTask.Result.Select(p => new Project(p)));
-            }
-
-            projects.ForEach(p => UpdateProjectInternal(p, true));
-
-            var projectIds = projects.Select(p => p.serverProjectId);
-            var removedProjectIds = m_Projects.Keys.Except(projectIds).ToList();
-            removedProjectIds.ForEach(RemoveProjectInternal);
-
-            onProjectsRefreshEnd?.Invoke();
         }
 
         public void Cancel()

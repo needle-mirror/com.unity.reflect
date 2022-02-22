@@ -9,11 +9,14 @@
     ".NETStandard,Version=v2.0/": {
       "Reflect/1.0.0": {
         "dependencies": {
-          "Grpc.Tools": "2.29.0",
+          "Google.Protobuf": "3.12.3",
+          "Grpc": "2.29.0",
+          "Grpc.Tools": "2.31.0",
           "Microsoft.CodeAnalysis.FxCopAnalyzers": "3.0.0",
+          "Microsoft.Win32.Registry": "4.7.0",
           "NETStandard.Library": "2.0.3",
           "NuGet.Build.Tasks.Pack": "5.2.0",
-          "Unity.Reflect.Utils": "2.1.0"
+          "Reflect.Utils": "1.0.0"
         },
         "runtime": {
           "Reflect.dll": {}
@@ -58,7 +61,7 @@
           }
         }
       },
-      "Grpc.Tools/2.29.0": {},
+      "Grpc.Tools/2.31.0": {},
       "Microsoft.CodeAnalysis.FxCopAnalyzers/3.0.0": {
         "dependencies": {
           "Microsoft.CodeAnalysis.VersionCheckAnalyzer": "3.0.0",
@@ -125,7 +128,7 @@
         "runtime": {
           "lib/netstandard2.0/System.Runtime.CompilerServices.Unsafe.dll": {
             "assemblyVersion": "4.0.4.1",
-            "fileVersion": "4.6.26919.2"
+            "fileVersion": "4.0.0.0"
           }
         }
       },
@@ -148,17 +151,14 @@
           }
         }
       },
-      "Unity.Reflect.Utils/2.1.0": {
+      "Reflect.Utils/1.0.0": {
         "dependencies": {
           "Google.Protobuf": "3.12.3",
           "Grpc": "2.29.0",
           "Microsoft.Win32.Registry": "4.7.0"
         },
         "runtime": {
-          "lib/netstandard2.0/Reflect.Utils.dll": {
-            "assemblyVersion": "1.3.0.18",
-            "fileVersion": "1.3.0.18"
-          }
+          "Reflect.Utils.dll": {}
         }
       }
     }
@@ -197,12 +197,12 @@
       "path": "grpc.core.api/2.29.0",
       "hashPath": "grpc.core.api.2.29.0.nupkg.sha512"
     },
-    "Grpc.Tools/2.29.0": {
+    "Grpc.Tools/2.31.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-pAftupednGwyRuldJAXjtsYKHdbhE5IsPI1spdTf193OMq9Fvj5OgEtVCTiTkAN7Ui+dc9X4UeDOaY9imqS79g==",
-      "path": "grpc.tools/2.29.0",
-      "hashPath": "grpc.tools.2.29.0.nupkg.sha512"
+      "sha512": "sha512-WldXuoWSSWH+Q+tVDnKF5jHNiet07NQ/U6dFiCAzcj9TeR73se8hiFkxgaZloR0EvswwEbnswsuiT9MVk+jndQ==",
+      "path": "grpc.tools/2.31.0",
+      "hashPath": "grpc.tools.2.31.0.nupkg.sha512"
     },
     "Microsoft.CodeAnalysis.FxCopAnalyzers/3.0.0": {
       "type": "package",
@@ -309,12 +309,10 @@
       "path": "system.security.principal.windows/4.7.0",
       "hashPath": "system.security.principal.windows.4.7.0.nupkg.sha512"
     },
-    "Unity.Reflect.Utils/2.1.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-sYrZgK0WV96cM9XjXEn99cRKlkheRR5rN01BFAWHqfcjzq+IAHLM1ygcrEM8kFHZ7xB/1I8eo1gR/BngP/qvqA==",
-      "path": "unity.reflect.utils/2.1.0",
-      "hashPath": "unity.reflect.utils.2.1.0.nupkg.sha512"
+    "Reflect.Utils/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
     }
   }
 }

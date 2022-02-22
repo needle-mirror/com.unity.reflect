@@ -1,16 +1,15 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.Reflect.ActorFramework;
 using Unity.Reflect.Data;
 using Unity.Reflect.IO;
 using Unity.Reflect.Model;
-using Unity.Reflect.Streaming;
 using UnityEngine;
 
-namespace Unity.Reflect.Actor.Samples
+namespace Unity.Reflect.Actors.Samples
 {
     [Actor]
     public class SampleDataProviderActor
@@ -21,7 +20,7 @@ namespace Unity.Reflect.Actor.Samples
         
         List<UpdateTracker> m_UpdateTrackers = new List<UpdateTracker>();
         
-        Dictionary<Guid, List<Tracker>> m_Waiters = new Dictionary<Guid, List<Tracker>>();
+        Dictionary<EntryGuid, List<Tracker>> m_Waiters = new Dictionary<EntryGuid, List<Tracker>>();
 
         readonly string m_ApplicationDataPath = Application.dataPath;
 
@@ -33,7 +32,7 @@ namespace Unity.Reflect.Actor.Samples
                 if (m_ProjectFolder != null)
                     return m_ProjectFolder;
                 
-                m_ProjectFolder = Directory.EnumerateDirectories(m_ApplicationDataPath, ".SampleData", SearchOption.AllDirectories).FirstOrDefault();
+                m_ProjectFolder = Directory.EnumerateDirectories(m_ApplicationDataPath.Replace(@"/Assets", ""), ".SampleData", SearchOption.AllDirectories).FirstOrDefault();
 
                 if (m_ProjectFolder == null)
                     Debug.LogError("Unable to find Samples data. Reflect Samples require local Reflect Model data in 'Reflect/Common/.SampleData'.");
@@ -58,24 +57,24 @@ namespace Unity.Reflect.Actor.Samples
             if (trackers.Count > 1)
                 return;
 
-            var job = m_IO.StartJob(this, ctx, tracker, async (self, ctx, tracker) => await AcquireEntryAsync(tracker.Ctx.Data.EntryData, default));
-            job.Success((self, ctx, tracker, syncModel) =>
-            {
-                var trackers = self.m_Waiters[tracker.Ctx.Data.EntryData.Id];
+            m_IO.StartJob(this, ctx, tracker,
+                async (self, ctx, tracker, token) => await AcquireEntryAsync(tracker.Ctx.Data.EntryData, token),
+                (self, ctx, tracker, syncModel) =>
+                {
+                    var trackers = self.m_Waiters[tracker.Ctx.Data.EntryData.Id];
 
-                foreach (var t in trackers)
-                    t.Ctx.SendSuccess(syncModel);
-                trackers.Clear();
-            });
-
-            job.Failure((self, ctx, tracker, ex) =>
-            {
-                var trackers = self.m_Waiters[tracker.Ctx.Data.EntryData.Id];
-                
-                foreach (var t in trackers)
-                    t.Ctx.SendFailure(ex);
-                trackers.Clear();
-            });
+                    foreach (var t in trackers)
+                        t.Ctx.SendSuccess(syncModel);
+                    trackers.Clear();
+                },
+                (self, ctx, tracker, ex) =>
+                {
+                    var trackers = self.m_Waiters[tracker.Ctx.Data.EntryData.Id];
+                    
+                    foreach (var t in trackers)
+                        t.Ctx.SendFailure(ex);
+                    trackers.Clear();
+                });
         }
 
         [RpcInput]
@@ -86,27 +85,28 @@ namespace Unity.Reflect.Actor.Samples
             if (m_UpdateTrackers.Count > 1)
                 return;
 
-            var job = m_IO.StartJob(this, ctx, (object)null, async (self, ctx, userCtx) => await GetSyncManifestsAsync());
-            job.Success((self, ctx, userCtx, manifests) =>
-            {
-                // Copy the lists so there is no race condition on future accesses
-                foreach (var tracker in self.m_UpdateTrackers)
-                    tracker.Ctx.SendSuccess(manifests.ToList());
-                self.m_UpdateTrackers.Clear();
-            });
-
-            job.Failure((self, ctx, userCtx, ex) =>
-            {
-                foreach (var tracker in self.m_UpdateTrackers)
-                    tracker.Ctx.SendFailure(ex);
-                self.m_UpdateTrackers.Clear();
-            });
+            m_IO.StartJob(this, ctx, (object)null,
+                async (self, ctx, userCtx, token) => await GetSyncManifestsAsync(),
+                (self, ctx, userCtx, manifests) =>
+                {
+                    // Copy the lists so there is no race condition on future accesses
+                    foreach (var tracker in self.m_UpdateTrackers)
+                        tracker.Ctx.SendSuccess(manifests.ToList());
+                    self.m_UpdateTrackers.Clear();
+                },
+                (self, ctx, userCtx, ex) =>
+                {
+                    foreach (var tracker in self.m_UpdateTrackers)
+                        tracker.Ctx.SendFailure(ex);
+                    self.m_UpdateTrackers.Clear();
+                });
         }
 
         async Task<ISyncModel> AcquireEntryAsync(EntryData entry, CancellationToken token)
         {
-            // Todo: add cancellationToken
-            return await PlayerFile.LoadSyncModelAsync(ProjectFolder, new PersistentKey(entry.EntryType, entry.IdInSource), entry.Hash);
+            var fullPath = Path.Combine(ProjectFolder,
+                entry.Hash + PlayerFile.PersistentKeyToExtension(entry.IdInSource));
+            return await PlayerFile.LoadSyncModelAsync(fullPath, entry.IdInSource, token);
         }
 
         class Tracker

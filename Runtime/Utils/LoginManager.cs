@@ -10,11 +10,12 @@ using System.Threading.Tasks;
 using Unity.Reflect;
 using UnityEngine.Events;
 using UnityEngine.Networking;
+using Unity.Reflect.Runtime;
 
 namespace UnityEngine.Reflect
 {
     [Serializable]
-    public class UnityUserUnityEvent : UnityEvent<UnityUser> { }
+    public class UnityUserEvent : UnityEvent<UnityUser> { }
 
     [Serializable]
     public class TokenEvent : UnityEvent<string> {}
@@ -26,8 +27,13 @@ namespace UnityEngine.Reflect
     public class LinkSharingEvent : UnityEvent<string> { }
 
     [Serializable]
+    public class LinkSharingEventWithArgs : UnityEvent<string, Dictionary<string, string>> { }
+
+    [Serializable]
     public class OpenInViewerEvent : UnityEvent<OpenInViewerInfo> { }
 
+    [Serializable]
+    public class OpenInViewerEventWithArgs : UnityEvent<OpenInViewerInfo, Dictionary<string, string>> { }
 
     public enum DeepLinkRoute
     {
@@ -43,23 +49,18 @@ namespace UnityEngine.Reflect
 
         internal static bool TryCreateUriAndValidate(string uriString, out Uri uriResult)
         {
-            return Uri.TryCreate(uriString, UriKind.Absolute, out uriResult) &&
-                   string.Equals(uriResult.Scheme, AuthConfiguration.UriScheme, StringComparison.OrdinalIgnoreCase) &&
-                   uriResult.Query.StartsWith(AuthConfiguration.JwtParamName);
+            return Uri.TryCreate(uriString, UriKind.Absolute, out uriResult);
         }
 
-        internal static bool TryParseDeepLink(string deepLinkUrlString, out string token, out DeepLinkRoute route, out List<string> args)
+        internal static bool TryParseDeepLink(string deepLinkUrlString, out string token, out DeepLinkRoute route, out List<string> args, out Dictionary<string, string> queryArgs)
         {
             token = string.Empty;
             route = DeepLinkRoute.none;
             args = new List<string>();
+            queryArgs = new Dictionary<string, string>();
+
             if (Uri.TryCreate(deepLinkUrlString, UriKind.Absolute, out var uriResult))
             {
-                if (uriResult.Query.Length > 0) 
-                {
-                    token = uriResult.Query.Substring(AuthConfiguration.JwtParamName.Length);
-                }
-
                 var knownRoute = Enum.TryParse(uriResult.Host, out DeepLinkRoute deepLink);
                 // Make special case of implicit/callback/login as implicit is a keyword in C#
                 if (!knownRoute) 
@@ -79,10 +80,30 @@ namespace UnityEngine.Reflect
                 if (knownRoute) 
                 {
                     route = deepLink;
+                    // each fragment of the path after the domain is considered a route argument
                     args = uriResult.AbsolutePath.Split('/').ToList();
                     args.RemoveAt(0);
+                    // any string passed after ? is considered regular query arguments
+                    if (uriResult.Query.Length > 1) 
+                    {
+                        var keyValuePairs = uriResult.Query.Substring(1).Split('&');
+                        foreach (var keyValuePair in keyValuePairs) 
+                        {
+                            var splitStr = keyValuePair.Split('=');
+                            // Only injest once a query key in a query string
+                            if (!queryArgs.ContainsKey(splitStr[0])) 
+                            {
+                                queryArgs.Add(splitStr[0], splitStr.Length > 1 ? splitStr[1] : string.Empty);
+                            }
+                            // If it is jwt token
+                            if (splitStr.Length > 1 && splitStr[0].Equals(AuthConfiguration.JwtArgsName)) 
+                            {
+                                token = splitStr[1];
+                            }
+                        }
+                    }
                 }
-                return knownRoute && uriResult.Scheme.Equals(AuthConfiguration.UriScheme, StringComparison.OrdinalIgnoreCase);
+                return knownRoute;
             }
             else
             {
@@ -93,15 +114,20 @@ namespace UnityEngine.Reflect
 
     public class LoginManager : MonoBehaviour
     {
+#if UNITY_EDITOR
+        public string m_StartUpLink = "";
+#endif
         public UnityUser m_User;
         private Task<UnityUser> m_UnityUserTask;
 
         public FailureEvent authenticationFailed;
         public TokenEvent tokenUpdated;
-        public UnityUserUnityEvent userLoggedIn;
+        public UnityUserEvent userLoggedIn;
         public UnityEvent userLoggedOut;
         public LinkSharingEvent linkSharingDetected;
         public OpenInViewerEvent openInViewerDetected;
+        public LinkSharingEventWithArgs linkSharingDetectedWithArgs;
+        public OpenInViewerEventWithArgs openInViewerDetectedWithArgs;
 
         private IAuthenticatable authBackend;
         private IInteropable m_Interop = null;
@@ -128,7 +154,7 @@ namespace UnityEngine.Reflect
             }
             if (userLoggedIn == null)
             {
-                userLoggedIn = new UnityUserUnityEvent();
+                userLoggedIn = new UnityUserEvent();
             }
             if (userLoggedOut == null)
             {
@@ -152,6 +178,14 @@ namespace UnityEngine.Reflect
 #endif
 
             m_TokenPersistentPath = Path.Combine(Application.persistentDataPath, AuthConfiguration.JwtTokenFileName);
+
+#if UNITY_EDITOR
+            if (!string.IsNullOrEmpty(m_StartUpLink)) 
+            {
+                onDeepLink(m_StartUpLink, true);
+            }
+#endif
+
         }
 
         void Start()
@@ -179,6 +213,20 @@ namespace UnityEngine.Reflect
             m_UnityUserTask = null;
 
             ProjectServer.Cleanup();
+        }
+
+        public void StartDelayBringToFront() 
+        {
+            StartCoroutine(DelayBringToFront());
+        }
+
+        IEnumerator DelayBringToFront()
+        {
+            yield return new WaitForSeconds(0.1f);
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+            // If not brought in front, OS will highlight the viewer icon in taskbar
+            Interop.BringViewerProcessToFront();
+#endif
         }
 
         // Code (now highly modified) originally from 3.2 mono implementation
@@ -280,6 +328,7 @@ namespace UnityEngine.Reflect
 
         private void OnTokenUpdated(string newToken)
         {
+            tokenUpdated?.Invoke(newToken);
             if (!string.IsNullOrEmpty(newToken))
             {
                 m_UnityUserTask = Task.Run(() => ProjectServer.Client.GetUserInfo(newToken));
@@ -291,7 +340,7 @@ namespace UnityEngine.Reflect
             }
         }
 
-        internal void ProcessDeepLink(string token, DeepLinkRoute route, List<string> args) 
+        internal void ProcessDeepLink(string token, DeepLinkRoute route, List<string> args, Dictionary<string, string> queryArgs) 
         {
             switch (route) 
             {
@@ -318,7 +367,14 @@ namespace UnityEngine.Reflect
                         {
                             ResetToken(token);
                         }
-                        openInViewerDetected?.Invoke(new OpenInViewerInfo(args[1], args[3], sourceId, viewerId));
+                        if (queryArgs.Count > 0)
+                        {
+                            openInViewerDetectedWithArgs?.Invoke(new OpenInViewerInfo(args[1], args[3], sourceId, viewerId), queryArgs);
+                        }
+                        else 
+                        {
+                            openInViewerDetected?.Invoke(new OpenInViewerInfo(args[1], args[3], sourceId, viewerId));
+                        }
                     }
                     break;
                 case DeepLinkRoute.implicitcallbacklogin:
@@ -333,8 +389,24 @@ namespace UnityEngine.Reflect
                         {
                             ResetToken(token);
                         }
-                        Debug.Log($"ProcessDeepLink, detected opensharelink Route request to open '{args[1]}' referenced project.");
-                        linkSharingDetected?.Invoke(args[1]);
+                        
+                        if (args.Contains("logout"))
+                        {
+                            Debug.Log($"ProcessDeepLink, detected logout complete.");
+                        }
+                        else
+                        {
+                            Debug.Log($"ProcessDeepLink, detected opensharelink Route request to open '{args[1]}' referenced project with {queryArgs.Count} arguments.");
+                            if (queryArgs.Count > 0)
+                            {
+                                linkSharingDetectedWithArgs?.Invoke(args[1], queryArgs);
+                            }
+                            else
+                            {
+                                linkSharingDetected?.Invoke(args[1]);
+                            }
+                        }
+                        
                     }
                     break;
             }
@@ -357,7 +429,7 @@ namespace UnityEngine.Reflect
         {
             if (!string.IsNullOrEmpty(m_TokenPersistentPath) && File.Exists(m_TokenPersistentPath))
             {
-                ProcessToken(File.ReadAllText(m_TokenPersistentPath));
+                ProcessToken(File.ReadAllText(m_TokenPersistentPath), false);
             }
             else
             {
@@ -493,9 +565,10 @@ namespace UnityEngine.Reflect
 
         public void onDeepLink(string deepLink, bool isStartUpLink = false)
         {
-            if (UrlHelper.TryParseDeepLink(deepLink, out var token, out var deepLinkRoute, out var deepLinkArgs))
-            {   
-                ProcessDeepLink(token, deepLinkRoute, deepLinkArgs);
+            Debug.Log($"onDeepLink, trying to find route and extract args from: {deepLink}");
+            if (UrlHelper.TryParseDeepLink(deepLink, out var token, out var deepLinkRoute, out var deepLinkArgs, out var queryArgs))
+            {
+                ProcessDeepLink(token, deepLinkRoute, deepLinkArgs, queryArgs);
             }
             if (!isStartUpLink && authBackend is IDeepLinkable authBackendDeepLinkable)
             {

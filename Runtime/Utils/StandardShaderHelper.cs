@@ -41,57 +41,57 @@ namespace UnityEngine.Reflect
         static readonly string k_ShaderStandardOpaque = "UnityReflect/Standard Opaque";
 
         // tint
-        static readonly int k_IdTint = Shader.PropertyToID("_Tint");
+        static readonly int k_IdTint = Shader.PropertyToID("_Reflect_Tint");
         
         // albedo
-        static readonly int k_IdAlbedoColor = Shader.PropertyToID("_AlbedoColor");
-        const string k_NameMainTex = "_MainTex";
+        static readonly int k_IdAlbedoColor = Shader.PropertyToID("_Reflect_AlbedoColor");
+        const string k_NameMainTex = "_Reflect_MainTex";
         static readonly int k_IdMainTex = Shader.PropertyToID(k_NameMainTex);
-        static readonly int k_IdMainTexFade = Shader.PropertyToID("_MainTex_Fade");
+        static readonly int k_IdMainTexFade = Shader.PropertyToID("_Reflect_MainTex_Fade");
         
         // alpha
-        static readonly int k_IdAlpha = Shader.PropertyToID("_Alpha");
-        const string k_NameAlphaMap = "_AlphaMap";
+        static readonly int k_IdAlpha = Shader.PropertyToID("_Reflect_Alpha");
+        const string k_NameAlphaMap = "_Reflect_AlphaMap";
         static readonly int k_IdAlphaMap = Shader.PropertyToID(k_NameAlphaMap);
         
         // cutout
-        const string k_NameCutoutMap = "_CutoutMap";
+        const string k_NameCutoutMap = "_Reflect_CutoutMap";
         static readonly int k_IdCutoutMap = Shader.PropertyToID(k_NameCutoutMap);
-        static readonly int k_IdCutoutThreshold = Shader.PropertyToID("_CutoutThreshold");
-        static readonly int k_IdCull = Shader.PropertyToID("_Cull");
+        static readonly int k_IdCutoutThreshold = Shader.PropertyToID("_Reflect_CutoutThreshold");
+        static readonly int k_IdCull = Shader.PropertyToID("_Reflect_Cull");
         
         // normal
-        const string k_NameBumpMap = "_BumpMap";
+        const string k_NameBumpMap = "_Reflect_NormalMap";
         static readonly int k_IdBumpMap = Shader.PropertyToID(k_NameBumpMap);
-        static readonly int k_IdBumpScale = Shader.PropertyToID("_BumpScale");
+        static readonly int k_IdBumpScale = Shader.PropertyToID("_Reflect_NormalScale");
         
         // smoothness
-        static readonly int k_IdSmoothness = Shader.PropertyToID("_Smoothness");
-        const string k_NameSmoothnessMap = "_SmoothnessMap";
+        static readonly int k_IdSmoothness = Shader.PropertyToID("_Reflect_Smoothness");
+        const string k_NameSmoothnessMap = "_Reflect_SmoothnessMap";
         static readonly int k_IdSmoothnessMap = Shader.PropertyToID(k_NameSmoothnessMap);
         
         // metallic
-        static readonly int k_IdMetallic = Shader.PropertyToID("_Metallic");
-        const string k_NameMetallicMap = "_MetallicMap";
+        static readonly int k_IdMetallic = Shader.PropertyToID("_Reflect_Metallic");
+        const string k_NameMetallicMap = "_Reflect_MetallicMap";
         static readonly int k_IdMetallicMap = Shader.PropertyToID(k_NameMetallicMap);
         
         // emission
-        const string k_NameEmissionMap = "_EmissionMap";
+        const string k_NameEmissionMap = "_Reflect_EmissionMap";
         static readonly int k_IdEmissionMap = Shader.PropertyToID(k_NameEmissionMap);
-        static readonly int k_IdEmission = Shader.PropertyToID("_EmissionColor");
-        static readonly int k_IdEmissionMode = Shader.PropertyToID("_EmissionMode");
+        static readonly int k_IdEmission = Shader.PropertyToID("_Reflect_EmissionColor");
+        static readonly int k_IdEmissionMode = Shader.PropertyToID("_Reflect_EmissionMode");
 
         // use map flags
-        static readonly int k_IdUseAlbedoMap = Shader.PropertyToID("_UseAlbedoMap");
-        static readonly int k_IdUseNormalMap = Shader.PropertyToID("_UseNormalMap");
-        static readonly int k_IdUseSmoothnessMap = Shader.PropertyToID("_UseSmoothnessMap");
-        static readonly int k_IdUseMetallicMap = Shader.PropertyToID("_UseMetallicMap");
-        static readonly int k_IdUseEmissionMap = Shader.PropertyToID("_UseEmissionMap");
-        static readonly int k_IdUseAlphaMap = Shader.PropertyToID("_UseAlphaMap");
+        static readonly int k_IdUseAlbedoMap = Shader.PropertyToID("_Reflect_UseAlbedoMap");
+        static readonly int k_IdUseNormalMap = Shader.PropertyToID("_Reflect_UseNormalMap");
+        static readonly int k_IdUseSmoothnessMap = Shader.PropertyToID("_Reflect_UseSmoothnessMap");
+        static readonly int k_IdUseMetallicMap = Shader.PropertyToID("_Reflect_UseMetallicMap");
+        static readonly int k_IdUseEmissionMap = Shader.PropertyToID("_Reflect_UseEmissionMap");
+        static readonly int k_IdUseAlphaMap = Shader.PropertyToID("_Reflect_UseAlphaMap");
+        static readonly int k_IdUseCutout = Shader.PropertyToID("_Reflect_UseCutout");
 
         // keywords
-        static readonly string k_IdUseCutout = "_USECUTOUT";
-        const string k_KeywordMapRotation = "_MAP_ROTATION";
+        const string k_KeywordMapRotation = "_REFLECT_MAP_ROTATION";
 
         static readonly Dictionary<int, SuffixId> k_SuffixIds = new Dictionary<int, SuffixId>()
         {
@@ -111,7 +111,7 @@ namespace UnityEngine.Reflect
         {
             // It doesn't make a lot of sense for a material to be both emissive and transparent.
             // So in case of emissive materials, force opaque shader.
-            if (syncMaterial.Emission != SyncColor.Black || syncMaterial.EmissionMap.TextureId != SyncId.None)
+            if (!SyncColor.EqualsIgnoreAlpha(syncMaterial.Emission, SyncColor.Black) || syncMaterial.EmissionMap.TextureId != SyncId.None)
                 return false;
             
             return syncMaterial.Alpha < 1.0f || syncMaterial.AlphaMap.TextureId != SyncId.None;
@@ -228,7 +228,7 @@ namespace UnityEngine.Reflect
             {
                 var hasCutout = material.GetTexture(k_IdCutoutMap) != null && material.GetFloat(k_IdCutoutThreshold) > 0.0f;
                 
-                SetMapKeyword(material, k_IdUseCutout, k_IdCutoutMap, k_ActiveMapIds, hasCutout);
+                SetMapFlag(material, k_IdUseCutout, k_IdCutoutMap, k_ActiveMapIds, hasCutout);
 
                 if (material.HasProperty(k_IdCull))
                 {

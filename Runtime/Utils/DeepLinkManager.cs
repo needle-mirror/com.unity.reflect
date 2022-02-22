@@ -23,6 +23,7 @@ namespace UnityEngine.Reflect
         }
         private void OnDeepLinkingRequested(string deepLink)
         {
+            Debug.Log($"OS Level deep link requested: '{Application.absoluteURL}'");
             m_Manager.onDeepLink(deepLink);
         }
     }

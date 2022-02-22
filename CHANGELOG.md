@@ -1,92 +1,580 @@
-## [2.1.0-preview.106] - 2021-04-16
-- RC Candidate
+## [3.1.0-preview.9] - 2022-02-22
+- Fetching new runtime package
 
-## [2.1.0-preview.105] - 2021-04-16
-- RC Candidate
-
-## [2.1.0-preview.104] - 2021-04-16
-- RC Candidate
-
-## [2.1.0-preview.103] - 2021-04-09
+## [3.1.0-preview.8] - 2022-01-09
 - CI Version Bump
 
-## [2.1.0-preview.102] - 2021-04-09
+## [3.1.0-preview.7] - 2022-01-07
 - CI Version Bump
 
-## [2.1.0-preview.101] - 2021-04-08
+## [3.1.0-preview.6] - 2022-01-07
 - CI Version Bump
 
-## [2.1.0-preview.100] - 2021-04-07
+## [3.1.0-preview.5] - 2021-12-08
+- Digitally signed viewer protocol resolver
+
+## [3.1.0-preview.4] - 2021-12-05
 - CI Version Bump
 
-## [2.1.0-preview.99] - 2021-04-01
+## [3.1.0-preview.3] - 2021-12-04
 - CI Version Bump
 
-## [2.1.0-preview.98] - 2021-04-01
+## [3.1.0-preview.2] - 2021-12-03
 - CI Version Bump
 
-## [2.1.0-preview.97] - 2021-03-31
+## [3.1.0-preview.1] - 2021-12-02
+- Version bump for clarity
+
+## [3.0.1-preview.59] - 2021-12-02
 - CI Version Bump
 
-## [2.1.0-preview.96] - 2021-03-30
+## [3.0.1-preview.58] - 2021-12-01
 - CI Version Bump
 
-## [2.1.0-preview.95] - 2021-03-29
+## [3.0.1-preview.57] - 2021-11-30
 - CI Version Bump
 
-## [2.1.0-preview.94] - 2021-03-29
+## [3.0.1-preview.56] - 2021-11-29
 - CI Version Bump
 
-## [2.1.0-preview.93] - 2021-03-29
+## [3.0.1-preview.55] - 2021-11-28
 - CI Version Bump
 
-## [2.1.0-preview.92] - 2021-03-25
+## [3.0.1-preview.54] - 2021-11-27
 - CI Version Bump
 
-## [2.1.0-preview.91] - 2021-03-24
+## [3.0.1-preview.53] - 2021-11-26
 - CI Version Bump
 
-## [2.1.0-preview.90] - 2021-03-23
+## [3.0.1-preview.52] - 2021-11-25
 - CI Version Bump
 
-## [2.1.0-preview.89] - 2021-03-22
+## [3.0.1-preview.51] - 2021-11-24
 - CI Version Bump
 
-## [2.1.0-preview.88] - 2021-03-21
+## [3.0.1-preview.50] - 2021-11-23
 - CI Version Bump
 
-## [2.1.0-preview.87] - 2021-03-20
+## [3.0.1-preview.49] - 2021-11-22
 - CI Version Bump
 
-## [2.1.0-preview.86] - 2021-03-19
+## [3.0.1-preview.48] - 2021-11-21
 - CI Version Bump
 
-## [2.1.0-preview.85] - 2021-03-18
+## [3.0.1-preview.47] - 2021-11-20
 - CI Version Bump
 
-## [2.1.0-preview.84] - 2021-03-18
+## [3.0.1-preview.46] - 2021-11-19
 - CI Version Bump
 
-## [2.1.0-preview.83] - 2021-03-17
+## [3.0.1-preview.45] - 2021-11-18
 - CI Version Bump
 
-## [2.1.0-preview.82] - 2021-03-15
+## [3.0.1-preview.44] - 2021-11-17
 - CI Version Bump
 
-## [2.1.0-preview.81] - 2021-03-15
+## [3.0.1-preview.43] - 2021-11-17
+- Update the default app id to REFLECT_REFERENCE_VIEWER
+
+## [3.0.1-preview.42] - 2021-11-16
 - CI Version Bump
 
-## [2.1.0-preview.80] - 2021-03-14
+## [3.0.1-preview.41] - 2021-11-15
 - CI Version Bump
 
-## [2.1.0-preview.79] - 2021-03-13
+## [3.0.1-preview.40] - 2021-11-14
 - CI Version Bump
 
-## [2.1.0-preview.78] - 2021-03-12
+## [3.0.1-preview.39] - 2021-11-13
 - CI Version Bump
 
-## [2.1.0-preview.77] - 2021-03-12
+## [3.0.1-preview.38] - 2021-11-12
 - CI Version Bump
+
+## [3.0.1-preview.37] - 2021-11-12
+- CI Version Bump
+
+## [3.0.1-preview.36] - 2021-11-11
+- CI Version Bump
+
+## [3.0.1-preview.35] - 2021-11-10
+- CI Version Bump
+
+## [3.0.1-preview.34] - 2021-11-09
+- CI Version Bump
+
+## [3.0.1-preview.33] - 2021-11-08
+- CI Version Bump
+
+## [3.0.1-preview.32] - 2021-11-08
+- CI Version Bump
+
+## [3.0.1-preview.31] - 2021-11-07
+- CI Version Bump
+
+## [3.0.1-preview.30] - 2021-11-06
+- CI Version Bump
+
+## [3.0.1-preview.29] - 2021-11-05
+- CI Version Bump
+
+## [3.0.1-preview.28] - 2021-11-04
+- CI Version Bump
+
+## [3.0.1-preview.27] - 2021-11-03
+- CI Version Bump
+
+## [3.0.1-preview.26] - 2021-11-02
+- CI Version Bump
+
+## [3.0.1-preview.25] - 2021-11-02
+- CI Version Bump
+
+## [3.0.1-preview.24] - 2021-11-01
+- CI Version Bump
+
+## [3.0.1-preview.23] - 2021-10-31
+- CI Version Bump
+
+## [3.0.1-preview.22] - 2021-10-30
+- CI Version Bump
+
+## [3.0.1-preview.21] - 2021-10-29
+- CI Version Bump
+
+## [3.0.1-preview.20] - 2021-10-28
+- CI Version Bump
+
+## [3.0.1-preview.19] - 2021-10-28
+- CI Version Bump
+
+## [3.0.1-preview.18] - 2021-10-28
+- CI Version Bump
+
+## [3.0.1-preview.17] - 2021-10-28
+- CI Version Bump
+
+## [3.0.1-preview.16] - 2021-10-28
+- CI Version Bump
+
+## [3.0.1-preview.15] - 2021-10-27
+- Set com.unity.reflect.runtime to 1.4.0-preview.15
+
+## [3.0.1-preview.14] - 2021-10-27
+- CI Version Bump
+
+## [3.0.1-preview.13] - 2021-10-26
+- CI Version Bump
+
+## [3.0.1-preview.12] - 2021-10-25
+- CI Version Bump
+
+## [3.0.1-preview.11] - 2021-10-24
+- CI Version Bump
+
+## [3.0.1-preview.10] - 2021-10-23
+- CI Version Bump
+
+## [3.0.1-preview.9] - 2021-10-22
+- CI Version Bump
+
+## [3.0.1-preview.8] - 2021-10-21
+- CI Version Bump
+
+## [3.0.1-preview.7] - 2021-10-21
+- CI Version Bump
+
+## [3.0.1-preview.6] - 2021-10-20
+- CI Version Bump
+
+## [3.0.1-preview.5] - 2021-10-19
+- CI Version Bump
+
+## [3.0.1-preview.4] - 2021-10-19
+- CI Version Bump
+
+## [3.0.1-preview.3] - 2021-10-18
+- CI Version Bump
+
+## [3.0.1-preview.2] - 2021-10-18
+- CI Version Bump
+
+## [3.0.1-preview.1] - 2021-10-18
+- First RC Candidate
+
+## [3.0.0-preview.1] - 2021-10-14
+- First RC Candidate
+
+## [2.3.0-preview.128] - 2021-10-17
+- CI Version Bump
+
+## [2.3.0-preview.127] - 2021-10-16
+- CI Version Bump
+
+## [2.3.0-preview.126] - 2021-10-15
+- CI Version Bump
+
+## [2.3.0-preview.125] - 2021-10-15
+- CI Version Bump
+
+## [2.3.0-preview.124] - 2021-10-15
+- CI Version Bump
+
+## [2.3.0-preview.123] - 2021-10-14
+- CI Version Bump
+
+## [2.3.0-preview.122] - 2021-10-13
+- CI Version Bump
+
+## [2.3.0-preview.121] - 2021-10-13
+- CI Version Bump
+
+## [2.3.0-preview.120] - 2021-10-12
+- CI Version Bump
+
+## [2.3.0-preview.119] - 2021-10-12
+- CI Version Bump
+
+## [2.3.0-preview.118] - 2021-10-11
+- CI Version Bump
+
+## [2.3.0-preview.117] - 2021-10-10
+- CI Version Bump
+
+## [2.3.0-preview.116] - 2021-10-09
+- CI Version Bump
+
+## [2.3.0-preview.115] - 2021-10-08
+- CI Version Bump
+
+## [2.3.0-preview.114] - 2021-10-08
+- CI Version Bump
+
+## [2.3.0-preview.113] - 2021-10-07
+- CI Version Bump
+
+## [2.3.0-preview.112] - 2021-10-06
+- CI Version Bump
+
+## [2.3.0-preview.111] - 2021-10-06
+- CI Version Bump
+
+## [2.3.0-preview.110] - 2021-10-05
+- CI Version Bump
+
+## [2.3.0-preview.109] - 2021-10-05
+- CI Version Bump
+
+## [2.3.0-preview.108] - 2021-10-05
+- CI Version Bump
+
+## [2.3.0-preview.107] - 2021-10-04
+- CI Version Bump
+
+## [2.3.0-preview.106] - 2021-10-04
+- CI Version Bump
+
+## [2.3.0-preview.105] - 2021-10-03
+- CI Version Bump
+
+## [2.3.0-preview.104] - 2021-10-02
+- CI Version Bump
+
+## [2.3.0-preview.103] - 2021-10-01
+- CI Version Bump
+
+## [2.3.0-preview.102] - 2021-09-30
+- CI Version Bump
+
+## [2.3.0-preview.101] - 2021-09-29
+- CI Version Bump
+
+## [2.3.0-preview.100] - 2021-09-29
+- CI Version Bump
+
+## [2.3.0-preview.99] - 2021-09-28
+- CI Version Bump
+
+## [2.3.0-preview.98] - 2021-09-28
+- CI Version Bump
+
+## [2.3.0-preview.97] - 2021-09-28
+- CI Version Bump
+
+## [2.3.0-preview.96] - 2021-09-27
+- CI Version Bump
+
+## [2.3.0-preview.95] - 2021-09-26
+- CI Version Bump
+
+## [2.3.0-preview.94] - 2021-09-25
+- CI Version Bump
+
+## [2.3.0-preview.93] - 2021-09-24
+- CI Version Bump
+
+## [2.3.0-preview.92] - 2021-09-24
+- CI Version Bump
+
+## [2.3.0-preview.91] - 2021-09-23
+- CI Version Bump
+
+## [2.3.0-preview.90] - 2021-09-23
+- CI Version Bump
+
+## [2.3.0-preview.89] - 2021-09-22
+- CI Version Bump
+
+## [2.3.0-preview.88] - 2021-09-21
+- CI Version Bump
+
+## [2.3.0-preview.87] - 2021-09-21
+- CI Version Bump
+
+## [2.3.0-preview.86] - 2021-09-21
+- CI Version Bump
+
+## [2.3.0-preview.85] - 2021-09-21
+- CI Version Bump
+
+## [2.3.0-preview.84] - 2021-09-20
+- CI Version Bump
+
+## [2.3.0-preview.83] - 2021-09-20
+- CI Version Bump
+
+## [2.3.0-preview.82] - 2021-09-19
+- CI Version Bump
+
+## [2.3.0-preview.81] - 2021-09-18
+- CI Version Bump
+
+## [2.3.0-preview.80] - 2021-09-17
+- CI Version Bump
+
+## [2.3.0-preview.79] - 2021-09-16
+- CI Version Bump
+
+## [2.3.0-preview.78] - 2021-09-16
+- CI Version Bump
+
+## [2.3.0-preview.77] - 2021-09-16
+- CI Version Bump
+
+## [2.3.0-preview.76] - 2021-09-15
+- CI Version Bump
+
+## [2.3.0-preview.75] - 2021-09-15
+- CI Version Bump
+
+## [2.3.0-preview.74] - 2021-09-14
+- CI Version Bump
+
+## [2.3.0-preview.73] - 2021-09-14
+- CI Version Bump
+
+## [2.3.0-preview.72] - 2021-09-14
+- CI Version Bump
+
+## [2.3.0-preview.71] - 2021-09-14
+- CI Version Bump
+
+## [2.3.0-preview.70] - 2021-09-13
+- CI Version Bump
+
+## [2.3.0-preview.69] - 2021-09-13
+- CI Version Bump
+
+## [2.3.0-preview.68] - 2021-09-13
+- CI Version Bump
+
+## [2.3.0-preview.67] - 2021-09-12
+- CI Version Bump
+
+## [2.3.0-preview.66] - 2021-09-11
+- CI Version Bump
+
+## [2.3.0-preview.65] - 2021-09-10
+- Runtime bump
+
+## [2.3.0-preview.64] - 2021-09-10
+- Runtime bump
+
+## [2.3.0-preview.63] - 2021-09-10
+- CI Version Bump
+
+## [2.3.0-preview.62] - 2021-09-09
+- CI Version Bump
+
+## [2.3.0-preview.61] - 2021-09-09
+- CI Version Bump
+
+## [2.3.0-preview.60] - 2021-09-08
+- CI Version Bump
+
+## [2.3.0-preview.59] - 2021-09-08
+- CI Version Bump
+
+## [2.3.0-preview.58] - 2021-09-07
+- CI Version Bump
+
+## [2.3.0-preview.57] - 2021-09-07
+- CI Version Bump
+
+## [2.3.0-preview.56] - 2021-09-07
+- CI Version Bump
+
+## [2.3.0-preview.55] - 2021-09-06
+- CI Version Bump
+
+## [2.3.0-preview.54] - 2021-09-05
+- CI Version Bump
+
+## [2.3.0-preview.53] - 2021-09-04
+- CI Version Bump
+
+## [2.3.0-preview.52] - 2021-09-03
+- CI Version Bump
+
+## [2.3.0-preview.51] - 2021-09-02
+- CI Version Bump
+
+## [2.3.0-preview.50] - 2021-09-02
+- CI Version Bump
+
+## [2.3.0-preview.49] - 2021-09-01
+- CI Version Bump
+
+## [2.3.0-preview.48] - 2021-08-31
+- CI Version Bump
+
+## [2.3.0-preview.47] - 2021-08-30
+- CI Version Bump
+
+## [2.3.0-preview.46] - 2021-08-29
+- CI Version Bump
+
+## [2.3.0-preview.45] - 2021-08-28
+- CI Version Bump
+
+## [2.3.0-preview.44] - 2021-08-27
+- CI Version Bump
+
+## [2.3.0-preview.43] - 2021-08-27
+- CI Version Bump
+
+## [2.3.0-preview.42] - 2021-08-26
+- CI Version Bump
+
+## [2.3.0-preview.41] - 2021-08-25
+- CI Version Bump
+
+## [2.3.0-preview.40] - 2021-08-24
+- Set com.unity.reflect.runtime to 1.4.0-preview.8
+
+## [2.3.0-preview.39] - 2021-08-24
+- CI Version Bump
+
+## [2.3.0-preview.38] - 2021-08-24
+- CI Version Bump
+
+## [2.3.0-preview.37] - 2021-08-23
+- CI Version Bump
+
+## [2.3.0-preview.36] - 2021-08-23
+- CI Version Bump
+
+## [2.3.0-preview.35] - 2021-08-22
+- CI Version Bump
+
+## [2.3.0-preview.34] - 2021-08-21
+- CI Version Bump
+
+## [2.3.0-preview.33] - 2021-08-20
+- CI Version Bump
+
+## [2.3.0-preview.32] - 2021-08-19
+- CI Version Bump
+
+## [2.3.0-preview.31] - 2021-08-18
+- CI Version Bump
+
+## [2.3.0-preview.30] - 2021-08-17
+- CI Version Bump
+
+## [2.3.0-preview.29] - 2021-08-16
+- CI Version Bump
+
+## [2.3.0-preview.28] - 2021-08-15
+- CI Version Bump
+
+## [2.3.0-preview.27] - 2021-08-14
+- CI Version Bump
+
+## [2.3.0-preview.26] - 2021-08-13
+- CI Version Bump
+
+## [2.3.0-preview.25] - 2021-08-12
+- CI Version Bump
+
+## [2.3.0-preview.24] - 2021-08-11
+- CI Version Bump
+
+## [2.3.0-preview.23] - 2021-08-10
+- Add Protocol Environment Variables (grpc/http)
+
+## [2.3.0-preview.22] - 2021-08-10
+- CI Version Bump
+
+## [2.3.0-preview.3] - 2021-07-29
+- CI Version Bump
+
+## [2.3.0-preview.2] - 2021-07-29
+- CI Version Bump
+
+## [2.3.0-preview.1] - 2021-07-28
+- Preliminary version for OCt
+
+## [2.2.0-preview.146] - 2021-07-28
+- CI Version Bump
+
+## [2.2.0-preview.145] - 2021-07-28
+- CI Version Bump
+
+## [2.2.0-preview.144] - 2021-07-28
+- CI Version Bump
+
+## [2.2.0-preview.143] - 2021-07-27
+- CI Version Bump
+
+## [2.2.0-preview.142] - 2021-07-27
+- CI Version Bump
+
+## [2.2.0-preview.141] - 2021-07-27
+- CI Version Bump
+
+## [2.2.0-preview.140] - 2021-07-26
+- CI Version Bump
+
+## [2.2.0-preview.31] - 2021-05-05
+- Fix pink default material
+- Fix ProjectServerClient being shutdown between project
+- Fix live sync icon
+
+## [2.2.0-preview.30] - 2021-05-05
+- Fix missing public keyword
+
+## [2.2.0-preview.29] - 2021-05-04
+- Integrate Live Sync feature in ActorSystem
+
+## [2.2.0-preview.28] - 2021-05-03
+- actor system setting Fix 
+
+## [2.2.0-preview.27] - 2021-04-30
+- Mesh Converter Actor can toggle mesh readability
+
+## [2.2.0-preview.26] - 2021-04-28
+- Material Converter Actor uses materials instead of shaders
 
 ## [2.1.0-preview.76] - 2021-03-12
 - Added public link sharing API
@@ -154,58 +642,6 @@
 
 ## [2.1.0-preview.53] - 2021-02-15
 - Point com.unity.reflect.runtime to 1.3.0-preview.17
-
-## [2.1.0-preview.52] - 2021-02-15
-
-## [2.1.0-preview.51] - 2021-02-14
-
-## [2.1.0-preview.50] - 2021-02-13
-
-## [2.1.0-preview.49] - 2021-02-12
-
-## [2.1.0-preview.48] - 2021-02-11
-
-## [2.1.0-preview.47] - 2021-02-10
-
-## [2.1.0-preview.46] - 2021-02-09
-
-## [2.1.0-preview.45] - 2021-02-08
-
-## [2.1.0-preview.44] - 2021-02-07
-
-## [2.1.0-preview.43] - 2021-02-06
-
-## [2.1.0-preview.42] - 2021-02-05
-
-## [2.1.0-preview.41] - 2021-02-04
-
-## [2.1.0-preview.40] - 2021-02-01
-
-## [2.1.0-preview.39] - 2021-01-31
-
-## [2.1.0-preview.38] - 2021-01-30
-
-## [2.1.0-preview.37] - 2021-01-29
-
-## [2.1.0-preview.36] - 2021-01-28
-
-## [2.1.0-preview.35] - 2021-01-27
-
-## [2.1.0-preview.34] - 2021-01-26
-
-## [2.1.0-preview.33] - 2021-01-25
-
-## [2.1.0-preview.32] - 2021-01-24
-
-## [2.1.0-preview.31] - 2021-01-24
-
-## [2.1.0-preview.30] - 2021-01-23
-
-## [2.1.0-preview.29] - 2021-01-22
-
-## [2.1.0-preview.28] - 2021-01-21
-
-## [2.1.0-preview.27] - 2021-01-19
 
 ## [2.1.0-preview.26] - 2021-01-18
 # Features

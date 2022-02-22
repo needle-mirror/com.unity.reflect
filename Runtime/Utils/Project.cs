@@ -1,15 +1,6 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 using Unity.Reflect;
-using Unity.Reflect.Data;
-using Unity.Reflect.IO;
-using Unity.Reflect.Model;
 
 [assembly: InternalsVisibleTo("Unity.Reflect.Editor")]
 namespace UnityEngine.Reflect
@@ -17,23 +8,26 @@ namespace UnityEngine.Reflect
     [Serializable]
     public class Project
     {
-        readonly UnityProject m_UnityProject;
+        protected readonly UnityProject m_UnityProject;
 
         public static Project Empty { get; } = new Project(new UnityProject(string.Empty, string.Empty));
-        public string serverProjectId => $"{m_UnityProject.Host.ServerId}:{m_UnityProject.ProjectId}";
-        public string projectId => m_UnityProject.ProjectId;
-        public string name => m_UnityProject.Name;
-        public UnityProjectHost host => m_UnityProject.Host;
-        public string description => m_UnityProject.Host.ServerName;
-        public bool isAvailableOnline => m_UnityProject.Source == UnityProject.SourceOption.ProjectServer;
-        public UnityProject UnityProject => m_UnityProject;
+        public virtual string serverProjectId => $"{m_UnityProject.Host.ServerId}:{m_UnityProject.ProjectId}";
+        public virtual string projectId => m_UnityProject.ProjectId;
+        public virtual string name => m_UnityProject.Name;
+        public virtual UnityProjectHost host => m_UnityProject.Host;
+        public virtual string description => m_UnityProject.Host.ServerName;
+        public virtual UnityProject UnityProject => m_UnityProject;
+        public virtual DateTime lastPublished => m_UnityProject.LastPublished;
 
-        public DateTime lastPublished => m_UnityProject.LastPublished;
+        public virtual DateTime DownloadedPublished { get; set; }
 
-        public void SetLocal(bool isLocal)
-        {
-            m_UnityProject.IsLocalProject  = isLocal;
-        }
+        public virtual bool IsLocal { get; set; }
+
+        public virtual bool HasUpdate => IsLocal && m_UnityProject.LastPublished != DownloadedPublished;
+
+        public virtual bool IsConnectedToServer => m_UnityProject.IsConnectedToServer;
+        
+        public virtual bool hasUpdate => m_UnityProject.LastPublished != DownloadedPublished;
 
         public Project(UnityProject unityProject)
         {

@@ -8,28 +8,28 @@ using Unity.Reflect.IO;
 
 namespace UnityEngine.Reflect.Pipeline
 {
-    [Serializable]
     public class ProjectDeleterSettings
     {
-        public Project deleteProject;
+        public Project project;
 
-        public event Action<Project> projectLocalDataDeleted;
+        public event Action<Project> projectDeleteCompleted;
         public event Action<Project> projectDeleteCanceled;
-        public event Action<int, int, string> projectDeleteProgressChanged;
+        
+        public event ProgressChanged projectDeleteProgressChanged;
 
-        public void ProjectDeleteCompleted()
+        public void InvokeDeleteCompleted()
         {
-            projectLocalDataDeleted?.Invoke(deleteProject);
+            projectDeleteCompleted?.Invoke(project);
         }
 
-        public void ProjectDeleteCanceled()
+        public void InvokeDeleteCanceled()
         {
-            projectDeleteCanceled?.Invoke(deleteProject);
+            projectDeleteCanceled?.Invoke(project);
         }
 
-        public void ProgressChanged(int progress, int total, string message)
+        public void InvokeProgressChanged(int progress, int total)
         {
-            projectDeleteProgressChanged?.Invoke(progress, total, message);
+            projectDeleteProgressChanged?.Invoke(project, progress, total);
         }
     }
 
@@ -37,34 +37,31 @@ namespace UnityEngine.Reflect.Pipeline
     {
         readonly ProjectDeleterSettings m_Settings;
         readonly PlayerStorage m_Storage;
-        
-        const string k_Deleting = "Deleting";
 
-        public IProjectProvider client { get; set; }
-
-        public ProjectDeleter(ProjectDeleterSettings settings, PlayerStorage storage)
+        public ProjectDeleter(ProjectDeleterSettings settings, IUpdateDelegate updateDelegate, PlayerStorage storage)
         {
             m_Settings = settings;
             m_Storage = storage;
+            SetUpdateDelegate(updateDelegate);
         }
         
         protected override Task RunInternal(CancellationToken token)
         {
-            return DeleteProjectLocally(token, m_Settings.deleteProject);
+            return DeleteProjectLocally(token, m_Settings.project);
         }
-        
+
         protected override void UpdateInternal(float unscaledDeltaTime)
         {
             if (m_Task == null)
                 return;
 
             if (m_TotalCount != 0)
-                m_Settings.ProgressChanged(m_CurrentCount, m_TotalCount, k_Deleting);
+                m_Settings.InvokeProgressChanged(m_CurrentCount, m_TotalCount);
 
             if (!m_Task.IsCompleted)
                 return;
 
-            m_Settings.ProjectDeleteCompleted(); 
+            m_Settings.InvokeDeleteCompleted(); 
 
             m_Task = null;
         }
@@ -99,12 +96,6 @@ namespace UnityEngine.Reflect.Pipeline
 
             Directory.Delete(projectFolderPath, true);
             return Task.CompletedTask;
-        }
-
-        public override void Dispose()
-        {
-            base.Dispose();
-            m_Settings.ProjectDeleteCanceled();
         }
     }
 }

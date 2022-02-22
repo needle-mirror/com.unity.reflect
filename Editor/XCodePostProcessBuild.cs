@@ -41,8 +41,10 @@ class XCodePostProcessBuild : IPostprocessBuildWithReport
 			//  include Safari Framework to support embedded Safari Login/Logout
 			pbxProject.AddFrameworkToProject(frameworkGuid, "SafariServices.framework", false);
 
+			//  include App Tracking Framework to trigger authorization prompt to collect data 
+			pbxProject.AddFrameworkToProject(frameworkGuid, "AppTrackingTransparency.framework", false);
+
 			pbxProject.WriteToFile(projectPath);
-			
 			
 			//	edit plist file
 			string plistPath = path + "/Info.plist";
@@ -56,8 +58,17 @@ class XCodePostProcessBuild : IPostprocessBuildWithReport
 			{
 				rootDict.values.Remove(exitsOnSuspendKey);
 			}
+			if (!rootDict.values.ContainsKey("NSUserTrackingUsageDescription"))
+			{
+				// Add prompt message to let user authorize any data collection
+				rootDict.SetString("NSUserTrackingUsageDescription", "Reflect leverages usage data to improve its experience.");
+			}
 
 			File.WriteAllText(plistPath, plist.WriteToString());
+
+			// Add associated domain for Universal Links support
+			var entitlements = GenerateAppLinksEntitlements(projectPath, AppLinksHelper.AppLinksDomains);
+			entitlements.WriteToFile();
 		}
 	}
 

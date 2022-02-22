@@ -10,21 +10,24 @@ namespace UnityEngine.Reflect
         HelperContainer m_Helpers;
         SystemContainer m_Systems;
         
-        public HelperContainer.Proxy helpers { get; private set; }
-        public ServiceContainer services { get; private set; }
-        public SystemContainer.Proxy systems { get; private set; }
+        public HelperContainer.Proxy Helpers { get; private set; }
+        public ServiceContainer Services { get; private set; }
+        public SystemContainer.Proxy Systems { get; private set; }
 
+        [Obsolete("Use PostTick event instead")]
         public event Action<float> update;
+
+        public event Action PostTick;
 
         public virtual void Initialize()
         {
             m_Helpers = new HelperContainer();
-            helpers = new HelperContainer.Proxy(m_Helpers);
+            Helpers = new HelperContainer.Proxy(m_Helpers);
 
-            services = new ServiceContainer(helpers);
+            Services = new ServiceContainer(Helpers);
 
-            m_Systems = new SystemContainer(helpers, services);
-            systems = new SystemContainer.Proxy(m_Systems);
+            m_Systems = new SystemContainer(Helpers, Services);
+            Systems = new SystemContainer.Proxy(m_Systems);
         }
 
         public virtual void Shutdown()
@@ -46,7 +49,10 @@ namespace UnityEngine.Reflect
             m_Helpers.Tick();
             m_Systems.Tick();
 
+#pragma warning disable 618
             update?.Invoke(0.0f);
+#pragma warning restore 618
+            PostTick?.Invoke();
         }
     }
 }

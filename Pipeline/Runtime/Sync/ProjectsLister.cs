@@ -43,50 +43,31 @@ namespace UnityEngine.Reflect.Pipeline
             this.boundingBox = boundingBox;
         }
     }
-
-    public interface IProjectListerSettings
-    {
-        void OnProjectListingStarted();
-        void OnProjectListingCompleted(IEnumerable<Project> projects);
-    }
-
+    
+    // TODO Deprecate
     [Serializable]
-    public class ProjectListerSettings : IProjectListerSettings
+    public static class ProjectListerSettings
     {
-        [Header("Events")]
-        public UnityEvent OnProjectsRefreshStarted;
-        
         [Serializable]
         public class ProjectsEvents : UnityEvent<List<Project>> { }
-        public ProjectsEvents OnProjectsRefreshCompleted;
-
-        void IProjectListerSettings.OnProjectListingStarted()
-        {
-            OnProjectsRefreshStarted.Invoke();
-        }
-
-        void IProjectListerSettings.OnProjectListingCompleted(IEnumerable<Project> projects)
-        {
-            OnProjectsRefreshCompleted.Invoke(projects.ToList());
-        }
     }
 
     public class ProjectsLister : ReflectTask
     {
-        readonly IProjectListerSettings m_Settings;
-
-        public ProjectsLister(IProjectListerSettings settings)
-        {
-            m_Settings = settings;
-        }
-
+        public event Action<IEnumerable<Project>> projectListingCompleted; 
+        public event Action<ProjectListRefreshException> projectListingException; 
+        
+        readonly IProjectProvider m_ProjectProvider;
         Task m_SubTask;
+
+        public ProjectsLister(IProjectProvider projectProvider)
+        {
+            m_ProjectProvider = projectProvider;
+        }
 
         protected override Task RunInternal(CancellationToken token)
         {
-            m_Settings.OnProjectListingStarted();
-            
-            m_SubTask = client.ListProjects();
+            m_SubTask = m_ProjectProvider.ListProjects();
 
             return m_SubTask;
         }
@@ -104,27 +85,31 @@ namespace UnityEngine.Reflect.Pipeline
 
             var result = GetResult(m_SubTask);
             
-            m_Settings.OnProjectListingCompleted(result);
+            projectListingCompleted?.Invoke(result);
 
             m_SubTask = null;
             m_Task = null;
         }
 
-        static IEnumerable<Project> GetResult(Task task)
+        IEnumerable<Project> GetResult(Task task)
         {
-            var result = ((Task<UnityProjectCollection>)task).Result;
+            var result = ((Task<IProjectProvider.ProjectProviderResult>)task).Result;
             
             if (result.Status == UnityProjectCollection.StatusOption.AuthenticationError)
             {
                 //onAuthenticationFailure?.Invoke();
-                Debug.LogError("Authentication Error : " + result.ErrorMessage);
+                var exception = new ProjectListRefreshException("Authentication Error : " + result.ErrorMessage, result.Status);
+                Debug.LogException(exception);
+                projectListingException?.Invoke(exception);
                 // NOTE: Keep on going, we may be able to display offline data
             }
             
             else if (result.Status == UnityProjectCollection.StatusOption.ComplianceError)
             {
                 //onError?.Invoke(new ProjectListRefreshException(result.ErrorMessage, result.Status));
-                Debug.LogException(new ProjectListRefreshException(result.ErrorMessage, result.Status));
+                var exception = new ProjectListRefreshException(result.ErrorMessage, result.Status);
+                Debug.LogException(exception);
+                projectListingException?.Invoke(exception);
                 // NOTE: Keep on going, we may be able to display offline data
             }                
             else if (result.Status != UnityProjectCollection.StatusOption.Success)
@@ -132,13 +117,13 @@ namespace UnityEngine.Reflect.Pipeline
                 // Log error with details but report simplified message in `onError` event
                 //Debug.LogError($"Project list refresh failed: {result.ErrorMessage}");
                 //onError?.Invoke(new ProjectListRefreshException($"Could not connect to Reflect cloud service, check your internet connection.", result.Status));
-                Debug.LogException(new ProjectListRefreshException($"Could not connect to Reflect cloud service, check your internet connection.", result.Status));
+                var exception = new ProjectListRefreshException($"Could not connect to Reflect cloud service, check your internet connection.", result.Status);
+                Debug.LogException(exception);
+                projectListingException?.Invoke(exception);
                 // NOTE: Keep on going, we may be able to display offline data
             }
             
-            return result.Select(p => new Project(p));
+            return result.Projects;
         }
-
-        public IProjectProvider client { get; set; }
     }
 }

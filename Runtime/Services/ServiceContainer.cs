@@ -5,13 +5,13 @@ namespace UnityEngine.Reflect
     /// </summary>
     public class ServiceContainer
     {
-        public EventHub eventHub { get; }
-        public MemoryTracker memoryTracker { get; }
+        public EventHub EventHub { get; }
+        public MemoryTracker MemoryTracker { get; }
 
         public ServiceContainer(HelperContainer.Proxy helpers)
         {
-            eventHub = new EventHub();
-            memoryTracker = new MemoryTracker(helpers.clock);
+            EventHub = new EventHub();
+            MemoryTracker = new MemoryTracker(helpers.Clock);
         }
     }
 }

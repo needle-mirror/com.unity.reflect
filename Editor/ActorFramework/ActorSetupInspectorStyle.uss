@@ -1,0 +1,25 @@
+.actor_system_title {
+    margin-top: 15px;
+    -unity-font-style: bold;
+}
+
+.actor_system_setting_title > Toggle {
+    background-color: rgba(0, 0, 0, 0.15);
+    padding: 5px;
+    border-radius: 3px;
+    margin-top: 3px;
+}
+
+.actor_system_setting_title .unity-foldout__content {
+    -unity-font-style: normal;
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.actor_system_setting_entry .unity-base-field__label {
+    overflow: hidden;
+    flex: 40%;
+}
+
+.actor_system_setting_entry .unity-foldout__content .unity-base-field__label {
+    margin-left: 10px;
+}

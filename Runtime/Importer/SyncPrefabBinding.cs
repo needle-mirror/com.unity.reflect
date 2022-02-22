@@ -6,7 +6,7 @@ namespace UnityEngine.Reflect
     [DisallowMultipleComponent]
     public class SyncPrefabBinding : MonoBehaviour
     {
-        public string key;
+        public string sourceId;
     }
 }
 

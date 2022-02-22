@@ -1,0 +1,13 @@
+.indent_depth_1 > .unity-label {
+    margin-left: 15px;
+    min-width: 135px;
+}
+
+.indent_depth_2 > .unity-label {
+    margin-left: 15px;
+    min-width: 120px;
+}
+
+.sub_settings {
+    margin-top: 10px;
+}

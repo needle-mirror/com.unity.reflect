@@ -102,7 +102,7 @@ namespace UnityEngine.Reflect.Pipeline
 
         protected override MeshConverter Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
-            var p = new MeshConverter(hook.services.eventHub, hook.services.memoryTracker, output);
+            var p = new MeshConverter(hook.Services.EventHub, hook.Services.MemoryTracker, output);
             input.streamEvent = p.OnStreamEvent;
 
             return p;
@@ -147,7 +147,7 @@ namespace UnityEngine.Reflect.Pipeline
 
         protected override TextureConverter Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
-            var p = new TextureConverter(hook.services.eventHub, hook.services.memoryTracker, output);
+            var p = new TextureConverter(hook.Services.EventHub, hook.Services.MemoryTracker, output);
 
             input.streamEvent = p.OnStreamEvent;
 
@@ -198,7 +198,7 @@ namespace UnityEngine.Reflect.Pipeline
 
         protected override MaterialConverter Create(ReflectBootstrapper hook, ISyncModelProvider provider, IExposedPropertyTable resolver)
         {
-            var p = new MaterialConverter(hook.services.eventHub, hook.services.memoryTracker, textureCacheParam.value, output);
+            var p = new MaterialConverter(hook.Services.EventHub, hook.Services.MemoryTracker, textureCacheParam.value, output);
 
             input.streamEvent = p.OnStreamEvent;
 
@@ -285,7 +285,7 @@ namespace UnityEngine.Reflect.Pipeline
                 root = new GameObject("root").transform;
             }
             
-            var node = new InstanceConverter(hook.services.eventHub, hook.services.memoryTracker, root, m_GenerateSourceRoots,
+            var node = new InstanceConverter(hook.Services.EventHub, hook.Services.MemoryTracker, root, m_GenerateSourceRoots,
                 materialCacheParam.value, meshCacheParam.value, output);
 
             input.streamBegin = output.SendBegin;

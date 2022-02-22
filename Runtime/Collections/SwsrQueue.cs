@@ -1,4 +1,4 @@
-namespace Unity.Reflect.Actor
+namespace Unity.Reflect.Collections
 {
     /// <summary>
     ///     Single-writer single-reader queue

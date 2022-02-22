@@ -2,11 +2,16 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Unity.Reflect;
+using Unity.Reflect.Utils;
 using Unity.Reflect.Data;
 using Unity.Reflect.IO;
 using Unity.Reflect.Model;
+using Unity.Reflect.Actors;
+using Unity.Reflect.Source.Utils.Errors;
 
 namespace UnityEngine.Reflect.Pipeline
 {
@@ -90,35 +95,79 @@ namespace UnityEngine.Reflect.Pipeline
     public class AuthClient : IProjectProvider
     {
         public UnityUser user { get; }
-        public PlayerStorage storage { get; }
 
-        public AuthClient(UnityUser user, PlayerStorage storage)
+        public AuthClient(UnityUser user)
         {
             this.user = user;
-            this.storage = storage;
         }
         
-        public Task<UnityProjectCollection> ListProjects()
+        public async Task<IProjectProvider.ProjectProviderResult> ListProjects()
         {
-            return ProjectServer.Client.ListProjects(user, storage);
+            var results = await ProjectServer.Client.ListProjects(user);
+
+            var allProjects = results.ToDictionary(GetProjectKey, r =>
+                new Project(r));
+
+            var storedUnityProjects = Storage.main.EnumerateStoredProjects();
+            
+            foreach (var storedProject in storedUnityProjects)
+            {
+                var key = GetProjectKey(storedProject);
+                if (allProjects.TryGetValue(key, out var project))
+                {
+                    if (project.IsLocal)
+                        continue;
+
+                    // This remote project is also available offline
+                    project.IsLocal = true;
+                    project.DownloadedPublished = storedProject.LastPublished;
+                }
+                else
+                {
+                    // This local project is not connected to its server
+                    allProjects.Add(key, new Project(storedProject) { IsLocal = true});
+                }
+            }
+
+            return new IProjectProvider.ProjectProviderResult
+            {
+                Projects = allProjects.Values.ToList(),
+                Status = results.Status,
+                ErrorMessage = results.ErrorMessage
+            };
+        }
+        
+        static string GetProjectKey(UnityProject unityProject)
+        {
+            return $"{unityProject.ProjectId}__{unityProject.Host.ServerId}";
         }
     }
     
     public class ReflectClient : ISyncModelProvider, IDisposable
     {
+        public Action manifestUpdated { get; set; }
+
         readonly UnityUser m_User;
         readonly PlayerStorage m_Storage;
         readonly UnityProject m_Project;
+        readonly AccessToken m_AccessToken;
+        readonly IPlayerClient m_Client;
+        readonly string m_SpatialFolderPath;
 
         ClientListener m_Listener;
 
-        public ReflectClient(IUpdateDelegate updateDelegate, UnityUser user, PlayerStorage storage, UnityProject project)
+        public ReflectClient(IUpdateDelegate updateDelegate, UnityUser user, PlayerStorage storage, UnityProject project, AccessToken accessToken)
         {
             m_Project = project;
             m_User = user;
             m_Storage = storage;
+            m_AccessToken = accessToken;
+            m_SpatialFolderPath = Path.Combine(storage.GetProjectFolder(project), DataProviderActor.k_StorageSpatialFolder);
 
-            InitializeProjectClientListener();
+            m_Client = CreatePlayerClient();
+
+            m_Listener = new ClientListener(m_Client); // TODO Should this class also be responsible to instantiate the Client?
+            m_Listener.onManifestUpdated += (c, s) => manifestUpdated?.Invoke();
 
             updateDelegate.update += OnUpdate;
         }
@@ -133,45 +182,39 @@ namespace UnityEngine.Reflect.Pipeline
             m_Listener?.Dispose();
         }
 
-        public async Task<IEnumerable<SyncManifest>> GetSyncManifestsAsync()
+        public async Task<IEnumerable<SyncManifest>> GetSyncManifestsAsync(GetManifestOptions options, CancellationToken token)
         {
-            var client = m_Listener?.client;
-            
-            if (client != null)
+            if (m_Client != null)
             {
                 // Online Mode
-                var result = await client.GetManifestsAsync();
+                var result = await m_Client.GetManifestsAsync(options, token);
 
                 if (result != null)
                 {
-                    var streamSources = new List<SyncManifest>();
+                    var manifests = new List<SyncManifest>();
 
                     foreach (var manifestAsset in result)
                     {
                         var manifest = manifestAsset.Manifest;
-                        streamSources.Add(manifest);
-                                
-                        await SaveStreamSourceAsync(manifest);
+                        manifests.Add(manifest);
+
+                        await SaveManifestAsync(manifest);
                     }
 
-                    return streamSources;
+                    return manifests;
                 }
             }
             else // Offline Mode
             {
-                return await LoadStreamSourcesAsync(m_Project);
+                return await LoadManifests(m_Project);
             }
             
             return null;
         }
 
-        async Task SaveStreamSourceAsync(SyncManifest manifest)
+        public Task<IEnumerable<SyncManifest>> GetSyncManifestsAsync(CancellationToken token)
         {
-            var client = m_Listener.client;
-            if (client != null)
-            {
-                await SaveManifestAsync(manifest);
-            }
+            return GetSyncManifestsAsync(new GetManifestOptions(), token);
         }
 
         async Task SaveManifestAsync(SyncManifest manifest)
@@ -181,7 +224,7 @@ namespace UnityEngine.Reflect.Pipeline
             await PlayerFile.SaveManifestAsync(manifest, fullPath);
         }
         
-        async Task<IEnumerable<SyncManifest>> LoadStreamSourcesAsync(UnityProject project)
+        async Task<IEnumerable<SyncManifest>> LoadManifests(UnityProject project)
         {
             var folder = m_Storage.GetProjectFolder(project);
 
@@ -202,17 +245,26 @@ namespace UnityEngine.Reflect.Pipeline
             return result;
         }
 
-        public Task<ISyncModel> GetSyncModelAsync(StreamKey streamKey, string hash)
+        public Task<ISyncModel> GetSyncModelAsync(StreamKey streamKey, string hash, CancellationToken token)
         {
-            // TODO Refactoring.
-            // var fullPath = PlayerFile.GetFullPath(streamKey, hash);
-            var downloadFolder = GetSourceProjectFolder(streamKey.source);
-            var fullPath = GetSyncModelFullPath(streamKey, hash);
+            var fullPath = m_Storage.GetSyncModelFullPath(m_Project, streamKey.source, streamKey.key, hash);
 
-            return File.Exists(fullPath) ? PlayerFile.LoadSyncModelAsync(downloadFolder, streamKey.key, hash) : DownloadAndSave(streamKey, hash, fullPath);
+            if (File.Exists(fullPath))
+            {
+                var task = PlayerFile.LoadSyncModelAsync(fullPath, streamKey.key, token);
+                
+#if UNITY_ANDROID && !UNITY_EDITOR
+                var result = task.Result;
+                return Task.FromResult(result);
+#else
+                return task;
+#endif
+            }
+
+            return DownloadAndSave(streamKey, hash, fullPath, token);
         }
 
-        public async Task DownloadSyncModelAsync(StreamKey streamKey, string hash)
+        public async Task DownloadSyncModelAsync(StreamKey streamKey, string hash, CancellationToken token)
         {
             // TODO Refactoring.
             // var fullPath = PlayerFile.GetFullPath(streamKey, hash);
@@ -220,23 +272,18 @@ namespace UnityEngine.Reflect.Pipeline
 
             if (!File.Exists(fullPath))
             {
-                await DownloadAndSave(streamKey, hash, fullPath);
+                await DownloadAndSave(streamKey, hash, fullPath, token);
             }
         }
 
         string GetSyncModelFullPath(StreamKey streamKey, string hash)
         {
-            var downloadFolder = GetSourceProjectFolder(streamKey.source);
-            var filename = hash + PlayerFile.PersistentKeyToExtension(streamKey.key);
-            return Path.Combine(downloadFolder, filename);
+            return m_Storage.GetSyncModelFullPath(m_Project, streamKey.source, streamKey.key, hash);
         }
 
-        public Action manifestUpdated { get; set; }
-
-        async Task<ISyncModel> DownloadAndSave(StreamKey streamKey, string hash, string fullPath)
+        async Task<ISyncModel> DownloadAndSave(StreamKey streamKey, string hash, string fullPath, CancellationToken token)
         {
-            var client = m_Listener.client;
-            var syncModel = await client.GetSyncModelAsync(streamKey.key, streamKey.source, hash);
+            var syncModel = await m_Client.GetSyncModelAsync(streamKey.key, streamKey.source, hash, token);
 
             if (syncModel != null)
             {
@@ -248,19 +295,20 @@ namespace UnityEngine.Reflect.Pipeline
 
             return syncModel;
         }
-        
-        string GetSourceProjectFolder(string sourceId)
+
+        public Task<SpatialManifest> DownloadSpatialManifestAsync(IEnumerable<SyncId> ids, GetNodesOptions getNodesOptions, CancellationToken token)
         {
-            return Path.Combine(m_Storage.GetProjectFolder(m_Project), sourceId);
+            return DataProviderActor.LoadSpatialManifestAsync(ids, getNodesOptions, token, m_SpatialFolderPath, m_Client);
         }
 
-        void InitializeProjectClientListener()
+        IPlayerClient CreatePlayerClient()
         {
             try
             {
-                var client = Player.CreateClient(m_Project, m_User, ProjectServer.Client);
-                m_Listener = new ClientListener(client); // TODO Should this class also be responsible to instantiate the Client?
-                m_Listener.onManifestUpdated += (c, s) => manifestUpdated?.Invoke();
+                var httpClient = new ReflectRequestHandler();
+                var client = Player.CreateClient(m_Project, m_User, ProjectServer.Client, m_AccessToken, httpClient);
+                Debug.Log($"Establishing {client.Protocol.ToString()} connection to Sync server.");
+                return client;
             }
             catch (ConnectionException ex)
             {
@@ -285,6 +333,7 @@ namespace UnityEngine.Reflect.Pipeline
                 ex = new ConnectionException(message, ex);
                 //completeWithError(ex);
                 //throw ex;
+                return null;
             }
         }
     }

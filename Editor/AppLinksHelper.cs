@@ -14,5 +14,11 @@ namespace UnityEditor.Reflect
             "stg.reflect.unity.cn",
             "reflect.unity.cn"
         };
+        
+        public static readonly List<string> AppLinksDomains = new List<string>
+        {
+            "*.reflect.unity3d.com",
+            "*.reflect.unity.cn"
+        };
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Unity.Reflect.IO;
 using UnityEngine;
 using UnityEngine.Events;
@@ -27,7 +28,9 @@ namespace Unity.Reflect.Samples
         
         List<Project> m_AvailableProjects;
 
-        enum State
+        Project m_Project;
+
+        public enum State
         {
             WaitForLogin,
             LoginFailed,
@@ -36,7 +39,7 @@ namespace Unity.Reflect.Samples
             OpeningProject
         }
 
-        State m_State = State.WaitForLogin;
+        public State m_State = State.WaitForLogin;
 
         // This method is called from the LoginManager component inside the sample Scene.
         // This is the same LoginManager used in the Reflect Viewers.
@@ -50,24 +53,18 @@ namespace Unity.Reflect.Samples
             m_Storage = new PlayerStorage(Path.Combine(Application.dataPath, ".ReflectSamplesTemp"), false, false);
             
             // Create a Authentication client from the current Unity user
-            m_AuthClient = new AuthClient(user, m_Storage);
+            m_AuthClient = new AuthClient(user);
+
+            // Create a ProjectLister to enumerate all available projects in the cloud for this user
+            m_ProjectsLister = new ProjectsLister(m_AuthClient);
             
-            var projectListerSettings = new ProjectListerSettings
-            {
-                OnProjectsRefreshCompleted = new ProjectListerSettings.ProjectsEvents(),
-                OnProjectsRefreshStarted = new UnityEvent()
-            };
-            
-            projectListerSettings.OnProjectsRefreshCompleted.AddListener( (projects) =>
+            m_ProjectsLister.projectListingCompleted += projects =>
             {
                 // This is the callback for when all projects are done listing.
                 // For this sample, we populate a list that will be displayed as UI in the OnGUI method.
                 m_State = State.ProjectListed;
-                m_AvailableProjects = projects;
-            });
-
-            // Create a ProjectLister to enumerate all available projects in the cloud for this user
-            m_ProjectsLister = new ProjectsLister(projectListerSettings) { client = m_AuthClient };
+                m_AvailableProjects = projects.ToList();
+            };
 
             // Since ProjectLister runs in another thread, make sure to set the UpdateDelegate to be able to collect received data into the main thread.
             m_ProjectsLister.SetUpdateDelegate(this);
@@ -92,26 +89,31 @@ namespace Unity.Reflect.Samples
         void OpenProject(Project project)
         {
             m_State = State.OpeningProject;
-            
-            // Prepare the folder for project data
-            var projectFolder = m_Storage.GetProjectFolder(project);
-            Directory.CreateDirectory(projectFolder);
-            
-            // Create the ISyncProvider (ReflectClient).
-            m_ReflectClient = new ReflectClient(this, m_AuthClient.user,  m_AuthClient.storage, project);
-            
-            // Create a ReflectPipeline component
-            m_ReflectPipeline = gameObject.AddComponent<ReflectPipeline>();
-            
-            // Create a basic PipelineAsset 
-            m_ReflectPipeline.pipelineAsset = CreateBasicPipelineAsset();
-            
-            // Assign root transform to the InstanceConverterNode
-            m_ReflectPipeline.TryGetNode<InstanceConverterNode>(out var instanceConverter);
-            instanceConverter.SetRoot(root, m_ReflectPipeline);
+            m_Project = project;
 
-            // Initialize and run the pipeline
-            m_ReflectPipeline.InitializeAndRefreshPipeline(m_ReflectClient);
+            var accessTokenManager = AccessTokenManager.Create(project, this);
+            accessTokenManager.CreateAccessToken(project, m_AuthClient.user.AccessToken, accessToken =>
+            {
+                // Prepare the folder for project data
+                var projectFolder = m_Storage.GetProjectFolder(project);
+                Directory.CreateDirectory(projectFolder);
+            
+                // Create the ISyncProvider (ReflectClient).
+                m_ReflectClient = new ReflectClient(this, m_AuthClient.user,  m_Storage, project, accessToken);
+            
+                // Create a ReflectPipeline component
+                m_ReflectPipeline = gameObject.AddComponent<ReflectPipeline>();
+            
+                // Create a basic PipelineAsset 
+                m_ReflectPipeline.pipelineAsset = CreateBasicPipelineAsset();
+            
+                // Assign root transform to the InstanceConverterNode
+                m_ReflectPipeline.TryGetNode<InstanceConverterNode>(out var instanceConverter);
+                instanceConverter.SetRoot(root, m_ReflectPipeline);
+
+                // Initialize and run the pipeline
+                m_ReflectPipeline.InitializeAndRefreshPipeline(m_ReflectClient);                
+            } );
         }
         
         void OnDisable()
@@ -124,6 +126,8 @@ namespace Unity.Reflect.Samples
 
             m_ProjectsLister?.Dispose();
             m_ReflectClient?.Dispose();
+
+            AccessTokenManager.Remove(m_Project);
             
             update = null;
         }

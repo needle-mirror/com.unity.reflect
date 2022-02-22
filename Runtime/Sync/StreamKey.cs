@@ -4,8 +4,7 @@ using Unity.Reflect.Model;
 
 namespace Unity.Reflect
 {
-    [Serializable]
-    public struct StreamKey : IEquatable<StreamKey>
+    public readonly struct StreamKey : IEquatable<StreamKey>
     {
         public readonly string source;
         public readonly PersistentKey key;
@@ -45,9 +44,14 @@ namespace Unity.Reflect
         public static bool operator ==(StreamKey a, StreamKey b) => a.Equals(b);
 
         public static bool operator !=(StreamKey a, StreamKey b) => !(a == b);
+
+        public override string ToString()
+        {
+            return $"[{source}, {key}]";
+        }
     }
 
-    public struct SyncedData<T>
+    public readonly struct SyncedData<T>
     {
         public readonly StreamKey key;
         public readonly T data;

@@ -1,4 +1,4 @@
-﻿namespace UnityEngine.Reflect
+namespace UnityEngine.Reflect
 {
     /// <summary>
     ///     Exposes all helpers that are exposed to services, systems and unity scripts
@@ -39,9 +39,9 @@
                 m_Container = container;
             }
 
-            public UnityStatic unityStatic => m_Container.m_UnityStatic;
-            public Clock.Proxy clock => m_Container.m_ClockProxy;
-            public MemoryStats.Proxy memoryStats => m_Container.m_MemoryStatsProxy;
+            public UnityStatic UnityStatic => m_Container.m_UnityStatic;
+            public Clock.Proxy Clock => m_Container.m_ClockProxy;
+            public MemoryStats.Proxy MemoryStats => m_Container.m_MemoryStatsProxy;
         }
     }
 }

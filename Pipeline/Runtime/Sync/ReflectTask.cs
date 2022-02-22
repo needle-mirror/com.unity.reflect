@@ -23,6 +23,8 @@ namespace UnityEngine.Reflect.Pipeline
         public void SetUpdateDelegate(IUpdateDelegate value) => value.update += Update;
         public void RemoveUpdateDelegate(IUpdateDelegate value) => value.update -= Update;
         
+        public bool IsRunning => m_Task is {IsCompleted: false};
+        
         void Update(float unscaledDeltaTime)
         {
             if (m_TokenSource != null && m_TokenSource.IsCancellationRequested)

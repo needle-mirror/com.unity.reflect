@@ -1,8 +1,11 @@
 {
     "name": "Unity.Reflect.Editor",
+    "rootNamespace": "",
     "references": [
         "Unity.Reflect",
-        "Unity.EditorCoroutines.Editor"
+        "Unity.EditorCoroutines.Editor",
+        "Unity.Reflect.Pipeline",
+        "Unity.Formats.Fbx.Editor"
     ],
     "includePlatforms": [
         "Editor"
@@ -33,6 +36,11 @@
             "name": "com.unity.render-pipelines.lightweight",
             "expression": "6.9.0",
             "define": "LWRP_AVAILABLE"
+        },
+        {
+            "name": "com.unity.formats.fbx",
+            "expression": "4.0.1",
+            "define": "FBX_EXPORTER_AVAILABLE"
         }
     ],
     "noEngineReferences": false

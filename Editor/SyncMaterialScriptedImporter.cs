@@ -9,7 +9,7 @@ using Unity.Reflect.IO;
 
 namespace UnityEditor.Reflect
 {
-    [ScriptedImporter(1, "SyncMaterial", importQueueOffset:1)]
+    [ScriptedImporter(2, "SyncMaterial", importQueueOffset:1)]
     public class SyncMaterialScriptedImporter : ReflectScriptedImporter, ITextureCache
     {
         public virtual Texture2D GetTexture(StreamKey key)
@@ -22,13 +22,8 @@ namespace UnityEditor.Reflect
             var syncMaterial = PlayerFile.Load<SyncMaterial>(ctx.assetPath);
 
             Init(syncMaterial.Name);
-
-            var syncedData = new SyncedData<SyncMaterial>(StreamKey.FromSyncId<SyncMaterial>(EditorSourceId, syncMaterial.Id), syncMaterial);
             
-            var materialImporter = new SyncMaterialImporter();
-            var material = materialImporter.Import(syncedData, this);
-            
-            material.name = Path.GetFileNameWithoutExtension(syncMaterial.Name);
+            var material = Import(syncMaterial, this, new SyncMaterialImporter());
 
             ctx.AddObjectToAsset("material", material);
             
@@ -36,6 +31,17 @@ namespace UnityEditor.Reflect
 
             ctx.AddObjectToAsset("root", root, AssetPreview.GetMiniThumbnail(material));
             ctx.SetMainObject(root);
+        }
+
+        public static Material Import(SyncMaterial syncMaterial, ITextureCache textureCache, SyncMaterialImporter importer)
+        {
+            var syncedData = new SyncedData<SyncMaterial>(StreamKey.FromSyncId<SyncMaterial>(EditorSourceId, syncMaterial.Id), syncMaterial);
+            
+            var material = importer.Import(syncedData, textureCache);
+            
+            material.name = Path.GetFileNameWithoutExtension(syncMaterial.Name);
+
+            return material;
         }
     }
 }

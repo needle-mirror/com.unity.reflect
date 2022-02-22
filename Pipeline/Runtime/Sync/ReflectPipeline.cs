@@ -3,14 +3,11 @@ using Unity.Reflect.Utils;
 
 namespace UnityEngine.Reflect.Pipeline
 {
-    [Serializable]
-    class ExposedReferenceLookUp : SerializableDictionary<PropertyName, Object> { }
-    
-    public class ReflectPipeline : MonoBehaviour, IUpdateDelegate, IExposedPropertyTable, ILogReceiver
+    public class ReflectPipeline : MonoBehaviour, IUpdateDelegate, IExposedPropertyTable
     {
 #pragma warning disable CS0649
         [SerializeField]
-        RuntimeReflectBootstrapper m_Reflect;
+        ReflectActorSystem m_Reflect;
 #pragma warning restore CS0649
         
         public PipelineAsset pipelineAsset;
@@ -30,17 +27,6 @@ namespace UnityEngine.Reflect.Pipeline
         ExposedReferenceLookUp m_ExposedReferenceLookUp = new ExposedReferenceLookUp();
 
         PipelineRunner m_PipelineRunner;
-
-        void Awake()
-        {
-            // Register to Logs coming from the Reflect core assembly
-            Unity.Reflect.Utils.Logger.AddReceiver(this);
-        }
-
-        void OnDestroy()
-        {
-            Unity.Reflect.Utils.Logger.RemoveReceiver(this);
-        }
 
         public bool TryGetNode<T>(out T node) where T : class, IReflectNode
         {
@@ -66,10 +52,10 @@ namespace UnityEngine.Reflect.Pipeline
             beforeInitialize?.Invoke();
 
             if (m_Reflect == null)
-                m_Reflect = FindObjectOfType<RuntimeReflectBootstrapper>();
+                m_Reflect = FindObjectOfType<ReflectActorSystem>();
 
             if (m_Reflect == null)
-                m_Reflect = gameObject.AddComponent<RuntimeReflectBootstrapper>();
+                m_Reflect = gameObject.AddComponent<ReflectActorSystem>();
 
             m_PipelineRunner = new PipelineRunner(m_Reflect.Hook);
             m_PipelineRunner.onException += onException;
@@ -127,30 +113,6 @@ namespace UnityEngine.Reflect.Pipeline
         public void ClearReferenceValue(PropertyName id)
         {
             m_ExposedReferenceLookUp.Remove(id);
-        }
-        
-        void ILogReceiver.LogReceived(Unity.Reflect.Utils.Logger.Level level, string msg)
-        {
-            switch (level)
-            {
-                case Unity.Reflect.Utils.Logger.Level.Debug:
-                case Unity.Reflect.Utils.Logger.Level.Info:
-                    Debug.Log(msg);
-                    break;
-
-                case Unity.Reflect.Utils.Logger.Level.Warn:
-                    Debug.LogWarning(msg);
-                    break;
-
-                case Unity.Reflect.Utils.Logger.Level.Error:
-                case Unity.Reflect.Utils.Logger.Level.Fatal:
-                    Debug.LogError(msg);
-                    break;
-
-                default:
-                    Debug.Log(msg);
-                    break;
-            }
         }
     }
 }

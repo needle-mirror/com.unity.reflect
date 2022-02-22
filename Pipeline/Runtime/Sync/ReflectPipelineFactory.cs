@@ -1,29 +1,21 @@
 using System;
+using System.IO;
+using System.Linq;
 using Unity.Reflect;
-using Unity.Reflect.IO;
 using UnityEngine.Events;
 
 namespace UnityEngine.Reflect.Pipeline
 {
     public static class ReflectPipelineFactory
     {
-        static ProjectListerSettings s_ProjectListerSettings;
         static ProjectsLister s_ProjectLister;
-        static ProjectDeleterSettings s_ProjectDeleterSettings;
-        static ProjectDeleter s_ProjectDeleter;
-        static ProjectDownloaderSettings s_ProjectDownloaderSettings;
-        static ProjectDownloader s_ProjectDownloader;
+        static ProjectsManager s_ProjectsManager;
 
         public static ProjectListerSettings.ProjectsEvents projectsRefreshCompleted = new ProjectListerSettings.ProjectsEvents();
-        
-        public static event Action<Project> projectLocalDataDeleted;
-        public static event Action<Project> projectDeleteCanceled;
-        public static event Action<int, int, string> projectDeleteProgressChanged;
-        
-        public static event Action<Project> projectDataDownloaded;
-        public static event Action<Project> projectDownloadCanceled;
-        public static event Action<int, int, string> projectDownloadProgressChanged;
 
+        public static event StatusChanged projectStatusChanged;
+        public static event ProgressChanged projectDownloadProgressChanged;
+        public static event ProgressChanged projectDeleteProgressChanged;
         public static UnityEvent manifestUpdated { get; }
 
         static ReflectPipelineFactory()
@@ -31,107 +23,82 @@ namespace UnityEngine.Reflect.Pipeline
             manifestUpdated = new UnityEvent();
         }
 
-        public static void SetUser(UnityUser user, IUpdateDelegate updater, IProjectProvider client, PlayerStorage storage) // TODO Rename or move into a ProjectLister manager class
+        public static void SetUser(UnityUser user, IUpdateDelegate updater, IProjectProvider client) // TODO Rename or move into a ProjectLister manager class
         {
             // ProjectLister
-            s_ProjectListerSettings = new ProjectListerSettings();
-            s_ProjectListerSettings.OnProjectsRefreshCompleted = new ProjectListerSettings.ProjectsEvents();
-            s_ProjectListerSettings.OnProjectsRefreshStarted = new UnityEvent();
-            s_ProjectListerSettings.OnProjectsRefreshCompleted.AddListener( (projects) =>
+            s_ProjectLister = new ProjectsLister(client);
+            s_ProjectLister.projectListingCompleted += projects =>
             {
-                projectsRefreshCompleted?.Invoke(projects);
-            });
-
-            s_ProjectLister = new ProjectsLister(s_ProjectListerSettings) {client = client};
+                projectsRefreshCompleted.Invoke(projects.ToList());
+            };
+            
             s_ProjectLister.SetUpdateDelegate(updater);
-            
-            s_ProjectDeleterSettings = new ProjectDeleterSettings();
-            s_ProjectDeleterSettings.projectLocalDataDeleted += OnProjectLocalDataDeleted;
-            s_ProjectDeleterSettings.projectDeleteCanceled += OnProjectDeleteCanceled;
-            s_ProjectDeleterSettings.projectDeleteProgressChanged += OnProjectDeleteProgressChanged;
-            s_ProjectDeleter = new ProjectDeleter(s_ProjectDeleterSettings, storage) {client = client};
-            s_ProjectDeleter.SetUpdateDelegate(updater);
-            
-            
-            s_ProjectDownloaderSettings = new ProjectDownloaderSettings();
-            s_ProjectDownloaderSettings.projectDataDownloaded += OnProjectDataDownloaded;
-            s_ProjectDownloaderSettings.projectDownloadCanceled += OnProjectDownloadCanceled;
-            s_ProjectDownloaderSettings.projectDownloadProgressChanged += OnProjectDownloadProgressChanged;
-            s_ProjectDownloader = new ProjectDownloader(s_ProjectDownloaderSettings, updater, user, storage);
+
+            s_ProjectsManager = new ProjectsManager(updater, user, Storage.main);
+            s_ProjectsManager.projectStatusChanged += OnProjectStatusChanged;
+            s_ProjectsManager.projectDownloadProgressChanged += OnProjectDownloadProgressChanged;
+            s_ProjectsManager.projectDeleteProgressChanged += OnProjectDeleteProgressChanged;
         }
 
-        static void OnProjectDeleteProgressChanged(int progress, int total, string message)
+        static void OnProjectStatusChanged(Project project, ProjectsManager.Status status)
         {
-            projectDeleteProgressChanged?.Invoke(progress, total, message);
+            projectStatusChanged?.Invoke(project, status);
         }
 
-        static void OnProjectLocalDataDeleted(Project project)
+        static void OnProjectDeleteProgressChanged(Project project, int progress, int total)
         {
-            projectLocalDataDeleted?.Invoke(project);
+            projectDeleteProgressChanged?.Invoke(project, progress, total);
         }
 
-        static void OnProjectDeleteCanceled(Project project)
+        static void OnProjectDownloadProgressChanged(Project project, int progress, int total)
         {
-            projectDeleteCanceled?.Invoke(project);
-        }
-        
-        static void OnProjectDownloadProgressChanged(int progress, int total, string message)
-        {
-            projectDownloadProgressChanged?.Invoke(progress, total, message);
-        }
-
-        static void OnProjectDataDownloaded(Project project)
-        {
-            projectDataDownloaded?.Invoke(project);
-        }
-
-        static void OnProjectDownloadCanceled(Project project)
-        {
-            projectDownloadCanceled?.Invoke(project);
+            projectDownloadProgressChanged?.Invoke(project, progress, total);
         }
         
         public static void ClearUser() 
         {
             s_ProjectLister?.Dispose();
             s_ProjectLister = null;
-            s_ProjectListerSettings = null;
-            
-            s_ProjectDeleter?.Dispose();
-            s_ProjectDeleter = null;
-            s_ProjectDeleterSettings = null;
-            
-            s_ProjectDownloader?.Dispose();
-            s_ProjectDownloader = null;
-            s_ProjectDownloaderSettings = null;
+
+            s_ProjectsManager?.Dispose();
+            s_ProjectsManager = null;
         }
 
         public static void RefreshProjects()
         {
             s_ProjectLister?.Run();
         }
+        
+        public static ProjectsManager.Status GetStatus(Project project)
+        {
+            return s_ProjectsManager.GetStatus(project);
+        }
+        
+        public static bool IsReadyForOpening(Project project)
+        {
+            var status = s_ProjectsManager.GetStatus(project);
+
+            if (status == ProjectsManager.Status.Unknown)
+                return true;
+            
+            if (!project.IsConnectedToServer && !project.IsLocal)
+                return false;
+            
+            return status != ProjectsManager.Status.Deleting && status != ProjectsManager.Status.QueuedForDelete
+                && status != ProjectsManager.Status.Downloading && status != ProjectsManager.Status.QueuedForDownload;
+        }
 
         public static void DownloadProject(Project project)
         {
-            s_ProjectDownloaderSettings.downloadProject = project;
-            s_ProjectDownloader?.Run();
-        }
+            if (s_ProjectsManager == null)
+                return;
 
-        public static void DisposeDownloadProject()
-        {
-            s_ProjectDownloader.Dispose();
+            s_ProjectsManager.Download(project);
         }
 
         public static void DeleteProjectLocally(Project project)
         {
-            s_ProjectDeleterSettings.deleteProject = project;
-            s_ProjectDeleter?.Run();
-        }
-
-        public static bool HasLocalData(Project project)
-        {
-            //TODO Need to find other way to get playerStorage or move this method to other 
-            var storage = new PlayerStorage(UnityEngine.Reflect.ProjectServer.ProjectDataPath, true, false);
-            return storage.HasLocalData(project);
+            s_ProjectsManager.Delete(project);
         }
     }
 }

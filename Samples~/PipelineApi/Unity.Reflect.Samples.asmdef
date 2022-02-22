@@ -1,0 +1,17 @@
+{
+    "name": "Unity.Reflect.Samples",
+    "rootNamespace": "",
+    "references": [
+        "GUID:6cf67fea318af2844a952982933563b0",
+        "GUID:c6c4e6c6d92818b4f8de2a6eacc86757"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,18 +1,25 @@
 using System;
 using System.Collections.Generic;
+using Unity.Reflect.Actors;
 using UnityEngine;
 
 namespace Unity.Reflect.Collections
 {
 	public sealed class RTree : ISpatialCollection<ISpatialObject>
 	{
-		internal sealed class SpatialNode : ISpatialObject
+		public sealed class SpatialNode : ISpatialObject
 		{
-            public Guid Id { get; }
+			public static Action<ISpatialObject> OnAdded { get; set; }
+			public static Action<ISpatialObject> OnChanged { get; set; }
+			public static Action<ISpatialObject> OnRemoved { get; set; }
+			
+            public DynamicGuid Id { get; }
+            public EntryData Entry { get; set; }
             public Vector3 Min { get; private set; }
 			public Vector3 Max { get; private set; }
 			public Vector3 Center { get; private set; }
 			public float Priority { get; set; }
+			public bool Ignore { get; set; }
 			public bool IsVisible { get; set; }
 			public bool IsLoaded { get; set; }
 			public GameObject LoadedObject { get; set; }
@@ -22,23 +29,29 @@ namespace Unity.Reflect.Collections
 			public SpatialNode parent;
 			public readonly List<ISpatialObject> children;
 
+			public int Depth => parent?.Depth + 1 ?? 0;
+
 			public SpatialNode()
 			{
-				Min = Vector3.positiveInfinity;
-				Max = Vector3.negativeInfinity;
+				Id = DynamicGuid.NewGuid();
+				
+				Min = Max = Vector3.zero;
 
 				parent = null;
 				children = new List<ISpatialObject>();
+				
+				OnAdded?.Invoke(this);
 			}
 
 			public void AdjustBounds()
 			{
 				if (children.Count == 0)
 					return;
-
+				
 				CalculateMinMax(children, out var newMin, out var newMax);
-
 				SetMinMax(newMin, newMax);
+				
+				OnChanged?.Invoke(this);
 			}
 
 			public bool Encapsulates(ISpatialObject obj)
@@ -106,8 +119,6 @@ namespace Unity.Reflect.Collections
 		readonly Comparer<ISpatialObject> m_NodeComparerZ;
 		readonly Comparer<ISpatialObject> m_SplitNodeComparerZ;
 
-		readonly object m_Lock = new object();
-
 		Bounds m_Bounds = new Bounds();
 
 		public int ObjectCount { get; private set; }
@@ -117,13 +128,12 @@ namespace Unity.Reflect.Collections
 		{
 			get
 			{
-				lock (m_Lock)
-					m_Bounds.SetMinMax(m_RootNode.Min, m_RootNode.Max);
+				m_Bounds.SetMinMax(m_RootNode.Min, m_RootNode.Max);
 				return m_Bounds;
 			}
 		}
 
-		public RTree(int minPerNode, int maxPerNode)
+		public RTree(int minPerNode, int maxPerNode, Action<ISpatialObject> onNodeAdded = null, Action<ISpatialObject> onNodeChanged = null, Action<ISpatialObject> onNodeRemoved = null)
 		{
 			m_MinPerNode = minPerNode;
 			m_MaxPerNode = maxPerNode;
@@ -131,8 +141,7 @@ namespace Unity.Reflect.Collections
 			m_CornerSplitChildren = new List<ISpatialObject>[8];
 			for (var i = 0; i < m_CornerSplitChildren.Length; ++i)
 				m_CornerSplitChildren[i] = new List<ISpatialObject>();
-
-			m_RootNode = new SpatialNode();
+			
 			m_PriorityHeap = new PriorityHeap<ISpatialObject>(m_MaxPerNode, Comparer<ISpatialObject>.Create((a, b) => a.Priority.CompareTo(b.Priority)));
 
 			// split node comparison is reversed compared to existing node
@@ -143,52 +152,68 @@ namespace Unity.Reflect.Collections
 			m_SplitNodeComparerY = Comparer<ISpatialObject>.Create((a, b) => b.Center.y.CompareTo(a.Center.y));
 			m_NodeComparerZ = Comparer<ISpatialObject>.Create((a, b) => a.Center.z.CompareTo(b.Center.z));
 			m_SplitNodeComparerZ = Comparer<ISpatialObject>.Create((a, b) => b.Center.z.CompareTo(a.Center.z));
+
+			SpatialNode.OnAdded = onNodeAdded;
+			SpatialNode.OnChanged = onNodeChanged;
+			SpatialNode.OnRemoved = onNodeRemoved;
+
+			m_RootNode = new SpatialNode();
 		}
 
-		public void Search<T>(Func<ISpatialObject, bool> predicate,
+		public void Search<T>(Predicate<ISpatialObject> predicate,
 			Func<ISpatialObject, float> prioritizer,
-			int maxResultsCount,
-			ICollection<T> results) where T : ISpatialObject
+			Action<T> onObjectMatch,
+			int maxResultsCount = int.MaxValue,
+			float nodePriorityThreshold = float.MaxValue) where T : ISpatialObject
 		{
-			lock (m_Lock)
+			SearchInternal(predicate, prioritizer, onObjectMatch, maxResultsCount, nodePriorityThreshold);
+		}
+
+		void SearchInternal<T>(Predicate<ISpatialObject> predicate,
+			Func<ISpatialObject, float> prioritizer,
+			Action<T> onObjectMatch,
+			int maxResultsCount, 
+			float nodePriorityThreshold) where T : ISpatialObject
+		{
+			m_RootNode.Ignore = false; // Reset flag
+			
+			var count = 0;
+			m_PriorityHeap.Clear();
+
+			if (!predicate(m_RootNode))
+				return;
+			
+			m_RootNode.Priority = prioritizer(m_RootNode);
+			m_PriorityHeap.Push(m_RootNode);
+
+			while (count < maxResultsCount && !m_PriorityHeap.isEmpty)
 			{
-				var count = 0;
-				m_PriorityHeap.Clear();
-				results.Clear();
-				m_PriorityHeap.Push(m_RootNode);
+				if (!m_PriorityHeap.TryPop(out var obj))
+					break;
 
-				while (count < maxResultsCount && !m_PriorityHeap.isEmpty)
+				if (obj is SpatialNode node && obj.Priority < nodePriorityThreshold)
 				{
-					if (!m_PriorityHeap.TryPop(out var obj))
-						break;
+					foreach (var child in node.children)
+					{						
+						if (!predicate(child))
+							continue;
 
-					if (obj is SpatialNode node)
-					{
-						foreach (var child in node.children)
-						{
-							if (!predicate(child))
-								continue;
-
-							child.Priority = prioritizer(child);
-							m_PriorityHeap.Push(child);
-						}
-
-						continue;
+						child.Priority = prioritizer(child);
+						m_PriorityHeap.Push(child);
 					}
 
-					results.Add((T)obj);
-					++count;
+					continue;
 				}
+				
+				onObjectMatch((T)obj);
+				++count;
 			}
 		}
 
 		public void Add(ISpatialObject obj)
 		{
-			lock (m_Lock)
-			{
-				Insert(obj);
-				++ObjectCount;
-			}
+			Insert(obj);
+			++ObjectCount;
 		}
 
 		void Insert(ISpatialObject obj)
@@ -223,35 +248,33 @@ namespace Unity.Reflect.Collections
 
 		SpatialNode FindLeaf(ISpatialObject obj)
 		{
-			var node = m_RootNode;
-			while (node != null && !node.isLeaf)
+			return FindLeaf(obj, m_RootNode);
+		}
+
+		SpatialNode FindLeaf(ISpatialObject obj, SpatialNode node)
+		{
+			if (node.isLeaf)
+				return node.children.Contains(obj) ? node : null;
+
+			foreach (var child in node.children)
 			{
-				var validChildFound = false;
-				foreach (var child in node.children)
-				{
-					if (!(child is SpatialNode childNode) || !childNode.Encapsulates(obj))
-						continue;
+				if (!(child is SpatialNode childNode) || !childNode.Encapsulates(obj))
+					continue;
 
-					node = childNode;
-					validChildFound = true;
-					break;
-				}
-
-				if (!validChildFound)
-					return null;
+				var leaf = FindLeaf(obj, childNode);
+				if (leaf != null)
+					return leaf;
 			}
-			return node;
+
+			return null;
 		}
 
 		public void Remove(ISpatialObject obj)
 		{
-			lock (m_Lock)
-			{
-				if (!Delete(obj))
-					return;
+			if (!Delete(obj))
+				return;
 
-				--ObjectCount;
-			}
+			--ObjectCount;
 		}
 
 		bool Delete(ISpatialObject obj)
@@ -315,6 +338,8 @@ namespace Unity.Reflect.Collections
 		{
 			if (!node.isLeaf)
 				return;
+			
+			SpatialNode.OnRemoved?.Invoke(node);
 
 			foreach (var obj in node.children)
 				obj.Priority = (node.Center - obj.Center).sqrMagnitude;
@@ -462,7 +487,7 @@ namespace Unity.Reflect.Collections
 			SpatialNode smallNode = null;
 			SpatialNode bigNode = null;
 			node.children.Clear();
-			splitNode = new SpatialNode { parent = node.parent };
+			splitNode = new SpatialNode() { parent = node.parent };
 
 			var nodeComparer = Comparer<ISpatialObject>.Default;
 			var splitNodeComparer = Comparer<ISpatialObject>.Default;
@@ -531,12 +556,9 @@ namespace Unity.Reflect.Collections
 
 		public void DrawDebug(Gradient nodeGradient, Gradient objectGradient, float maxPriority, int maxDepth)
 		{
-			lock (m_Lock)
-			{
-				var originalColor = Gizmos.color;
-				DrawDebugRecursive(m_RootNode, nodeGradient, objectGradient, maxPriority, maxDepth);
-				Gizmos.color = originalColor;
-			}
+			var originalColor = Gizmos.color;
+			DrawDebugRecursive(m_RootNode, nodeGradient, objectGradient, maxPriority, maxDepth);
+			Gizmos.color = originalColor;
 		}
 
 		void DrawDebugRecursive(ISpatialObject obj, Gradient nodeGradient, Gradient objectGradient, float maxPriority, int maxDepth, float currentDepth = 0f)
@@ -567,8 +589,7 @@ namespace Unity.Reflect.Collections
 
 		public void Dispose()
 		{
-			lock (m_Lock)
-				m_RootNode.Dispose();
+			m_RootNode.Dispose();
 		}
-	}
+    }
 }

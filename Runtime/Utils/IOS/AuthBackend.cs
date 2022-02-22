@@ -19,6 +19,8 @@ namespace UnityEngine.Reflect
         static extern void LaunchSafariWebViewUrl(string url);
         [DllImport("__Internal")]
         static extern void DismissSafariWebView();
+        [DllImport("__Internal")]
+        static extern void RequestAppTrackingAuthorization();
 
         internal AuthBackend(LoginManager manager)
         {
@@ -27,6 +29,7 @@ namespace UnityEngine.Reflect
 
         public void Start()
         {
+            RequestAppTrackingAuthorization();
             m_DeepLinkManager = new DeepLinkManager(m_Manager);
             m_Manager.ReadPersistentToken();
         }

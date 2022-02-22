@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Unity.Reflect;
 using Unity.Reflect.Model;
@@ -14,7 +15,7 @@ namespace UnityEditor.Reflect
     public class SyncPrefabScriptedImporter : ReflectScriptedImporter, IObjectCache
     {
         [Serializable]
-        struct MaterialRemap
+        internal struct MaterialRemap
         {
             public string syncMaterialName;
             public Material remappedMaterial;
@@ -29,11 +30,19 @@ namespace UnityEditor.Reflect
         [SerializeField, HideInInspector]
         MaterialRemap[] m_MaterialRemaps;
         
+        internal MaterialRemap[] MaterialRemaps
+        {
+            get => m_MaterialRemaps.ToArray();
+            set => m_MaterialRemaps = value.ToArray();
+        }
+        
         public override void OnImportAsset(AssetImportContext ctx)
         {
             var syncPrefab = PlayerFile.Load<SyncPrefab>(ctx.assetPath);
             
             Init(syncPrefab.Name);
+
+            syncPrefab.Name = Path.GetFileNameWithoutExtension(syncPrefab.Name);
 
             var root = SyncPrefabImporter.Import(syncPrefab, this);
             

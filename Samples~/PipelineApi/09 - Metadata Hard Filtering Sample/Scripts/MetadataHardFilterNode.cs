@@ -24,7 +24,7 @@ namespace Unity.Reflect.Samples
         }
     }
 
-    class MetadataHardFilter : IReflectNodeProcessor
+    public class MetadataHardFilter : IReflectNodeProcessor
     {
         readonly DataOutput<StreamInstance> m_StreamOutput;
 

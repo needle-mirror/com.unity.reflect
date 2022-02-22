@@ -132,8 +132,10 @@ namespace UnityEngine.Reflect.Pipeline
             var time = DateTime.Now;
             var start = time;
 
-            var manifests = await m_Client.GetSyncManifestsAsync(); // TODO Cancellation Token
-
+            var manifests = await m_Client.GetSyncManifestsAsync(token);
+            // Prioritize .DataSource manifests
+            manifests = SyncManifest.PrioritizeDataSource(manifests);
+            
             m_GettingSourcesTime = GetElapsedTime(ref time);
 
             foreach (var manifest in manifests)
@@ -184,7 +186,7 @@ namespace UnityEngine.Reflect.Pipeline
                     {
                         token.ThrowIfCancellationRequested();
 
-                        if (!manifestEntry.Key.IsKeyFor<SyncObjectInstance>())
+                        if (!manifestEntry.Key.IsRootAsset)
                             continue;
                         
                         var reference = new StreamAsset(manifest.SourceId, manifestEntry.Key, manifestEntry.Value.Hash, manifestEntry.Value.BoundingBox);

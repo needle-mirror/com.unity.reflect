@@ -1,8 +1,10 @@
 {
     "name": "Unity.Reflect",
+    "rootNamespace": "",
     "references": [
-        "Unity.Postprocessing.Runtime",
-        "Unity.SunStudy"
+        "GUID:e513f6a23cbca864c817bd913d7b14f5",
+        "GUID:aca0113fe363d5144b17e9420a71e676",
+        "GUID:8c1b5e158961445498f8a66188fbb2e3"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
